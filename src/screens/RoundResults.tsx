@@ -28,10 +28,16 @@ export function computePlayerTotals(
 
 function findWinner(round: Round): string {
   let best = Infinity
+  let bestScore = Infinity
   let winnerId = ''
   for (const uid of Object.keys(round.players)) {
-    const { scoreDiff } = computePlayerTotals(round, uid)
-    if (scoreDiff < best) { best = scoreDiff; winnerId = uid }
+    const { totalScore, scoreDiff } = computePlayerTotals(round, uid)
+    if (totalScore === 0) continue // skip players who didn't record any shots
+    if (scoreDiff < best || (scoreDiff === best && totalScore < bestScore)) {
+      best = scoreDiff
+      bestScore = totalScore
+      winnerId = uid
+    }
   }
   return round.players[winnerId]?.name ?? 'Неизвестно'
 }
@@ -71,7 +77,11 @@ export function RoundResults() {
       <div className="px-5 pt-5 space-y-3">
         {players
           .map(([uid, player]) => ({ uid, player, ...computePlayerTotals(round, uid) }))
-          .sort((a, b) => a.scoreDiff - b.scoreDiff)
+          .sort((a, b) =>
+            a.scoreDiff !== b.scoreDiff
+              ? a.scoreDiff - b.scoreDiff
+              : a.totalScore - b.totalScore || a.player.name.localeCompare(b.player.name)
+          )
           .map(({ uid, player, totalScore, scoreDiff }) => (
             <Card key={uid}>
               <div className="flex items-center justify-between">
