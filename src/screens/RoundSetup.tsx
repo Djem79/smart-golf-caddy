@@ -6,18 +6,28 @@ import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 
+interface RoundSetupState {
+  course?: CourseResult
+  customName?: string
+}
+
 export function RoundSetup() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
-  const course = (location.state as { course?: CourseResult } | null)?.course
+  const state = (location.state as RoundSetupState | null) ?? {}
+  const course = state.course
 
+  const [customName, setCustomName] = useState(state.customName ?? '')
   const [totalHoles, setTotalHoles] = useState<9 | 18>(18)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const effectiveName = course?.name ?? (customName.trim() || 'Поле для гольфа')
+  const effectiveId = course?.placeId ?? `custom-${Date.now()}`
+
   async function handleStart() {
-    if (!user || !course) return
+    if (!user) return
     setError(null)
     setLoading(true)
     try {
@@ -29,8 +39,8 @@ export function RoundSetup() {
           totalScore: 0,
           scoreDiff: 0,
         },
-        course.placeId,
-        course.name,
+        effectiveId,
+        effectiveName,
         totalHoles,
       )
       navigate(`/round/${roundId}/hole/1`)
@@ -42,26 +52,44 @@ export function RoundSetup() {
     }
   }
 
-  if (!course) {
-    return (
-      <div className="screen items-center justify-center px-5">
-        <p className="text-body-md text-error">Поле не выбрано.</p>
-        <Button onClick={() => navigate('/courses')} className="mt-4">
-          Выбрать поле
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div className="screen">
       <PageHeader title="Настройка раунда" />
 
       <div className="px-5 pt-6 space-y-6 flex-1">
-        <div className="card">
-          <h2 className="font-headline font-bold text-title-lg text-on-surface">{course.name}</h2>
-          <p className="text-label-lg text-on-surface-variant mt-1">{course.vicinity} · {course.distanceKm} км</p>
-        </div>
+        {course ? (
+          <div className="card">
+            <h2 className="font-headline font-bold text-title-lg text-on-surface">{course.name}</h2>
+            <p className="text-label-lg text-on-surface-variant mt-1">{course.vicinity} · {course.distanceKm} км</p>
+            <button
+              type="button"
+              onClick={() => navigate('/courses')}
+              className="text-label-lg text-primary font-semibold mt-3"
+            >
+              Сменить поле
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="font-semibold text-label-lg text-on-surface-variant uppercase tracking-wider">
+              Название поля
+            </p>
+            <input
+              type="text"
+              placeholder="Например: Гольф клуб Москва"
+              value={customName}
+              onChange={e => setCustomName(e.target.value)}
+              className="w-full border border-outline-variant rounded px-4 py-3 text-body-md bg-surface-container-lowest outline-none focus:border-primary"
+            />
+            <button
+              type="button"
+              onClick={() => navigate('/courses')}
+              className="text-label-lg text-primary font-semibold"
+            >
+              Найти ближайшее поле
+            </button>
+          </div>
+        )}
 
         <div>
           <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
@@ -71,6 +99,7 @@ export function RoundSetup() {
             {([9, 18] as const).map(n => (
               <button
                 key={n}
+                type="button"
                 onClick={() => setTotalHoles(n)}
                 className={`flex-1 min-h-touch rounded font-headline font-bold text-title-lg border-2 transition-colors ${
                   totalHoles === n

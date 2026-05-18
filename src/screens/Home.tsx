@@ -42,9 +42,12 @@ export function Home() {
         </h1>
       </div>
 
-      <div className="px-5 pt-6 space-y-4">
+      <div className="px-5 pt-6 space-y-3">
         <Button onClick={() => navigate('/courses')}>
           Начать новый раунд
+        </Button>
+        <Button variant="secondary" onClick={() => navigate('/round/setup')}>
+          Быстрый старт без выбора поля
         </Button>
 
         {recentRounds.length > 0 && (

@@ -4,6 +4,7 @@ import { useGeolocation } from '../hooks/useGeolocation'
 import { findNearbyCourses } from '../services/courses'
 import type { CourseResult } from '../types'
 import { Card } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 
 export function CourseSearch() {
@@ -34,11 +35,15 @@ export function CourseSearch() {
     navigate('/round/setup', { state: { course } })
   }
 
+  function skipSelection() {
+    navigate('/round/setup', { state: { customName: search.trim() || undefined } })
+  }
+
   return (
     <div className="screen">
       <PageHeader title="Поиск полей" />
 
-      <div className="px-5 pt-4 pb-2">
+      <div className="px-5 pt-4 pb-2 space-y-3">
         <input
           type="text"
           placeholder="Поиск по названию..."
@@ -46,6 +51,9 @@ export function CourseSearch() {
           onChange={e => setSearch(e.target.value)}
           className="w-full border border-outline-variant rounded px-4 py-3 text-body-md bg-surface-container-lowest outline-none focus:border-primary"
         />
+        <Button variant="secondary" onClick={skipSelection}>
+          {search.trim() ? `Использовать «${search.trim()}»` : 'Указать поле вручную / пропустить'}
+        </Button>
       </div>
 
       <div className="flex-1 px-5 pb-6 space-y-3 overflow-y-auto">
