@@ -73,8 +73,7 @@ export async function recordShot(
   roundId: string,
   holeIndex: number,
   userId: string,
-  count: number,
-  club: string,
+  clubs: string[],
 ): Promise<void> {
   const ref = doc(db, 'rounds', roundId)
   await runTransaction(db, async (tx) => {
@@ -83,7 +82,18 @@ export async function recordShot(
     const data = snap.data() as Omit<Round, 'id'>
     const holes = data.holes.map((h, i) =>
       i === holeIndex
-        ? { ...h, shots: { ...h.shots, [userId]: { count, club, updatedAt: new Date() } } }
+        ? {
+            ...h,
+            shots: {
+              ...h.shots,
+              [userId]: {
+                count: clubs.length,
+                clubs,
+                club: clubs[clubs.length - 1] ?? '',
+                updatedAt: new Date(),
+              },
+            },
+          }
         : h,
     )
     tx.update(ref, { holes })

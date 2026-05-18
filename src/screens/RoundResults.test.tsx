@@ -24,9 +24,9 @@ import type { Round, HoleConfig } from '../types'
 
 function makeRound(overrides: Partial<Round> = {}): Round {
   const holes: HoleConfig[] = [
-    { holeNumber: 1, par: 4, distanceMeters: 360, shots: { uid1: { count: 3, club: '7i', updatedAt: new Date() } } },
-    { holeNumber: 2, par: 3, distanceMeters: 150, shots: { uid1: { count: 4, club: 'PW', updatedAt: new Date() } } },
-    { holeNumber: 3, par: 5, distanceMeters: 480, shots: { uid1: { count: 5, club: 'Driver', updatedAt: new Date() } } },
+    { holeNumber: 1, par: 4, distanceMeters: 360, shots: { uid1: { count: 3, clubs: ['Driver', '7i', 'Putter'], updatedAt: new Date() } } },
+    { holeNumber: 2, par: 3, distanceMeters: 150, shots: { uid1: { count: 4, clubs: ['7i', 'PW', 'PW', 'Putter'], updatedAt: new Date() } } },
+    { holeNumber: 3, par: 5, distanceMeters: 480, shots: { uid1: { count: 5, clubs: ['Driver', '3W', '7i', 'PW', 'Putter'], updatedAt: new Date() } } },
   ]
   return {
     id: 'r1', courseId: 'c1', courseName: 'Test Course',
@@ -55,8 +55,8 @@ describe('computePlayerTotals', () => {
 
   it('correctly computes negative scoreDiff (under par)', () => {
     const round = makeRound()
-    round.holes[0].shots['uid1'] = { count: 2, club: '7i', updatedAt: new Date() }
-    round.holes[1].shots['uid1'] = { count: 3, club: 'PW', updatedAt: new Date() }
+    round.holes[0].shots['uid1'] = { count: 2, clubs: ['Driver', '7i'], updatedAt: new Date() }
+    round.holes[1].shots['uid1'] = { count: 3, clubs: ['7i', 'PW', 'Putter'], updatedAt: new Date() }
     // shots: 2+3+5=10, par: 4+3+5=12, diff=-2
     const result = computePlayerTotals(round, 'uid1')
     expect(result.totalScore).toBe(10)

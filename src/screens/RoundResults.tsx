@@ -1,30 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { subscribeToRound } from '../services/rounds'
+import { computePlayerTotals, computeClubUsage } from '../services/scoring'
 import { scoreColor, scoreLabel } from '../types'
 import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 
-export function computePlayerTotals(
-  round: Round,
-  userId: string,
-): { totalScore: number; scoreDiff: number } {
-  let totalScore = 0
-  let totalPar = 0
-  let hasAnyShots = false
-  for (const hole of round.holes) {
-    const shots = hole.shots[userId]?.count
-    if (shots != null) {
-      hasAnyShots = true
-      totalScore += shots
-      totalPar += hole.par
-    }
-  }
-  if (!hasAnyShots) return { totalScore: 0, scoreDiff: 0 }
-  return { totalScore, scoreDiff: totalScore - totalPar }
-}
+// Re-export for tests that still import from this module
+export { computePlayerTotals }
 
 function findWinner(round: Round): string {
   let best = Infinity
@@ -106,6 +91,31 @@ export function RoundResults() {
               </div>
             </Card>
           ))}
+      </div>
+
+      <div className="px-5 pt-6">
+        <h2 className="font-headline font-semibold text-title-lg text-on-surface mb-3">Клюшки в этом раунде</h2>
+        <div className="space-y-3">
+          {players.map(([uid, player]) => {
+            const usage = computeClubUsage(round, uid)
+            if (usage.length === 0) return null
+            return (
+              <Card key={uid}>
+                <p className="font-semibold text-body-md text-on-surface mb-2">{player.name}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {usage.map(({ club, count, percent }) => (
+                    <span
+                      key={club}
+                      className="px-2 py-1 rounded-full bg-primary-container/15 text-on-surface text-label-md font-semibold"
+                    >
+                      {club} · {count} ({percent}%)
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            )
+          })}
+        </div>
       </div>
 
       <div className="px-5 pt-6">

@@ -7,9 +7,18 @@ export interface AppUser {
 }
 
 export interface HoleShots {
-  count: number
-  club: string
+  count: number       // equals clubs.length for new writes
+  clubs: string[]     // ordered list, one entry per stroke
+  club?: string       // legacy: present in older rounds (last-used club)
   updatedAt: Date
+}
+
+// Canonical clubs[] for both new and legacy data
+export function getHoleClubs(shots: HoleShots | undefined): string[] {
+  if (!shots) return []
+  if (Array.isArray(shots.clubs) && shots.clubs.length > 0) return shots.clubs
+  if (shots.club) return new Array<string>(shots.count).fill(shots.club)
+  return new Array<string>(shots.count).fill('Неизвестно')
 }
 
 export interface HoleConfig {

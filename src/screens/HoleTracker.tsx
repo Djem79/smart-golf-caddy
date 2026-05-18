@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, recordShot, finishRound } from '../services/rounds'
 import type { Round } from '../types'
-import { DEFAULT_CLUBS } from '../types'
+import { DEFAULT_CLUBS, CLUB_ABBREV, getHoleClubs } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -21,10 +21,13 @@ export function HoleTracker() {
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
 
-  // Optimistic local state — reconciled by snapshot updates
-  const [localShots, setLocalShots] = useState<number | null>(null)
-  const [localClub, setLocalClub] = useState<string | null>(null)
-  const lastSyncedShotsRef = useRef<number | null>(null)
+  // Optimistic state — reconciled by snapshot updates
+  const [localClubs, setLocalClubs] = useState<string[] | null>(null)
+  const lastSyncedKeyRef = useRef<string | null>(null)
+
+  // What club the user has currently highlighted in the chip row.
+  // Independent from recording — only the +/− buttons write shots.
+  const [selectedClub, setSelectedClub] = useState<string>(lastClubUsed)
 
   useEffect(() => {
     if (!roundId) return
@@ -32,58 +35,56 @@ export function HoleTracker() {
   }, [roundId])
 
   const hole = round?.holes[holeIndex]
-  const serverShots = (hole && user) ? (hole.shots[user.uid]?.count ?? 0) : 0
-  const serverClub = (hole && user) ? hole.shots[user.uid]?.club : undefined
+  const serverClubs = (hole && user) ? getHoleClubs(hole.shots[user.uid]) : []
+  const serverKey = serverClubs.join('|')
 
   // Reset optimistic state when navigating to a new hole
   useEffect(() => {
-    setLocalShots(null)
-    setLocalClub(null)
-    lastSyncedShotsRef.current = null
-  }, [holeIndex])
+    setLocalClubs(null)
+    lastSyncedKeyRef.current = null
+    setSelectedClub(lastClubUsed)
+  }, [holeIndex, lastClubUsed])
 
-  // Reconcile local state when server catches up
+  // Reconcile local state when server catches up to our last write
   useEffect(() => {
-    if (localShots !== null && lastSyncedShotsRef.current === serverShots) {
-      // Server has caught up to a previously-written value; trust local
-      return
+    if (localClubs !== null && lastSyncedKeyRef.current === serverKey) return
+    if (serverKey !== lastSyncedKeyRef.current) {
+      lastSyncedKeyRef.current = serverKey
+      setLocalClubs(null)
     }
-    if (serverShots !== lastSyncedShotsRef.current) {
-      lastSyncedShotsRef.current = serverShots
-      setLocalShots(null)
-    }
-  }, [serverShots, localShots])
+  }, [serverKey, localClubs])
 
-  const myShots = localShots ?? serverShots
-  const myClub = localClub ?? serverClub ?? lastClubUsed
+  const myClubs = localClubs ?? serverClubs
+  const myShots = myClubs.length
 
-  const save = useCallback(async (count: number, club: string) => {
+  const save = useCallback(async (clubs: string[]) => {
     if (!roundId || !user || !hole) return
     setSaving(true)
     setError(null)
-    setLocalShots(count)
-    setLocalClub(club)
+    setLocalClubs(clubs)
     try {
-      await recordShot(roundId, holeIndex, user.uid, count, club)
-      lastSyncedShotsRef.current = count
-      setLastClubUsed(club)
+      await recordShot(roundId, holeIndex, user.uid, clubs)
+      lastSyncedKeyRef.current = clubs.join('|')
+      if (clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
     } catch {
       setError('Не удалось сохранить удар. Проверьте связь.')
-      // Roll back optimistic state
-      setLocalShots(null)
-      setLocalClub(null)
+      setLocalClubs(null)
     } finally {
       setSaving(false)
     }
   }, [roundId, user, hole, holeIndex, setLastClubUsed])
 
-  function changeShots(delta: number) {
-    const next = Math.max(1, myShots + delta)
-    save(next, myClub)
+  function addShot() {
+    save([...myClubs, selectedClub])
   }
 
-  function changeClub(club: string) {
-    save(myShots === 0 ? 1 : myShots, club)
+  function removeShot() {
+    if (myClubs.length === 0) return
+    save(myClubs.slice(0, -1))
+  }
+
+  function pickClub(club: string) {
+    setSelectedClub(club)
   }
 
   function goToHole(n: number) {
@@ -151,8 +152,8 @@ export function HoleTracker() {
         <div className="flex items-center gap-8">
           <button
             type="button"
-            onClick={() => changeShots(-1)}
-            disabled={myShots <= 1 || saving}
+            onClick={removeShot}
+            disabled={myShots <= 0 || saving}
             className="w-16 h-16 rounded-full bg-surface-container-high text-on-surface text-headline-lg font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
             aria-label="Убавить удар"
           >
@@ -163,7 +164,7 @@ export function HoleTracker() {
           </span>
           <button
             type="button"
-            onClick={() => changeShots(+1)}
+            onClick={addShot}
             disabled={saving}
             className="w-16 h-16 rounded-full bg-primary text-on-primary text-headline-lg font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
             aria-label="Добавить удар"
@@ -171,6 +172,24 @@ export function HoleTracker() {
             +
           </button>
         </div>
+
+        {/* Strokes log */}
+        {myClubs.length > 0 && (
+          <div className="w-full">
+            <p className="text-center text-label-md text-on-surface-variant mb-1">Серия ударов</p>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {myClubs.map((c, i) => (
+                <span
+                  key={i}
+                  className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-label-md font-semibold"
+                >
+                  {i + 1}. {CLUB_ABBREV[c] ?? c}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {error && (
           <p className="text-center text-label-lg text-error">{error}</p>
         )}
@@ -178,15 +197,15 @@ export function HoleTracker() {
 
       <div className="px-5 space-y-2">
         <p className="text-label-lg text-on-surface-variant font-semibold uppercase tracking-wider">
-          Клюшка
+          Клюшка для следующего удара
         </p>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5">
           {DEFAULT_CLUBS.map(club => (
             <ClubChip
               key={club}
               club={club}
-              selected={myClub === club}
-              onSelect={changeClub}
+              selected={selectedClub === club}
+              onSelect={pickClub}
             />
           ))}
         </div>
