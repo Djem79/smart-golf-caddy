@@ -18,8 +18,6 @@ export function HoleTracker() {
   const { profile } = useProfile()
   const { lastClubUsed, setLastClubUsed } = useAppStore()
 
-  // Pick the active bag (user's customized or default), enabled clubs only.
-  // Fall back to the full default bag if a user has somehow disabled everything.
   const pickerClubs = useMemo(() => {
     const enabled = enabledBagClubs(getBagFromUser(profile))
     return enabled.length > 0 ? enabled : DEFAULT_BAG
@@ -32,12 +30,12 @@ export function HoleTracker() {
   const [finishing, setFinishing] = useState(false)
   const [showFinishConfirm, setShowFinishConfirm] = useState(false)
 
-  // Optimistic state — reconciled by snapshot updates
+  // Active player whose shots we're editing — defaults to self
+  const [activeUserId, setActiveUserId] = useState<string>('')
+
   const [localClubs, setLocalClubs] = useState<string[] | null>(null)
   const lastSyncedKeyRef = useRef<string | null>(null)
 
-  // What club the user has currently highlighted in the chip row.
-  // Independent from recording — only the +/− buttons write shots.
   const [selectedClub, setSelectedClub] = useState<string>(lastClubUsed)
 
   useEffect(() => {
@@ -45,25 +43,43 @@ export function HoleTracker() {
     return subscribeToRound(roundId, setRound)
   }, [roundId])
 
+  // Initialize active player to self once we have user + round
+  useEffect(() => {
+    if (!activeUserId && user) setActiveUserId(user.uid)
+  }, [activeUserId, user])
+
+  // If round status went back to 'lobby' (host left etc.) bounce to lobby; if finished — to results
+  useEffect(() => {
+    if (!roundId || !round) return
+    if (round.status === 'lobby') {
+      navigate(`/round/${roundId}/lobby`, { replace: true })
+    } else if (round.status === 'finished') {
+      navigate(`/round/${roundId}/results`, { replace: true })
+    }
+  }, [round, roundId, navigate])
+
   const hole = round?.holes[holeIndex]
-  const serverClubs = (hole && user) ? getHoleClubs(hole.shots[user.uid]) : []
+  const playerIds = round?.playerIds ?? []
+  const isMultiplayer = playerIds.length > 1
+
+  const serverClubs = (hole && activeUserId) ? getHoleClubs(hole.shots[activeUserId]) : []
   const serverKey = serverClubs.join('|')
 
-  // Reset optimistic state when navigating to a new hole
+  // Reset optimistic state when navigating to a new hole or switching player
   useEffect(() => {
     setLocalClubs(null)
     lastSyncedKeyRef.current = null
     setSelectedClub(lastClubUsed)
-  }, [holeIndex, lastClubUsed])
+  }, [holeIndex, activeUserId, lastClubUsed])
 
-  // If the user's bag doesn't include the currently selected club, pick the first available
+  // Snap selected club to first available if outside the picker
   useEffect(() => {
     if (!pickerClubs.some(c => c.id === selectedClub)) {
       setSelectedClub(pickerClubs[0]?.id ?? 'Driver')
     }
   }, [pickerClubs, selectedClub])
 
-  // Reconcile local state when server catches up to our last write
+  // Reconcile local state when the server catches up to our last write
   useEffect(() => {
     if (localClubs !== null && lastSyncedKeyRef.current === serverKey) return
     if (serverKey !== lastSyncedKeyRef.current) {
@@ -74,45 +90,42 @@ export function HoleTracker() {
 
   const myClubs = localClubs ?? serverClubs
   const myShots = myClubs.length
+  const isSelf = activeUserId === user?.uid
 
   const save = useCallback(async (clubs: string[]) => {
-    if (!roundId || !user || !hole) return
+    if (!roundId || !activeUserId || !hole) return
     setSaving(true)
     setError(null)
     setLocalClubs(clubs)
     try {
-      await recordShot(roundId, holeIndex, user.uid, clubs)
+      await recordShot(roundId, holeIndex, activeUserId, clubs)
       lastSyncedKeyRef.current = clubs.join('|')
-      if (clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
+      // Only update lastClubUsed if I'm recording my own shot — don't track others' clubs in my preferences
+      if (isSelf && clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
     } catch {
       setError('Не удалось сохранить удар. Проверьте связь.')
       setLocalClubs(null)
     } finally {
       setSaving(false)
     }
-  }, [roundId, user, hole, holeIndex, setLastClubUsed])
+  }, [roundId, activeUserId, hole, holeIndex, isSelf, setLastClubUsed])
 
   function addShot() {
     save([...myClubs, selectedClub])
   }
-
   function removeShot() {
     if (myClubs.length === 0) return
     save(myClubs.slice(0, -1))
   }
-
   function pickClub(club: string) {
     setSelectedClub(club)
   }
-
   function goToHole(n: number) {
     navigate(`/round/${roundId}/hole/${n}`)
   }
-
   function requestFinish() {
     setShowFinishConfirm(true)
   }
-
   async function confirmFinish() {
     if (!roundId || finishing) return
     setFinishing(true)
@@ -156,9 +169,52 @@ export function HoleTracker() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5">
+      {/* Player switcher (only in multiplayer) */}
+      {isMultiplayer && (
+        <div className="px-5 pt-3">
+          <p className="text-label-md text-on-surface-variant uppercase tracking-wider mb-2">
+            Игрок (тап для переключения)
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-5 px-5">
+            {playerIds.map(uid => {
+              const p = round.players[uid]
+              if (!p) return null
+              const active = uid === activeUserId
+              const count = hole.shots[uid]?.count ?? 0
+              const isMe = uid === user?.uid
+              return (
+                <button
+                  key={uid}
+                  type="button"
+                  onClick={() => setActiveUserId(uid)}
+                  className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-colors min-h-touch ${
+                    active
+                      ? 'bg-primary text-on-primary border-primary'
+                      : 'bg-surface-container-lowest text-on-surface border-outline-variant'
+                  }`}
+                >
+                  {p.avatar
+                    ? <img src={p.avatar} alt="" className="w-6 h-6 rounded-full" />
+                    : <span className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-label-md">⛳</span>
+                  }
+                  <span className="font-semibold text-label-lg truncate max-w-[100px]">
+                    {isMe ? 'Вы' : p.name}
+                  </span>
+                  <span className={`text-label-lg font-bold ${active ? 'text-on-primary' : 'text-primary'}`}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5 py-4">
         <p className="text-on-surface-variant text-label-lg font-semibold uppercase tracking-wider">
-          Ваши удары
+          {isSelf || !isMultiplayer
+            ? 'Ваши удары'
+            : `Удары: ${round.players[activeUserId]?.name ?? '—'}`}
         </p>
         <div className="flex items-center gap-8">
           <button
@@ -184,7 +240,6 @@ export function HoleTracker() {
           </button>
         </div>
 
-        {/* Strokes log */}
         {myClubs.length > 0 && (
           <div className="w-full">
             <p className="text-center text-label-md text-on-surface-variant mb-1">Серия ударов</p>
@@ -246,7 +301,6 @@ export function HoleTracker() {
         )}
       </div>
 
-      {/* Early-finish link when not on the last hole */}
       {currentHole < totalHoles && (
         <button
           type="button"

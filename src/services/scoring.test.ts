@@ -12,6 +12,7 @@ function makeRound(overrides: Partial<Round> = {}): Round {
     id: 'r1', courseId: 'c1', courseName: 'Test', totalHoles: 9, lobbyCode: 'ABC123',
     status: 'finished', hostId: 'uid1',
     players: { uid1: { name: 'Alice', avatar: '', totalScore: 0, scoreDiff: 0 } },
+    playerIds: ['uid1'],
     holes, startedAt: new Date(), finishedAt: new Date(), createdAt: new Date(),
     ...overrides,
   }

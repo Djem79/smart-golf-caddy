@@ -9,6 +9,8 @@ import { RoundResults } from './screens/RoundResults'
 import { History } from './screens/History'
 import { Profile } from './screens/Profile'
 import { MyBag } from './screens/MyBag'
+import { JoinGame } from './screens/JoinGame'
+import { GroupLobby } from './screens/GroupLobby'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -30,8 +32,11 @@ export default function App() {
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/courses" element={<ProtectedRoute><CourseSearch /></ProtectedRoute>} />
         <Route path="/round/setup" element={<ProtectedRoute><RoundSetup /></ProtectedRoute>} />
+        <Route path="/round/:roundId/lobby" element={<ProtectedRoute><GroupLobby /></ProtectedRoute>} />
         <Route path="/round/:roundId/hole/:holeNumber" element={<ProtectedRoute><HoleTracker /></ProtectedRoute>} />
         <Route path="/round/:roundId/results" element={<ProtectedRoute><RoundResults /></ProtectedRoute>} />
+        <Route path="/join" element={<ProtectedRoute><JoinGame /></ProtectedRoute>} />
+        <Route path="/join/:code" element={<ProtectedRoute><JoinGame /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/bag" element={<ProtectedRoute><MyBag /></ProtectedRoute>} />

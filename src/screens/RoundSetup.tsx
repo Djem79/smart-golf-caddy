@@ -21,6 +21,7 @@ export function RoundSetup() {
 
   const [customName, setCustomName] = useState(state.customName ?? '')
   const [totalHoles, setTotalHoles] = useState<9 | 18>(18)
+  const [mode, setMode] = useState<'solo' | 'group'>('solo')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,8 +44,13 @@ export function RoundSetup() {
         effectiveId,
         effectiveName,
         totalHoles,
+        mode,
       )
-      navigate(`/round/${roundId}/hole/1`)
+      if (mode === 'group') {
+        navigate(`/round/${roundId}/lobby`)
+      } else {
+        navigate(`/round/${roundId}/hole/1`)
+      }
     } catch (e) {
       console.error('Failed to create round', e)
       setError('Не удалось создать раунд. Попробуйте ещё раз.')
@@ -113,11 +119,47 @@ export function RoundSetup() {
             ))}
           </div>
         </div>
+
+        <div>
+          <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
+            Режим игры
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { id: 'solo' as const,  emoji: '⛳', title: 'Соло',   desc: 'Только вы' },
+              { id: 'group' as const, emoji: '👥', title: 'Группа', desc: 'С друзьями' },
+            ]).map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMode(opt.id)}
+                className={`flex flex-col items-center justify-center gap-1 p-4 rounded-lg border-2 transition-colors ${
+                  mode === opt.id
+                    ? 'border-primary bg-primary-container/15 text-on-surface'
+                    : 'border-outline-variant text-on-surface-variant'
+                }`}
+              >
+                <span className="text-3xl">{opt.emoji}</span>
+                <span className="font-headline font-semibold text-label-lg">{opt.title}</span>
+                <span className="text-label-md text-on-surface-variant">{opt.desc}</span>
+              </button>
+            ))}
+          </div>
+          {mode === 'group' && (
+            <p className="text-label-md text-on-surface-variant mt-2 text-center">
+              После создания раунда вы получите код, чтобы пригласить друзей
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="px-5 pb-8 space-y-3">
         <Button onClick={handleStart} disabled={loading}>
-          {loading ? 'Создаём раунд...' : 'Начать игру'}
+          {loading
+            ? 'Создаём раунд...'
+            : mode === 'group'
+              ? 'Создать лобби'
+              : 'Начать игру'}
         </Button>
         {error && (
           <p className="text-center text-label-lg text-error">{error}</p>

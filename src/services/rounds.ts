@@ -1,7 +1,7 @@
 import {
   collection, doc, setDoc, updateDoc,
   onSnapshot, query, where, orderBy, getDocs, serverTimestamp,
-  runTransaction, Timestamp,
+  runTransaction, Timestamp, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import type { Round, HoleConfig, PlayerInfo } from '../types'
@@ -51,6 +51,7 @@ export async function createRound(
   courseId: string,
   courseName: string,
   totalHoles: 9 | 18,
+  mode: 'solo' | 'group' = 'solo',
 ): Promise<string> {
   const ref = doc(collection(db, 'rounds'))
   await setDoc(ref, {
@@ -58,15 +59,58 @@ export async function createRound(
     courseName,
     totalHoles,
     lobbyCode: generateLobbyCode(),
-    status: 'active',
+    status: mode === 'group' ? 'lobby' : 'active',
     hostId,
     players: { [hostId]: hostInfo },
+    playerIds: [hostId],
     holes: buildDefaultHoles(totalHoles),
-    startedAt: serverTimestamp(),
+    startedAt: mode === 'group' ? null : serverTimestamp(),
     finishedAt: null,
     createdAt: serverTimestamp(),
   })
   return ref.id
+}
+
+// Find an open lobby by code and add the joining user to its players map.
+// Returns the round id if successful; null if no matching lobby was found.
+export async function joinRoundByCode(
+  code: string,
+  userId: string,
+  playerInfo: PlayerInfo,
+): Promise<string | null> {
+  const trimmed = code.trim().toUpperCase()
+  if (trimmed.length === 0) return null
+
+  const q = query(
+    collection(db, 'rounds'),
+    where('lobbyCode', '==', trimmed),
+    where('status', '==', 'lobby'),
+  )
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+
+  const docSnap = snap.docs[0]
+  await updateDoc(doc(db, 'rounds', docSnap.id), {
+    [`players.${userId}`]: playerInfo,
+    playerIds: arrayUnion(userId),
+  })
+  return docSnap.id
+}
+
+export async function leaveLobby(roundId: string, userId: string): Promise<void> {
+  // Note: deleting a nested map key requires `FieldValue.delete()`. We just
+  // remove from playerIds and leave the player info as a tombstone. For MVP
+  // this is OK; the lobby UI filters by playerIds for membership.
+  await updateDoc(doc(db, 'rounds', roundId), {
+    playerIds: arrayRemove(userId),
+  })
+}
+
+export async function startRound(roundId: string): Promise<void> {
+  await updateDoc(doc(db, 'rounds', roundId), {
+    status: 'active',
+    startedAt: serverTimestamp(),
+  })
 }
 
 export async function recordShot(
@@ -119,7 +163,7 @@ export function subscribeToRound(
 export async function getUserRounds(userId: string): Promise<Round[]> {
   const q = query(
     collection(db, 'rounds'),
-    where('hostId', '==', userId),
+    where('playerIds', 'array-contains', userId),
     orderBy('createdAt', 'desc'),
   )
   const snap = await getDocs(q)

@@ -61,6 +61,7 @@ export interface Round {
   status: RoundStatus
   hostId: string
   players: Record<string, PlayerInfo>
+  playerIds: string[]            // denormalized for Firestore array-contains queries
   holes: HoleConfig[]
   startedAt: Date
   finishedAt: Date | null

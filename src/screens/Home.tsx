@@ -49,6 +49,9 @@ export function Home() {
         <Button variant="secondary" onClick={() => navigate('/round/setup')}>
           Быстрый старт без выбора поля
         </Button>
+        <Button variant="secondary" onClick={() => navigate('/join')}>
+          🎟️  Присоединиться к игре
+        </Button>
 
         {recentRounds.length > 0 && (
           <div>

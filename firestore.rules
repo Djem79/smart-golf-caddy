@@ -8,25 +8,27 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rounds: anyone authenticated can read; only the host or existing players
-    // can write. New rounds must list the creating user as host.
+    // Rounds.
+    // Reads: any authenticated user (needed so lobby join can find by code).
+    // Create: hostId must match auth uid; the creating user must be the only
+    //   player at creation time.
+    // Update: allowed if the user is the host, OR is already a participant,
+    //   OR is joining an open lobby (round status is 'lobby').
+    // Delete: only the host.
     match /rounds/{roundId} {
       allow read: if request.auth != null;
 
-      // Create: only if the creating user is set as host AND included in players.
       allow create: if request.auth != null
         && request.resource.data.hostId == request.auth.uid
-        && request.resource.data.players[request.auth.uid] != null;
+        && request.resource.data.playerIds is list
+        && request.auth.uid in request.resource.data.playerIds;
 
-      // Update: only the host, or a player already in the players map (so guests
-      // can record their own shots once joined). No one else can modify the round.
-      allow update: if request.auth != null
-        && (
-          resource.data.hostId == request.auth.uid
-          || resource.data.players[request.auth.uid] != null
-        );
+      allow update: if request.auth != null && (
+        resource.data.hostId == request.auth.uid
+        || request.auth.uid in resource.data.playerIds
+        || resource.data.status == 'lobby'
+      );
 
-      // Delete: only the host can delete the round.
       allow delete: if request.auth != null
         && resource.data.hostId == request.auth.uid;
     }
