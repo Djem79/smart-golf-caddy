@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, recordShot, finishRound } from '../services/rounds'
 import type { Round } from '../types'
-import { DEFAULT_CLUBS, CLUB_ABBREV, getHoleClubs } from '../types'
+import { CLUB_ABBREV, getHoleClubs, getBagFromUser, enabledBagClubs, DEFAULT_BAG } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -13,7 +14,15 @@ export function HoleTracker() {
   const { roundId, holeNumber } = useParams<{ roundId: string; holeNumber: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { profile } = useProfile()
   const { lastClubUsed, setLastClubUsed } = useAppStore()
+
+  // Pick the active bag (user's customized or default), enabled clubs only.
+  // Fall back to the full default bag if a user has somehow disabled everything.
+  const pickerClubs = useMemo(() => {
+    const enabled = enabledBagClubs(getBagFromUser(profile))
+    return enabled.length > 0 ? enabled : DEFAULT_BAG
+  }, [profile])
 
   const holeIndex = parseInt(holeNumber ?? '1', 10) - 1
   const [round, setRound] = useState<Round | null>(null)
@@ -44,6 +53,13 @@ export function HoleTracker() {
     lastSyncedKeyRef.current = null
     setSelectedClub(lastClubUsed)
   }, [holeIndex, lastClubUsed])
+
+  // If the user's bag doesn't include the currently selected club, pick the first available
+  useEffect(() => {
+    if (!pickerClubs.some(c => c.id === selectedClub)) {
+      setSelectedClub(pickerClubs[0]?.id ?? 'Driver')
+    }
+  }, [pickerClubs, selectedClub])
 
   // Reconcile local state when server catches up to our last write
   useEffect(() => {
@@ -200,11 +216,11 @@ export function HoleTracker() {
           Клюшка для следующего удара
         </p>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5">
-          {DEFAULT_CLUBS.map(club => (
+          {pickerClubs.map(c => (
             <ClubChip
-              key={club}
-              club={club}
-              selected={selectedClub === club}
+              key={c.id}
+              club={c.id}
+              selected={selectedClub === c.id}
               onSelect={pickClub}
             />
           ))}

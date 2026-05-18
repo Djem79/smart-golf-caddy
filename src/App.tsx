@@ -8,6 +8,7 @@ import { HoleTracker } from './screens/HoleTracker'
 import { RoundResults } from './screens/RoundResults'
 import { History } from './screens/History'
 import { Profile } from './screens/Profile'
+import { MyBag } from './screens/MyBag'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/round/:roundId/results" element={<ProtectedRoute><RoundResults /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/bag" element={<ProtectedRoute><MyBag /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </BrowserRouter>

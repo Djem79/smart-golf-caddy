@@ -114,6 +114,18 @@ export function Profile() {
           )}
         </Card>
 
+        <Card onClick={() => navigate('/bag')}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-headline font-semibold text-title-lg text-on-surface">Моя сумка</h3>
+              <p className="text-label-lg text-on-surface-variant mt-1">
+                Состав клюшек, дистанции, единицы измерения
+              </p>
+            </div>
+            <span className="text-primary text-headline-md ml-3 shrink-0">→</span>
+          </div>
+        </Card>
+
         <Card>
           <h3 className="font-headline font-semibold text-title-lg text-on-surface">Гандикап</h3>
           <p className="text-label-lg text-on-surface-variant mt-1">
