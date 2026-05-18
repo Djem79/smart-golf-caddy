@@ -1,13 +1,19 @@
 import {
-  collection, doc, setDoc, updateDoc, getDoc,
+  collection, doc, setDoc, updateDoc,
   onSnapshot, query, where, orderBy, getDocs, serverTimestamp,
+  runTransaction,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import type { Round, HoleConfig, PlayerInfo } from '../types'
 import { DEFAULT_HOLE_PARS } from '../types'
 
+const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
 export function generateLobbyCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase()
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    code += LOBBY_CHARS[Math.floor(Math.random() * LOBBY_CHARS.length)]
+  }
+  return code
 }
 
 export function buildDefaultHoles(totalHoles: 9 | 18): HoleConfig[] {
@@ -51,14 +57,17 @@ export async function recordShot(
   club: string,
 ): Promise<void> {
   const ref = doc(db, 'rounds', roundId)
-  const snap = await getDoc(ref)
-  const data = snap.data() as Omit<Round, 'id'>
-  const holes = data.holes.map((h, i) =>
-    i === holeIndex
-      ? { ...h, shots: { ...h.shots, [userId]: { count, club, updatedAt: new Date() } } }
-      : h,
-  )
-  await updateDoc(ref, { holes })
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) throw new Error('Round not found')
+    const data = snap.data() as Omit<Round, 'id'>
+    const holes = data.holes.map((h, i) =>
+      i === holeIndex
+        ? { ...h, shots: { ...h.shots, [userId]: { count, club, updatedAt: new Date() } } }
+        : h,
+    )
+    tx.update(ref, { holes })
+  })
 }
 
 export async function finishRound(roundId: string): Promise<void> {
