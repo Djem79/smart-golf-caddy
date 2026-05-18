@@ -1,13 +1,33 @@
 import {
   collection, doc, setDoc, updateDoc,
   onSnapshot, query, where, orderBy, getDocs, serverTimestamp,
-  runTransaction,
+  runTransaction, Timestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import type { Round, HoleConfig, PlayerInfo } from '../types'
 import { DEFAULT_HOLE_PARS } from '../types'
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
+
+function toDate(v: unknown): Date | null {
+  if (v == null) return null
+  if (v instanceof Timestamp) return v.toDate()
+  if (v instanceof Date) return v
+  if (typeof v === 'object' && v !== null && 'seconds' in v) {
+    return new Date((v as { seconds: number }).seconds * 1000)
+  }
+  return null
+}
+
+function normalizeRound(id: string, data: Record<string, unknown>): Round {
+  return {
+    ...data,
+    id,
+    startedAt: toDate(data.startedAt) ?? new Date(),
+    finishedAt: toDate(data.finishedAt),
+    createdAt: toDate(data.createdAt) ?? new Date(),
+  } as Round
+}
 export function generateLobbyCode(): string {
   let code = ''
   for (let i = 0; i < 6; i++) {
@@ -82,7 +102,7 @@ export function subscribeToRound(
   callback: (round: Round) => void,
 ): () => void {
   return onSnapshot(doc(db, 'rounds', roundId), (snap) => {
-    if (snap.exists()) callback({ id: snap.id, ...snap.data() } as Round)
+    if (snap.exists()) callback(normalizeRound(snap.id, snap.data()))
   })
 }
 
@@ -93,5 +113,5 @@ export async function getUserRounds(userId: string): Promise<Round[]> {
     orderBy('createdAt', 'desc'),
   )
   const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Round))
+  return snap.docs.map(d => normalizeRound(d.id, d.data()))
 }

@@ -22,9 +22,7 @@ export function Home() {
   }, [user])
 
   function formatDate(round: Round) {
-    const ts = round.createdAt as unknown as { seconds: number }
-    const date = ts?.seconds ? new Date(ts.seconds * 1000) : new Date()
-    return format(date, 'd MMM yyyy', { locale: ru })
+    return format(round.createdAt, 'd MMM yyyy', { locale: ru })
   }
 
   function scoreSummary(round: Round, uid: string) {

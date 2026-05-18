@@ -14,9 +14,11 @@ export function RoundSetup() {
 
   const [totalHoles, setTotalHoles] = useState<9 | 18>(18)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleStart() {
     if (!user || !course) return
+    setError(null)
     setLoading(true)
     try {
       const roundId = await createRound(
@@ -34,6 +36,7 @@ export function RoundSetup() {
       navigate(`/round/${roundId}/hole/1`)
     } catch (e) {
       console.error('Failed to create round', e)
+      setError('Не удалось создать раунд. Попробуйте ещё раз.')
     } finally {
       setLoading(false)
     }
@@ -82,10 +85,13 @@ export function RoundSetup() {
         </div>
       </div>
 
-      <div className="px-5 pb-8">
+      <div className="px-5 pb-8 space-y-3">
         <Button onClick={handleStart} disabled={loading}>
           {loading ? 'Создаём раунд...' : 'Начать игру'}
         </Button>
+        {error && (
+          <p className="text-center text-label-lg text-error">{error}</p>
+        )}
       </div>
     </div>
   )
