@@ -10,6 +10,9 @@ interface PlacesResponse {
     place_id: string
     name: string
     vicinity?: string
+    rating?: number
+    user_ratings_total?: number
+    photos?: Array<{ photo_reference: string }>
     geometry: { location: { lat: number; lng: number } }
   }>
 }
@@ -44,7 +47,21 @@ export async function findNearbyCourses(
     placeId: p.place_id,
     name: p.name,
     vicinity: p.vicinity ?? '',
+    rating: p.rating,
+    userRatingsTotal: p.user_ratings_total,
+    photoReference: p.photos?.[0]?.photo_reference,
     location: p.geometry.location,
     distanceKm: Math.round(haversineMetres(lat, lng, p.geometry.location.lat, p.geometry.location.lng) / 100) / 10,
   }))
+}
+
+// Google Place Photos URL — usable directly as <img src>.
+// CORS allows browsers to fetch these. Costs 1 quota unit per request.
+export function getCoursePhotoUrl(photoReference: string, maxWidth = 600): string {
+  if (!API_KEY) return ''
+  const url = new URL('https://maps.googleapis.com/maps/api/place/photo')
+  url.searchParams.set('maxwidth', String(maxWidth))
+  url.searchParams.set('photo_reference', photoReference)
+  url.searchParams.set('key', API_KEY)
+  return url.toString()
 }

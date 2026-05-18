@@ -68,6 +68,9 @@ export interface CourseResult {
   name: string
   distanceKm: number
   vicinity: string
+  rating?: number
+  userRatingsTotal?: number
+  photoReference?: string
   location: { lat: number; lng: number }
 }
 
