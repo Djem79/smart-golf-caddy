@@ -32,6 +32,64 @@ firebase projects:list             # verify CLI is authenticated
 
 Setup steps for `.env.local`, Auth provider, Firestore creation, and Places API are in `SETUP.md`. Note that `SETUP.md` predates the group-play changes — the `/join/:code` deep-link route and the `lobbyCode + status` composite index aren't documented there yet.
 
+## Workflow orchestration
+
+### 1. Plan-first by default
+
+- Any task that takes 3+ steps or touches architecture goes through a written plan **before** code.
+- If something goes off — **stop and re-plan**, don't grind.
+- Plans cover verification steps, not just build steps.
+- Write detailed specs up front to remove ambiguity.
+
+### 2. Subagent strategy
+
+- Use subagents generously to keep the main conversation context clean — offload research, recon, and parallel analysis (the 4-way architecture/security/UX/prod-readiness audit is the model).
+- Hard tasks → throw more compute via parallel subagents.
+- **One task per subagent** to keep focus tight. This matches the user's stored preference (`memory/feedback_one_task_at_a_time.md`): during plan execution, dispatch one plan task per implementer subagent and wait for both reviews before the next.
+
+### 3. Self-improvement loop
+
+- After **any** user correction, append the pattern to `tasks/lessons.md` (create if missing).
+- Phrase lessons as rules that prevent the next repeat ("when X, do Y because Z").
+- Iterate lessons until the same kind of mistake stops happening.
+- Re-read `tasks/lessons.md` at the start of a session in this project.
+
+### 4. Verify before "done"
+
+- Never mark a task complete without evidence: run the tests, show the logs, demonstrate behaviour.
+- When relevant, compare behaviour on `main` vs your branch.
+- Ask: "would a staff engineer approve this?" before sending.
+
+### 5. Demand elegance (in moderation)
+
+- On non-trivial changes, pause and ask: "is there a more elegant path?" If the fix is a workaround: "knowing what I know now, redo it cleanly."
+- Skip this for trivial obvious fixes — don't over-engineer.
+- Doubt your own work before showing it.
+
+### 6. Autonomous bug fixing
+
+- Got a bug report? Just fix it. Don't ask the user to hold your hand.
+- Pull from logs, errors, failing tests directly; close them.
+- Zero context switches required from the user.
+- Failed CI tests — go fix them without asking "how?".
+
+## Task management
+
+1. **Plan first**: write a checklisted plan in `tasks/todo.md`.
+2. **Validate plan**: re-read it before starting implementation.
+3. **Track progress**: tick items off as you go.
+4. **Explain as you go**: short summary at each step.
+5. **Document**: append a review section to `tasks/todo.md` when the task is done.
+6. **Capture lessons**: update `tasks/lessons.md` after user-driven corrections.
+
+The `TodoWrite` tool is the in-session equivalent of `tasks/todo.md` for ephemeral progress. Use `tasks/todo.md` (file on disk) when the plan should survive across sessions or be visible to the user in diff.
+
+## Operating principles
+
+- **Simplicity first** — every change is as small as possible. Minimal code wins.
+- **No laziness** — find root causes, no band-aids. Senior-engineer standard.
+- **Minimal blast radius** — touch only what's necessary. No drive-by side-effects.
+
 ## Architecture
 
 ### Layers (one-way dependency arrows)
