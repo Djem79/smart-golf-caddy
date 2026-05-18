@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { useGeolocation } from '../hooks/useGeolocation'
 import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, recordShot, finishRound } from '../services/rounds'
-import { haversineMetres } from '../services/distance'
 import type { Round } from '../types'
 import { DEFAULT_CLUBS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
@@ -15,12 +13,18 @@ export function HoleTracker() {
   const { roundId, holeNumber } = useParams<{ roundId: string; holeNumber: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { lat, lng } = useGeolocation()
   const { lastClubUsed, setLastClubUsed } = useAppStore()
 
   const holeIndex = parseInt(holeNumber ?? '1', 10) - 1
   const [round, setRound] = useState<Round | null>(null)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [finishing, setFinishing] = useState(false)
+
+  // Optimistic local state — reconciled by snapshot updates
+  const [localShots, setLocalShots] = useState<number | null>(null)
+  const [localClub, setLocalClub] = useState<string | null>(null)
+  const lastSyncedShotsRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!roundId) return
@@ -28,21 +32,46 @@ export function HoleTracker() {
   }, [roundId])
 
   const hole = round?.holes[holeIndex]
-  const myShots = (hole && user) ? (hole.shots[user.uid]?.count ?? 0) : 0
-  const myClub = (hole && user) ? (hole.shots[user.uid]?.club ?? lastClubUsed) : lastClubUsed
+  const serverShots = (hole && user) ? (hole.shots[user.uid]?.count ?? 0) : 0
+  const serverClub = (hole && user) ? hole.shots[user.uid]?.club : undefined
 
-  // GPS placeholder: until we have real per-hole pin coordinates, show distance to a small offset
-  // (Plan 2 will integrate real course hole pin data from Golfbert API)
-  const distanceM = hole && lat != null && lng != null
-    ? Math.round(haversineMetres(lat, lng, lat + 0.001, lng + 0.001))
-    : null
+  // Reset optimistic state when navigating to a new hole
+  useEffect(() => {
+    setLocalShots(null)
+    setLocalClub(null)
+    lastSyncedShotsRef.current = null
+  }, [holeIndex])
+
+  // Reconcile local state when server catches up
+  useEffect(() => {
+    if (localShots !== null && lastSyncedShotsRef.current === serverShots) {
+      // Server has caught up to a previously-written value; trust local
+      return
+    }
+    if (serverShots !== lastSyncedShotsRef.current) {
+      lastSyncedShotsRef.current = serverShots
+      setLocalShots(null)
+    }
+  }, [serverShots, localShots])
+
+  const myShots = localShots ?? serverShots
+  const myClub = localClub ?? serverClub ?? lastClubUsed
 
   const save = useCallback(async (count: number, club: string) => {
     if (!roundId || !user || !hole) return
     setSaving(true)
+    setError(null)
+    setLocalShots(count)
+    setLocalClub(club)
     try {
       await recordShot(roundId, holeIndex, user.uid, count, club)
+      lastSyncedShotsRef.current = count
       setLastClubUsed(club)
+    } catch {
+      setError('Не удалось сохранить удар. Проверьте связь.')
+      // Roll back optimistic state
+      setLocalShots(null)
+      setLocalClub(null)
     } finally {
       setSaving(false)
     }
@@ -62,9 +91,16 @@ export function HoleTracker() {
   }
 
   async function handleFinish() {
-    if (!roundId) return
-    await finishRound(roundId)
-    navigate(`/round/${roundId}/results`)
+    if (!roundId || finishing) return
+    setFinishing(true)
+    setError(null)
+    try {
+      await finishRound(roundId)
+      navigate(`/round/${roundId}/results`)
+    } catch {
+      setError('Не удалось завершить раунд. Попробуйте ещё раз.')
+      setFinishing(false)
+    }
   }
 
   if (!round || !hole) {
@@ -84,10 +120,12 @@ export function HoleTracker() {
         title={`Лунка ${currentHole} / ${totalHoles}`}
         right={
           <button
+            type="button"
             onClick={handleFinish}
-            className="text-label-lg text-error font-semibold min-h-touch flex items-center"
+            disabled={finishing}
+            className="text-label-lg text-error font-semibold min-h-touch flex items-center disabled:opacity-40"
           >
-            Финиш
+            {finishing ? '...' : 'Финиш'}
           </button>
         }
       />
@@ -105,15 +143,6 @@ export function HoleTracker() {
           <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} м</p>
         </div>
       </div>
-
-      {distanceM !== null && (
-        <div className="mx-5 mt-3 px-4 py-2 bg-tertiary-container rounded-lg flex items-center gap-2">
-          <span className="text-on-tertiary text-label-lg">📍</span>
-          <span className="text-on-tertiary text-label-lg font-semibold">
-            ~{distanceM} м до поля
-          </span>
-        </div>
-      )}
 
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5">
         <p className="text-on-surface-variant text-label-lg font-semibold uppercase tracking-wider">
@@ -136,12 +165,15 @@ export function HoleTracker() {
             type="button"
             onClick={() => changeShots(+1)}
             disabled={saving}
-            className="w-16 h-16 rounded-full bg-primary text-on-primary text-headline-lg font-bold flex items-center justify-center active:scale-95 transition-transform"
+            className="w-16 h-16 rounded-full bg-primary text-on-primary text-headline-lg font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
             aria-label="Добавить удар"
           >
             +
           </button>
         </div>
+        {error && (
+          <p className="text-center text-label-lg text-error">{error}</p>
+        )}
       </div>
 
       <div className="px-5 space-y-2">
@@ -174,8 +206,12 @@ export function HoleTracker() {
             След. →
           </Button>
         ) : (
-          <Button onClick={handleFinish} className="flex-1 bg-tertiary-container text-on-tertiary">
-            Завершить раунд
+          <Button
+            onClick={handleFinish}
+            disabled={finishing}
+            className="flex-1 bg-tertiary-container text-on-tertiary"
+          >
+            {finishing ? 'Завершаем...' : 'Завершить раунд'}
           </Button>
         )}
       </div>
