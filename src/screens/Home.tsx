@@ -6,6 +6,7 @@ import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { BottomNav } from '../components/layout/BottomNav'
+import { computePlayerTotals } from './RoundResults'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -26,10 +27,10 @@ export function Home() {
   }
 
   function scoreSummary(round: Round, uid: string) {
-    const player = round.players[uid]
-    if (!player) return ''
-    const sign = player.scoreDiff >= 0 ? '+' : ''
-    return `${player.totalScore} (${sign}${player.scoreDiff})`
+    if (!round.players[uid]) return ''
+    const { totalScore, scoreDiff } = computePlayerTotals(round, uid)
+    const sign = scoreDiff >= 0 ? '+' : ''
+    return `${totalScore} (${sign}${scoreDiff})`
   }
 
   return (
