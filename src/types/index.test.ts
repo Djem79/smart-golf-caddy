@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   scoreColor, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
-  DEFAULT_BAG, getBagFromUser, enabledBagClubs, metersToYards, yardsToMeters,
+  DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory,
+  metersToYards, yardsToMeters,
 } from './index'
 
 describe('scoreColor', () => {
@@ -85,9 +86,13 @@ describe('getBagFromUser', () => {
   it('returns DEFAULT_BAG for null user', () => {
     expect(getBagFromUser(null)).toBe(DEFAULT_BAG)
   })
-  it('returns user.bag if present', () => {
+  it('returns user.bag if present (with category backfilled)', () => {
     const userBag = [{ id: 'Driver', distanceMeters: 250, enabled: true }]
-    expect(getBagFromUser({ bag: userBag })).toBe(userBag)
+    const result = getBagFromUser({ bag: userBag })
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('Driver')
+    expect(result[0].distanceMeters).toBe(250)
+    expect(result[0].category).toBe('wood')
   })
   it('migrates legacy clubs[] to bag with matching enabled flags', () => {
     const bag = getBagFromUser({ clubs: ['Driver', '7i', 'Putter'] })
@@ -104,6 +109,43 @@ describe('enabledBagClubs', () => {
     const result = enabledBagClubs(DEFAULT_BAG)
     expect(result.length).toBeLessThan(DEFAULT_BAG.length)
     expect(result.every(c => c.enabled)).toBe(true)
+  })
+})
+
+describe('getClubCategory', () => {
+  it('uses explicit category when present', () => {
+    expect(getClubCategory({ id: 'custom-1', distanceMeters: 0, enabled: true, category: 'wedge' })).toBe('wedge')
+  })
+  it('infers wood from Driver', () => {
+    expect(getClubCategory({ id: 'Driver', distanceMeters: 0, enabled: true })).toBe('wood')
+  })
+  it('infers iron from 7i', () => {
+    expect(getClubCategory({ id: '7i', distanceMeters: 0, enabled: true })).toBe('iron')
+  })
+  it('infers wedge from PW', () => {
+    expect(getClubCategory({ id: 'PW', distanceMeters: 0, enabled: true })).toBe('wedge')
+  })
+  it('infers putter from Putter', () => {
+    expect(getClubCategory({ id: 'Putter', distanceMeters: 0, enabled: true })).toBe('putter')
+  })
+  it('defaults to iron for unknown id with no explicit category', () => {
+    expect(getClubCategory({ id: 'mystery', distanceMeters: 0, enabled: true })).toBe('iron')
+  })
+})
+
+describe('getBagFromUser backfills category', () => {
+  it('adds category to legacy clubs in stored bag', () => {
+    const bag = getBagFromUser({ bag: [
+      { id: 'Driver', distanceMeters: 230, enabled: true },
+      { id: '7i', distanceMeters: 140, enabled: true },
+    ] })
+    expect(bag[0].category).toBe('wood')
+    expect(bag[1].category).toBe('iron')
+  })
+  it('preserves custom clubs with explicit category', () => {
+    const custom = { id: 'custom-abc', distanceMeters: 180, enabled: true, category: 'wood' as const, custom: true }
+    const bag = getBagFromUser({ bag: [custom] })
+    expect(bag).toEqual([custom])
   })
 })
 

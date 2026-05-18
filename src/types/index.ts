@@ -1,10 +1,14 @@
 export type DistanceUnit = 'm' | 'yd'
 
+export type ClubCategory = 'wood' | 'iron' | 'wedge' | 'putter'
+
 export interface BagClub {
-  id: string                 // canonical key: 'Driver', '7i', 'Putter', etc.
+  id: string                 // canonical key: 'Driver', '7i', 'Putter', or 'custom-<rand>'
   customName?: string        // user's model name, e.g., 'Stealth 2 HD'
   distanceMeters: number     // always stored in metres (UI converts to yards if needed)
   enabled: boolean           // is the club in the active bag right now
+  category?: ClubCategory    // group it belongs to (defaults are inferred from id)
+  custom?: boolean           // true for user-added clubs (removable)
 }
 
 export interface AppUser {
@@ -94,35 +98,46 @@ export const DEFAULT_HOLE_PARS: Record<9 | 18, (3 | 4 | 5)[]> = {
 
 // Default bag — average distances per club for a recreational golfer
 export const DEFAULT_BAG: BagClub[] = [
-  { id: 'Driver', distanceMeters: 230, enabled: true  },
-  { id: '3W',     distanceMeters: 210, enabled: true  },
-  { id: '5W',     distanceMeters: 195, enabled: false },
-  { id: '4i',     distanceMeters: 175, enabled: false },
-  { id: '5i',     distanceMeters: 165, enabled: true  },
-  { id: '6i',     distanceMeters: 150, enabled: true  },
-  { id: '7i',     distanceMeters: 140, enabled: true  },
-  { id: '8i',     distanceMeters: 125, enabled: true  },
-  { id: '9i',     distanceMeters: 110, enabled: true  },
-  { id: 'PW',     distanceMeters: 95,  enabled: true  },
-  { id: 'GW',     distanceMeters: 80,  enabled: false },
-  { id: 'SW',     distanceMeters: 70,  enabled: true  },
-  { id: 'LW',     distanceMeters: 55,  enabled: false },
-  { id: 'Putter', distanceMeters: 0,   enabled: true  },
+  { id: 'Driver', distanceMeters: 230, enabled: true,  category: 'wood'   },
+  { id: '3W',     distanceMeters: 210, enabled: true,  category: 'wood'   },
+  { id: '5W',     distanceMeters: 195, enabled: false, category: 'wood'   },
+  { id: '4i',     distanceMeters: 175, enabled: false, category: 'iron'   },
+  { id: '5i',     distanceMeters: 165, enabled: true,  category: 'iron'   },
+  { id: '6i',     distanceMeters: 150, enabled: true,  category: 'iron'   },
+  { id: '7i',     distanceMeters: 140, enabled: true,  category: 'iron'   },
+  { id: '8i',     distanceMeters: 125, enabled: true,  category: 'iron'   },
+  { id: '9i',     distanceMeters: 110, enabled: true,  category: 'iron'   },
+  { id: 'PW',     distanceMeters: 95,  enabled: true,  category: 'wedge'  },
+  { id: 'GW',     distanceMeters: 80,  enabled: false, category: 'wedge'  },
+  { id: 'SW',     distanceMeters: 70,  enabled: true,  category: 'wedge'  },
+  { id: 'LW',     distanceMeters: 55,  enabled: false, category: 'wedge'  },
+  { id: 'Putter', distanceMeters: 0,   enabled: true,  category: 'putter' },
 ]
 
-export const CLUB_GROUPS: Array<{ label: string; ids: string[] }> = [
-  { label: 'Драйвер и вуды', ids: ['Driver', '3W', '5W'] },
-  { label: 'Айроны',         ids: ['4i', '5i', '6i', '7i', '8i', '9i'] },
-  { label: 'Вейджи',         ids: ['PW', 'GW', 'SW', 'LW'] },
-  { label: 'Паттер',         ids: ['Putter'] },
+export const CLUB_GROUPS: Array<{ category: ClubCategory; label: string; defaultIds: string[] }> = [
+  { category: 'wood',   label: 'Драйвер и вуды', defaultIds: ['Driver', '3W', '5W'] },
+  { category: 'iron',   label: 'Айроны',         defaultIds: ['4i', '5i', '6i', '7i', '8i', '9i'] },
+  { category: 'wedge',  label: 'Вейджи',         defaultIds: ['PW', 'GW', 'SW', 'LW'] },
+  { category: 'putter', label: 'Паттер',         defaultIds: ['Putter'] },
 ]
+
+// Resolve a club's category — explicit field wins, otherwise infer from id
+export function getClubCategory(club: BagClub): ClubCategory {
+  if (club.category) return club.category
+  for (const group of CLUB_GROUPS) {
+    if (group.defaultIds.includes(club.id)) return group.category
+  }
+  return 'iron' // safe default for unknown ids
+}
 
 // Normalize a user document into the canonical bag shape:
-// - Prefer the new `bag` field
+// - Prefer the new `bag` field (backfill missing category from id)
 // - Fall back to legacy `clubs: string[]` by enabling only those ids in DEFAULT_BAG
 // - Otherwise return the full DEFAULT_BAG
 export function getBagFromUser(user: { bag?: BagClub[]; clubs?: string[] } | null | undefined): BagClub[] {
-  if (user?.bag && user.bag.length > 0) return user.bag
+  if (user?.bag && user.bag.length > 0) {
+    return user.bag.map(c => c.category ? c : { ...c, category: getClubCategory(c) })
+  }
   if (user?.clubs && user.clubs.length > 0) {
     const enabled = new Set(user.clubs)
     return DEFAULT_BAG.map(c => ({ ...c, enabled: enabled.has(c.id) }))
