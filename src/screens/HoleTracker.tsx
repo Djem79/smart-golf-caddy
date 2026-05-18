@@ -8,6 +8,7 @@ import type { Round } from '../types'
 import { CLUB_ABBREV, getHoleClubs, getBagFromUser, enabledBagClubs, DEFAULT_BAG } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 
 export function HoleTracker() {
@@ -29,6 +30,7 @@ export function HoleTracker() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false)
 
   // Optimistic state — reconciled by snapshot updates
   const [localClubs, setLocalClubs] = useState<string[] | null>(null)
@@ -107,7 +109,11 @@ export function HoleTracker() {
     navigate(`/round/${roundId}/hole/${n}`)
   }
 
-  async function handleFinish() {
+  function requestFinish() {
+    setShowFinishConfirm(true)
+  }
+
+  async function confirmFinish() {
     if (!roundId || finishing) return
     setFinishing(true)
     setError(null)
@@ -117,6 +123,7 @@ export function HoleTracker() {
     } catch {
       setError('Не удалось завершить раунд. Попробуйте ещё раз.')
       setFinishing(false)
+      setShowFinishConfirm(false)
     }
   }
 
@@ -133,19 +140,7 @@ export function HoleTracker() {
 
   return (
     <div className="screen pb-6">
-      <PageHeader
-        title={`Лунка ${currentHole} / ${totalHoles}`}
-        right={
-          <button
-            type="button"
-            onClick={handleFinish}
-            disabled={finishing}
-            className="text-label-lg text-error font-semibold min-h-touch flex items-center disabled:opacity-40"
-          >
-            {finishing ? '...' : 'Финиш'}
-          </button>
-        }
-      />
+      <PageHeader title={`Лунка ${currentHole} / ${totalHoles}`} />
 
       <div className="bg-primary-container px-5 py-4 flex items-center justify-between">
         <div>
@@ -242,14 +237,41 @@ export function HoleTracker() {
           </Button>
         ) : (
           <Button
-            onClick={handleFinish}
+            onClick={requestFinish}
             disabled={finishing}
-            className="flex-1 bg-tertiary-container text-on-tertiary"
+            className="flex-1"
           >
-            {finishing ? 'Завершаем...' : 'Завершить раунд'}
+            🏁  Завершить раунд
           </Button>
         )}
       </div>
+
+      {/* Early-finish link when not on the last hole */}
+      {currentHole < totalHoles && (
+        <button
+          type="button"
+          onClick={requestFinish}
+          disabled={finishing}
+          className="mt-3 mx-auto text-label-lg text-on-surface-variant font-semibold underline min-h-touch px-3 disabled:opacity-40"
+        >
+          Завершить раунд досрочно
+        </button>
+      )}
+
+      <ConfirmDialog
+        open={showFinishConfirm}
+        title="Завершить раунд?"
+        body={
+          currentHole < totalHoles
+            ? `Вы прошли ${currentHole - 1} из ${totalHoles} лунок. Пройденные удары попадут в итоги, незавершённые лунки — без ударов.`
+            : 'Раунд будет записан в историю. Изменить удары после этого нельзя.'
+        }
+        confirmLabel="Завершить"
+        cancelLabel="Продолжить"
+        loading={finishing}
+        onConfirm={confirmFinish}
+        onCancel={() => setShowFinishConfirm(false)}
+      />
     </div>
   )
 }

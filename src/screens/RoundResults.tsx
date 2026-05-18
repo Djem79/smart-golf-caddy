@@ -7,6 +7,7 @@ import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
+import { BottomNav } from '../components/layout/BottomNav'
 
 // Re-export for tests that still import from this module
 export { computePlayerTotals }
@@ -50,7 +51,7 @@ export function RoundResults() {
   const totalPar = round.holes.reduce((s, h) => s + h.par, 0)
 
   return (
-    <div className="screen pb-8">
+    <div className="screen pb-24">
       <PageHeader title="Итоги раунда" showBack={false} />
 
       <div className="bg-primary-container px-5 py-6 text-center">
@@ -172,6 +173,8 @@ export function RoundResults() {
         <Button onClick={() => navigate('/courses')}>Новый раунд</Button>
         <Button variant="secondary" onClick={() => navigate('/home')}>На главную</Button>
       </div>
+
+      <BottomNav />
     </div>
   )
 }

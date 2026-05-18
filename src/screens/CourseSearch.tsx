@@ -5,6 +5,7 @@ import { findNearbyCourses, getCoursePhotoUrl } from '../services/courses'
 import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
+import { BottomNav } from '../components/layout/BottomNav'
 
 export function CourseSearch() {
   const navigate = useNavigate()
@@ -40,7 +41,7 @@ export function CourseSearch() {
   }
 
   return (
-    <div className="screen">
+    <div className="screen pb-20">
       <PageHeader title="Поиск полей" />
 
       {/* Search field */}
@@ -104,6 +105,8 @@ export function CourseSearch() {
           <p className="text-center text-on-surface-variant text-body-md pt-4">Поля не найдены</p>
         )}
       </div>
+
+      <BottomNav />
     </div>
   )
 }

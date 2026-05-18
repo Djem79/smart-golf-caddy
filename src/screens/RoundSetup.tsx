@@ -5,6 +5,7 @@ import { createRound } from '../services/rounds'
 import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
+import { BottomNav } from '../components/layout/BottomNav'
 
 interface RoundSetupState {
   course?: CourseResult
@@ -53,7 +54,7 @@ export function RoundSetup() {
   }
 
   return (
-    <div className="screen">
+    <div className="screen pb-20">
       <PageHeader title="Настройка раунда" />
 
       <div className="px-5 pt-6 space-y-6 flex-1">
@@ -122,6 +123,8 @@ export function RoundSetup() {
           <p className="text-center text-label-lg text-error">{error}</p>
         )}
       </div>
+
+      <BottomNav />
     </div>
   )
 }
