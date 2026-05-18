@@ -15,12 +15,15 @@ export function CourseSearch() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (!lat || !lng) return
+    if (lat == null || lng == null) return
+    let cancelled = false
     setLoading(true)
+    setError(null)
     findNearbyCourses(lat, lng)
-      .then(setCourses)
-      .catch(() => setError('Не удалось загрузить поля. Проверьте интернет.'))
-      .finally(() => setLoading(false))
+      .then(r => { if (!cancelled) setCourses(r) })
+      .catch(() => { if (!cancelled) setError('Не удалось загрузить поля. Проверьте интернет.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [lat, lng])
 
   const filtered = courses.filter(c =>
