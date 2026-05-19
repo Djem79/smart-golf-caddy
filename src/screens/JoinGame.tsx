@@ -80,7 +80,7 @@ export function JoinGame() {
             value={code}
             onChange={e => onCodeChange(e.target.value)}
             maxLength={6}
-            className="w-full h-20 px-4 text-center font-headline font-bold text-display-lg tracking-[0.5em] uppercase bg-surface-container-lowest border-2 border-outline-variant rounded-lg outline-none focus:border-primary"
+            className="w-full h-20 px-4 text-center font-headline font-bold text-display-lg tracking-[0.5em] uppercase bg-surface-container-lowest border-2 border-outline-variant rounded-lg focus:border-primary"
           />
         </div>
 

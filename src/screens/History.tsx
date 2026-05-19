@@ -6,7 +6,8 @@ import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-import { computePlayerTotals } from './RoundResults'
+import { computePlayerTotals } from '../services/scoring'
+import { pluralRu } from '../utils/intl'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -55,7 +56,7 @@ export function History() {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-body-md text-on-surface truncate">{round.courseName}</p>
                   <p className="text-label-lg text-on-surface-variant mt-0.5">
-                    {formatDate(round)} · {round.totalHoles} лунок · {Object.keys(round.players).length} игр.
+                    {formatDate(round)} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')} · {Object.keys(round.players).length} {pluralRu(Object.keys(round.players).length, 'игрок', 'игрока', 'игроков')}
                   </p>
                 </div>
                 <div className="ml-3 text-right shrink-0">

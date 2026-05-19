@@ -26,12 +26,14 @@ export function RoundSetup() {
   const [error, setError] = useState<string | null>(null)
 
   const effectiveName = course?.name ?? (customName.trim() || 'Поле для гольфа')
-  const effectiveId = course?.placeId ?? `custom-${Date.now()}`
 
   async function handleStart() {
     if (!user) return
     setError(null)
     setLoading(true)
+    // Only generate the synthetic course id at submit time — calling Date.now()
+    // in the render body would create a new id on every keystroke.
+    const effectiveId = course?.placeId ?? `custom-${Date.now()}`
     try {
       const roundId = await createRound(
         user.uid,
@@ -86,7 +88,7 @@ export function RoundSetup() {
               placeholder="Например: Гольф клуб Москва"
               value={customName}
               onChange={e => setCustomName(e.target.value)}
-              className="w-full border border-outline-variant rounded px-4 py-3 text-body-md bg-surface-container-lowest outline-none focus:border-primary"
+              className="w-full border border-outline-variant rounded px-4 py-3 text-body-md bg-surface-container-lowest focus:border-primary"
             />
             <button
               type="button"

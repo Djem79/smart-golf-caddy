@@ -6,6 +6,7 @@ import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
+import { pluralRu } from '../utils/intl'
 
 export function CourseSearch() {
   const navigate = useNavigate()
@@ -53,7 +54,7 @@ export function CourseSearch() {
             placeholder="Поиск полей или городов"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full h-14 pl-11 pr-4 bg-surface-container-low border-none rounded-md text-body-md shadow-card outline-none focus:ring-2 focus:ring-primary placeholder:text-on-surface-variant/60"
+            className="w-full h-14 pl-11 pr-4 bg-surface-container-low border-none rounded-md text-body-md shadow-card placeholder:text-on-surface-variant/60"
           />
         </div>
       </div>
@@ -173,13 +174,4 @@ function SkeletonCard() {
       </div>
     </div>
   )
-}
-
-// Russian noun pluralization: 1 → форма1, 2-4 → форма2, прочие → форма3
-function pluralRu(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10
-  const mod100 = n % 100
-  if (mod10 === 1 && mod100 !== 11) return one
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
-  return many
 }

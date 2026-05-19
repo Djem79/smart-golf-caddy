@@ -243,7 +243,7 @@ function ClubRow({ club, units, distanceValue, isPutter, onToggle, onSetName, on
           placeholder={club.custom ? 'Название' : 'Модель'}
           defaultValue={club.customName ?? ''}
           onBlur={e => onSetName(e.target.value)}
-          className="w-full h-7 px-0 text-label-md bg-transparent border-none outline-none text-on-surface-variant placeholder:text-on-surface-variant/50"
+          className="w-full h-7 px-0 text-label-md bg-transparent border-none text-on-surface-variant placeholder:text-on-surface-variant/50"
         />
       </div>
       {!isPutter ? (
@@ -256,7 +256,7 @@ function ClubRow({ club, units, distanceValue, isPutter, onToggle, onSetName, on
             max={400}
             defaultValue={distanceValue}
             onBlur={e => onSetDistance(e.target.value)}
-            className="w-12 bg-transparent border-none text-right text-label-md font-semibold text-on-surface outline-none p-0"
+            className="w-12 bg-transparent border-none text-right text-label-md font-semibold text-on-surface p-0"
           />
           <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? 'я' : 'м'}</span>
         </div>
@@ -310,7 +310,7 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
           value={name}
           onChange={e => setName(e.target.value)}
           autoFocus
-          className="flex-1 h-10 px-3 text-body-md bg-surface-container-lowest border border-outline-variant rounded outline-none focus:border-primary"
+          className="flex-1 h-10 px-3 text-body-md bg-surface-container-lowest border border-outline-variant rounded focus:border-primary"
         />
         <div className="flex items-center bg-surface-container-lowest rounded h-10 px-2 border border-outline-variant focus-within:border-primary">
           <input
@@ -321,7 +321,7 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
             placeholder="0"
             value={distance}
             onChange={e => setDistance(e.target.value)}
-            className="w-14 bg-transparent border-none text-right text-label-md font-semibold text-on-surface outline-none p-0"
+            className="w-14 bg-transparent border-none text-right text-label-md font-semibold text-on-surface p-0"
           />
           <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? 'я' : 'м'}</span>
         </div>

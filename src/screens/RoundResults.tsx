@@ -8,9 +8,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-
-// Re-export for tests that still import from this module
-export { computePlayerTotals }
+import { pluralRu } from '../utils/intl'
 
 function findWinner(round: Round): string {
   let best = Infinity
@@ -57,7 +55,7 @@ export function RoundResults() {
       <div className="bg-primary-container px-5 py-6 text-center">
         <p className="text-on-primary/70 text-label-lg uppercase tracking-wider">Победитель</p>
         <p className="font-headline font-bold text-headline-lg text-on-primary mt-1">🏆 {winner}</p>
-        <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} лунок</p>
+        <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
       </div>
 
       <div className="px-5 pt-5 space-y-3">

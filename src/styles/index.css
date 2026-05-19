@@ -13,6 +13,10 @@
   * {
     box-sizing: border-box;
   }
+  /* Keyboard-only focus ring; mouse/touch clicks don't trigger it. */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
 }
 
 @layer components {

@@ -6,7 +6,8 @@ import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { BottomNav } from '../components/layout/BottomNav'
-import { computePlayerTotals } from './RoundResults'
+import { computePlayerTotals } from '../services/scoring'
+import { pluralRu } from '../utils/intl'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -65,7 +66,7 @@ export function Home() {
                     <div>
                       <p className="font-semibold text-body-md text-on-surface">{round.courseName}</p>
                       <p className="text-label-lg text-on-surface-variant mt-0.5">
-                        {formatDate(round)} · {round.totalHoles} лунок
+                        {formatDate(round)} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
                       </p>
                     </div>
                     {user && (

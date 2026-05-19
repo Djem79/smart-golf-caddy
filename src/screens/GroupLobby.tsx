@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
+import { pluralRu } from '../utils/intl'
 
 export function GroupLobby() {
   const { roundId } = useParams<{ roundId: string }>()
@@ -158,7 +159,7 @@ export function GroupLobby() {
       <div className="px-5 pb-6 space-y-3">
         {isHost ? (
           <Button onClick={handleStart} disabled={starting || players.length === 0}>
-            {starting ? 'Запускаем...' : `🏁 Начать раунд (${players.length} ${players.length === 1 ? 'игрок' : 'игроков'})`}
+            {starting ? 'Запускаем...' : `🏁 Начать раунд (${players.length} ${pluralRu(players.length, 'игрок', 'игрока', 'игроков')})`}
           </Button>
         ) : (
           <div className="text-center text-body-md text-on-surface-variant py-3">

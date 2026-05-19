@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
+import { pluralRu } from '../utils/intl'
 
 export function Profile() {
   const navigate = useNavigate()
@@ -99,7 +100,7 @@ export function Profile() {
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-body-md text-on-surface">{club}</span>
                     <span className="text-label-md text-on-surface-variant">
-                      {count} {count === 1 ? 'удар' : 'ударов'} · {percent}%
+                      {count} {pluralRu(count, 'удар', 'удара', 'ударов')} · {percent}%
                     </span>
                   </div>
                   <div className="h-2 bg-surface-container rounded-full overflow-hidden">
