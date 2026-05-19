@@ -90,6 +90,34 @@ export function MyBag() {
     await persistBag(bag.filter(c => c.id !== id))
   }
 
+  // Swap a club with the previous/next club in the same category.
+  // The bag array is the order of truth — HoleTracker's picker reads
+  // enabledBagClubs(bag) which preserves array order.
+  async function moveClub(id: string, direction: 'up' | 'down') {
+    const idx = bag.findIndex(c => c.id === id)
+    if (idx === -1) return
+    const category = getClubCategory(bag[idx])
+
+    // Find the neighbour in the same category, scanning the bag in the
+    // requested direction. Skipping clubs of other categories keeps the
+    // section visually intact (groups in MyBag stay coherent).
+    let neighbour = -1
+    if (direction === 'up') {
+      for (let i = idx - 1; i >= 0; i--) {
+        if (getClubCategory(bag[i]) === category) { neighbour = i; break }
+      }
+    } else {
+      for (let i = idx + 1; i < bag.length; i++) {
+        if (getClubCategory(bag[i]) === category) { neighbour = i; break }
+      }
+    }
+    if (neighbour === -1) return
+
+    const next = [...bag]
+    ;[next[idx], next[neighbour]] = [next[neighbour], next[idx]]
+    await persistBag(next)
+  }
+
   function distanceValue(club: BagClub): number {
     if (getClubCategory(club) === 'putter') return 0
     return units === 'yd' ? metersToYards(club.distanceMeters) : club.distanceMeters
@@ -176,7 +204,7 @@ export function MyBag() {
                 </span>
               </div>
               <div className="space-y-2">
-                {clubs.map(club => (
+                {clubs.map((club, idx) => (
                   <ClubRow
                     key={club.id}
                     club={club}
@@ -187,6 +215,10 @@ export function MyBag() {
                     onSetName={(n) => setName(club.id, n)}
                     onSetDistance={(d) => setDistance(club.id, d)}
                     onDelete={club.custom ? () => deleteClub(club.id) : undefined}
+                    canMoveUp={idx > 0}
+                    canMoveDown={idx < clubs.length - 1}
+                    onMoveUp={() => moveClub(club.id, 'up')}
+                    onMoveDown={() => moveClub(club.id, 'down')}
                   />
                 ))}
 
@@ -226,13 +258,41 @@ interface ClubRowProps {
   onSetName: (name: string) => void
   onSetDistance: (raw: string) => void
   onDelete?: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
 }
 
-function ClubRow({ club, units, distanceValue, isPutter, onToggle, onSetName, onSetDistance, onDelete }: ClubRowProps) {
+function ClubRow({
+  club, units, distanceValue, isPutter,
+  onToggle, onSetName, onSetDistance, onDelete,
+  canMoveUp, canMoveDown, onMoveUp, onMoveDown,
+}: ClubRowProps) {
   const displayLabel = club.custom ? (club.customName || 'Клюшка') : club.id
 
   return (
-    <div className={`flex items-center gap-3 p-3 bg-surface-container-lowest border border-outline-variant/30 rounded-lg transition-opacity ${!club.enabled ? 'opacity-60' : ''}`}>
+    <div className={`flex items-center gap-2 p-3 bg-surface-container-lowest border border-outline-variant/30 rounded-lg transition-opacity ${!club.enabled ? 'opacity-60' : ''}`}>
+      <div className="flex flex-col shrink-0">
+        <button
+          type="button"
+          onClick={onMoveUp}
+          disabled={!canMoveUp}
+          aria-label={`Поднять ${displayLabel} выше`}
+          className="w-6 h-5 flex items-center justify-center text-on-surface-variant disabled:opacity-20 active:scale-95"
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          onClick={onMoveDown}
+          disabled={!canMoveDown}
+          aria-label={`Опустить ${displayLabel} ниже`}
+          className="w-6 h-5 flex items-center justify-center text-on-surface-variant disabled:opacity-20 active:scale-95"
+        >
+          ▼
+        </button>
+      </div>
       <div className="w-11 h-11 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-label-lg text-on-surface">
         {CLUB_ABBREV[club.id] ?? (club.custom ? '✦' : club.id)}
       </div>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   scoreColor, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
-  DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory,
+  DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory, getClubLabel,
   metersToYards, yardsToMeters,
 } from './index'
 
@@ -162,5 +162,35 @@ describe('distance unit conversion', () => {
     const start = 200
     const roundtrip = yardsToMeters(metersToYards(start))
     expect(Math.abs(roundtrip - start)).toBeLessThan(2)
+  })
+})
+
+describe('getClubLabel', () => {
+  const customBag = [
+    ...DEFAULT_BAG,
+    { id: 'custom-abc', customName: 'Hybrid 3', distanceMeters: 180, enabled: true, category: 'wood' as const, custom: true },
+    { id: 'custom-noname', customName: undefined, distanceMeters: 0, enabled: true, category: 'iron' as const, custom: true },
+  ]
+
+  it('returns abbreviation for default clubs', () => {
+    expect(getClubLabel('Driver', DEFAULT_BAG)).toBe('DRV')
+    expect(getClubLabel('7i', DEFAULT_BAG)).toBe('7i')
+    expect(getClubLabel('Putter', DEFAULT_BAG)).toBe('PT')
+  })
+
+  it('returns customName for custom clubs present in the bag', () => {
+    expect(getClubLabel('custom-abc', customBag)).toBe('Hybrid 3')
+  })
+
+  it('returns "Клюшка" for custom ids missing from the bag', () => {
+    expect(getClubLabel('custom-deleted', [])).toBe('Клюшка')
+  })
+
+  it('returns "Клюшка" for custom clubs in the bag but without a customName', () => {
+    expect(getClubLabel('custom-noname', customBag)).toBe('Клюшка')
+  })
+
+  it('returns the id unchanged for unknown non-custom ids', () => {
+    expect(getClubLabel('Wedge99', [])).toBe('Wedge99')
   })
 })

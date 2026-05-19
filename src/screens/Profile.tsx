@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useProfile } from '../hooks/useProfile'
 import { signOut } from '../services/auth'
 import { getUserRounds } from '../services/rounds'
 import { computeClubUsage } from '../services/scoring'
+import { getBagFromUser, getClubLabel } from '../types'
 import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -14,8 +16,11 @@ import { pluralRu } from '../utils/intl'
 export function Profile() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { profile } = useProfile()
   const [signingOut, setSigningOut] = useState(false)
   const [rounds, setRounds] = useState<Round[]>([])
+
+  const bag = useMemo(() => getBagFromUser(profile), [profile])
 
   useEffect(() => {
     if (!user) return
@@ -98,7 +103,7 @@ export function Profile() {
               {clubStats.map(({ club, count, percent }) => (
                 <div key={club}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-body-md text-on-surface">{club}</span>
+                    <span className="font-semibold text-body-md text-on-surface">{getClubLabel(club, bag)}</span>
                     <span className="text-label-md text-on-surface-variant">
                       {count} {pluralRu(count, 'удар', 'удара', 'ударов')} · {percent}%
                     </span>

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
 import { computePlayerTotals, computeClubUsage } from '../services/scoring'
-import { scoreColor, scoreLabel } from '../types'
+import { scoreColor, scoreLabel, getBagFromUser, getClubLabel } from '../types'
 import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -29,7 +30,12 @@ function findWinner(round: Round): string {
 export function RoundResults() {
   const { roundId } = useParams<{ roundId: string }>()
   const navigate = useNavigate()
+  const { profile } = useProfile()
   const [round, setRound] = useState<Round | null>(null)
+  // Resolve display names for clubs using the current viewer's bag.
+  // Custom clubs owned by other players show as "Клюшка" — acceptable
+  // until we snapshot the display name into each shot.
+  const viewerBag = useMemo(() => getBagFromUser(profile), [profile])
 
   useEffect(() => {
     if (!roundId) return
@@ -107,7 +113,7 @@ export function RoundResults() {
                       key={club}
                       className="px-2 py-1 rounded-full bg-primary-container/15 text-on-surface text-label-md font-semibold"
                     >
-                      {club} · {count} ({percent}%)
+                      {getClubLabel(club, viewerBag)} · {count} ({percent}%)
                     </span>
                   ))}
                 </div>

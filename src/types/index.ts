@@ -150,6 +150,19 @@ export function enabledBagClubs(bag: BagClub[]): BagClub[] {
   return bag.filter(c => c.enabled)
 }
 
+// Resolve a club id to a short, user-facing label.
+// - Default clubs: their canonical abbreviation (e.g. 'Driver' -> 'DRV', '7i' -> '7i').
+// - Custom clubs: the customName from the bag.
+// - Custom clubs missing from the bag (deleted, or another player's in group play): 'Клюшка'.
+// - Unknown non-custom ids: returned unchanged (defensive fallback).
+export function getClubLabel(clubId: string, bag: BagClub[]): string {
+  if (CLUB_ABBREV[clubId]) return CLUB_ABBREV[clubId]
+  const club = bag.find(c => c.id === clubId)
+  if (club?.customName && club.customName.trim().length > 0) return club.customName
+  if (clubId.startsWith('custom-')) return 'Клюшка'
+  return clubId
+}
+
 export function metersToYards(m: number): number {
   return Math.round(m * 1.0936)
 }

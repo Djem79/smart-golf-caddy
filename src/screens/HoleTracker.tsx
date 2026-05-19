@@ -5,7 +5,7 @@ import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, recordShot, finishRound } from '../services/rounds'
 import type { Round } from '../types'
-import { CLUB_ABBREV, getHoleClubs, getBagFromUser, enabledBagClubs, DEFAULT_BAG } from '../types'
+import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -22,6 +22,10 @@ export function HoleTracker() {
     const enabled = enabledBagClubs(getBagFromUser(profile))
     return enabled.length > 0 ? enabled : DEFAULT_BAG
   }, [profile])
+
+  // Full bag (incl. disabled / custom clubs) — used to resolve display labels
+  // for clubs referenced in already-recorded shots that may be disabled now.
+  const fullBag = useMemo(() => getBagFromUser(profile), [profile])
 
   const holeIndex = parseInt(holeNumber ?? '1', 10) - 1
   const [round, setRound] = useState<Round | null>(null)
@@ -249,7 +253,7 @@ export function HoleTracker() {
                   key={i}
                   className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-label-md font-semibold"
                 >
-                  {i + 1}. {CLUB_ABBREV[c] ?? c}
+                  {i + 1}. {getClubLabel(c, fullBag)}
                 </span>
               ))}
             </div>
@@ -270,6 +274,7 @@ export function HoleTracker() {
             <ClubChip
               key={c.id}
               club={c.id}
+              label={getClubLabel(c.id, fullBag)}
               selected={selectedClub === c.id}
               onSelect={pickClub}
             />

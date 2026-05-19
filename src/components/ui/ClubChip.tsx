@@ -4,9 +4,14 @@ interface ClubChipProps {
   club: string
   selected: boolean
   onSelect: (club: string) => void
+  // Optional override label — for custom clubs the parent computes a
+  // friendly name via getClubLabel and passes it in. Falls back to the
+  // CLUB_ABBREV map for default clubs (or the raw id as a last resort).
+  label?: string
 }
 
-export function ClubChip({ club, selected, onSelect }: ClubChipProps) {
+export function ClubChip({ club, selected, onSelect, label }: ClubChipProps) {
+  const displayed = label ?? CLUB_ABBREV[club] ?? club
   return (
     <button
       onClick={() => onSelect(club)}
@@ -16,7 +21,7 @@ export function ClubChip({ club, selected, onSelect }: ClubChipProps) {
           : 'bg-surface-container border border-outline-variant text-on-surface-variant'
       }`}
     >
-      {CLUB_ABBREV[club] ?? club}
+      {displayed}
     </button>
   )
 }
