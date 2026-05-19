@@ -261,7 +261,7 @@ export function HoleTracker() {
             >
               <Minus size={28} strokeWidth={2} />
             </button>
-            <span className="font-headline font-bold text-[88px] leading-none text-primary text-center tabular-nums w-20 flex items-center justify-center">
+            <span className="font-headline font-bold text-[64px] leading-none text-primary text-center tabular-nums w-20 h-16 flex items-center justify-center">
               {myShots}
             </span>
             <button
@@ -344,14 +344,17 @@ export function HoleTracker() {
       </div>
 
       {isHost && currentHole < totalHoles && (
-        <button
-          type="button"
-          onClick={requestFinish}
-          disabled={finishing}
-          className="mt-3 mx-auto text-label-lg text-on-surface-variant font-semibold underline min-h-touch px-3 disabled:opacity-40"
-        >
-          Закончить игру досрочно
-        </button>
+        <div className="px-5 mt-3">
+          <Button
+            variant="secondary"
+            icon={Flag}
+            onClick={requestFinish}
+            disabled={finishing}
+            className="uppercase tracking-wider"
+          >
+            Закончить игру досрочно
+          </Button>
+        </div>
       )}
 
       <ConfirmDialog
