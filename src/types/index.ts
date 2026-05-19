@@ -103,16 +103,18 @@ export interface CourseResult {
 }
 
 export const DEFAULT_CLUBS: string[] = [
-  'Driver', '3W', '5W',
-  '4i', '5i', '6i', '7i', '8i', '9i',
-  'PW', 'GW', 'SW', 'LW',
+  'Driver', '3W', '5W', 'Hybrid',
+  '3i', '4i', '5i', '6i', '7i', '8i', '9i',
+  'PW', 'GW', '50°', 'SW', '54°', '58°', 'LW', '60°',
   'Putter',
 ]
 
 export const CLUB_ABBREV: Record<string, string> = {
-  Driver: 'DRV', '3W': '3W', '5W': '5W',
-  '4i': '4i', '5i': '5i', '6i': '6i', '7i': '7i', '8i': '8i', '9i': '9i',
-  PW: 'PW', GW: 'GW', SW: 'SW', LW: 'LW', Putter: 'PT',
+  Driver: 'DRV', '3W': '3W', '5W': '5W', Hybrid: 'HY',
+  '3i': '3i', '4i': '4i', '5i': '5i', '6i': '6i', '7i': '7i', '8i': '8i', '9i': '9i',
+  PW: 'PW', GW: 'GW', SW: 'SW', LW: 'LW',
+  '50°': '50°', '54°': '54°', '58°': '58°', '60°': '60°',
+  Putter: 'PT',
 }
 
 export const DEFAULT_HOLE_PARS: Record<9 | 18, (3 | 4 | 5)[]> = {
@@ -120,11 +122,15 @@ export const DEFAULT_HOLE_PARS: Record<9 | 18, (3 | 4 | 5)[]> = {
   18: [4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4],
 }
 
-// Default bag — average distances per club for a recreational golfer
+// Default bag — average distances per club for a recreational golfer.
+// Hybrid + 3i + loft-based wedges (50°/54°/58°/60°) are disabled by default
+// so the typical 14-club bag stays uncluttered; users enable what they have.
 export const DEFAULT_BAG: BagClub[] = [
   { id: 'Driver', distanceMeters: 230, enabled: true,  category: 'wood'   },
   { id: '3W',     distanceMeters: 210, enabled: true,  category: 'wood'   },
   { id: '5W',     distanceMeters: 195, enabled: false, category: 'wood'   },
+  { id: 'Hybrid', distanceMeters: 185, enabled: false, category: 'wood'   },
+  { id: '3i',     distanceMeters: 185, enabled: false, category: 'iron'   },
   { id: '4i',     distanceMeters: 175, enabled: false, category: 'iron'   },
   { id: '5i',     distanceMeters: 165, enabled: true,  category: 'iron'   },
   { id: '6i',     distanceMeters: 150, enabled: true,  category: 'iron'   },
@@ -132,16 +138,20 @@ export const DEFAULT_BAG: BagClub[] = [
   { id: '8i',     distanceMeters: 125, enabled: true,  category: 'iron'   },
   { id: '9i',     distanceMeters: 110, enabled: true,  category: 'iron'   },
   { id: 'PW',     distanceMeters: 95,  enabled: true,  category: 'wedge'  },
-  { id: 'GW',     distanceMeters: 80,  enabled: false, category: 'wedge'  },
+  { id: 'GW',     distanceMeters: 85,  enabled: false, category: 'wedge'  },
+  { id: '50°',    distanceMeters: 85,  enabled: false, category: 'wedge'  },
   { id: 'SW',     distanceMeters: 70,  enabled: true,  category: 'wedge'  },
+  { id: '54°',    distanceMeters: 75,  enabled: false, category: 'wedge'  },
+  { id: '58°',    distanceMeters: 60,  enabled: false, category: 'wedge'  },
   { id: 'LW',     distanceMeters: 55,  enabled: false, category: 'wedge'  },
+  { id: '60°',    distanceMeters: 55,  enabled: false, category: 'wedge'  },
   { id: 'Putter', distanceMeters: 0,   enabled: true,  category: 'putter' },
 ]
 
 export const CLUB_GROUPS: Array<{ category: ClubCategory; label: string; defaultIds: string[] }> = [
-  { category: 'wood',   label: 'Драйвер и вуды', defaultIds: ['Driver', '3W', '5W'] },
-  { category: 'iron',   label: 'Айроны',         defaultIds: ['4i', '5i', '6i', '7i', '8i', '9i'] },
-  { category: 'wedge',  label: 'Вейджи',         defaultIds: ['PW', 'GW', 'SW', 'LW'] },
+  { category: 'wood',   label: 'Драйвер и вуды', defaultIds: ['Driver', '3W', '5W', 'Hybrid'] },
+  { category: 'iron',   label: 'Айроны',         defaultIds: ['3i', '4i', '5i', '6i', '7i', '8i', '9i'] },
+  { category: 'wedge',  label: 'Вейджи',         defaultIds: ['PW', 'GW', '50°', 'SW', '54°', '58°', 'LW', '60°'] },
   { category: 'putter', label: 'Паттер',         defaultIds: ['Putter'] },
 ]
 

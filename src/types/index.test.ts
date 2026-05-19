@@ -42,7 +42,9 @@ describe('scoreLabel', () => {
 describe('DEFAULT_CLUBS', () => {
   it('contains Putter', () => expect(DEFAULT_CLUBS).toContain('Putter'))
   it('contains Driver', () => expect(DEFAULT_CLUBS).toContain('Driver'))
-  it('has 14 clubs', () => expect(DEFAULT_CLUBS).toHaveLength(14))
+  // DEFAULT_CLUBS / DEFAULT_BAG now act as a palette — users pick 14 to enable.
+  it('has at least 14 options (the USGA-legal cap)', () =>
+    expect(DEFAULT_CLUBS.length).toBeGreaterThanOrEqual(14))
 })
 
 describe('CLUB_ABBREV', () => {
@@ -64,8 +66,8 @@ describe('DEFAULT_HOLE_PARS', () => {
 })
 
 describe('DEFAULT_BAG', () => {
-  it('has 14 clubs matching DEFAULT_CLUBS', () => {
-    expect(DEFAULT_BAG).toHaveLength(14)
+  it('matches DEFAULT_CLUBS one-to-one', () => {
+    expect(DEFAULT_BAG).toHaveLength(DEFAULT_CLUBS.length)
     for (const club of DEFAULT_BAG) {
       expect(DEFAULT_CLUBS).toContain(club.id)
     }
@@ -100,7 +102,7 @@ describe('getBagFromUser', () => {
     expect(bag.find(c => c.id === '7i')?.enabled).toBe(true)
     expect(bag.find(c => c.id === 'Putter')?.enabled).toBe(true)
     expect(bag.find(c => c.id === '3W')?.enabled).toBe(false)
-    expect(bag).toHaveLength(14)
+    expect(bag).toHaveLength(DEFAULT_BAG.length)
   })
 })
 

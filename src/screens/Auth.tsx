@@ -57,10 +57,8 @@ export function Auth() {
   }
 
   return (
-    <div className="screen relative items-stretch px-5 pt-16 pb-10">
-      <div className="absolute inset-x-0 top-0 h-[42%] bg-gradient-to-b from-primary-container to-primary -z-10" />
-
-      <div className="flex-1 flex flex-col">
+    <div className="screen items-stretch px-0 bg-gradient-to-b from-primary-container to-primary">
+      <div className="flex-1 flex flex-col px-5 pt-16">
         <div className="space-y-3">
           <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.2em] font-semibold">
             Premium golf companion
@@ -74,7 +72,7 @@ export function Auth() {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="bg-surface rounded-t-3xl px-5 pt-7 pb-10 space-y-3 shadow-elevated">
         <button
           type="button"
           onClick={handleGoogleSignIn}

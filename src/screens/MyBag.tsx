@@ -333,10 +333,20 @@ function ClubRow({
       >
         <GripVertical size={16} strokeWidth={1.75} />
       </button>
-      <div className="w-10 h-10 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-label-lg text-on-surface">
-        {CLUB_ABBREV[club.id] ?? (club.custom
-          ? <Sparkle size={16} strokeWidth={1.75} className="text-on-surface/70" />
-          : club.id)}
+      <div className="w-10 h-10 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-on-surface px-1">
+        {CLUB_ABBREV[club.id] ? (
+          <span className="text-label-lg">{CLUB_ABBREV[club.id]}</span>
+        ) : club.custom ? (
+          club.customName && club.customName.trim().length > 0 ? (
+            <span className="text-label-md leading-none truncate">
+              {club.customName.trim().slice(0, 3)}
+            </span>
+          ) : (
+            <Sparkle size={16} strokeWidth={1.75} className="text-on-surface/70" />
+          )
+        ) : (
+          <span className="text-label-lg">{club.id}</span>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-label-lg text-on-surface truncate">{displayLabel}</p>

@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase-admin/app'
+import { getAuth } from 'firebase-admin/auth'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
@@ -9,9 +10,40 @@ import { Resend } from 'resend'
 import * as React from 'react'
 
 import { RoundSummary } from './emails/RoundSummary'
-import { buildPayload, type RoundLike } from './emails/buildPayload'
+import { buildPayload, type BagClubLite, type RoundLike } from './emails/buildPayload'
 
 initializeApp()
+
+// Fallback: pull email straight from Firebase Auth when the round document
+// has no email recorded (e.g. legacy rounds created before PlayerInfo got
+// the field).
+async function resolveEmail(round: RoundLike, uid: string): Promise<string> {
+  const recorded = round.players[uid]?.email
+  if (recorded) return recorded
+  try {
+    const record = await getAuth().getUser(uid)
+    return record.email ?? ''
+  } catch (e) {
+    logger.warn('Auth lookup failed for user', { uid, error: e instanceof Error ? e.message : 'unknown' })
+    return ''
+  }
+}
+
+// Pull the user's bag from users/{uid}.bag so that custom club ids resolve
+// to their human-readable customName in the email. Falls back to undefined
+// when the doc or field is missing — payload builder then treats unknown
+// ids as 'Клюшка' / the raw id.
+async function resolveBag(uid: string): Promise<BagClubLite[] | undefined> {
+  try {
+    const snap = await getFirestore().doc(`users/${uid}`).get()
+    if (!snap.exists) return undefined
+    const data = snap.data() as { bag?: BagClubLite[] } | undefined
+    return Array.isArray(data?.bag) ? data.bag : undefined
+  } catch (e) {
+    logger.warn('Bag lookup failed for user', { uid, error: e instanceof Error ? e.message : 'unknown' })
+    return undefined
+  }
+}
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY')
 
@@ -33,13 +65,13 @@ async function sendOneRoundEmail(
   uid: string,
   toOverride?: string,
 ): Promise<SendResult> {
-  const player = round.players[uid]
-  const recipient = toOverride ?? player?.email ?? ''
+  const recipient = toOverride ?? (await resolveEmail(round, uid))
   if (!recipient) {
-    return { uid, email: '', ok: false, reason: 'no email on player' }
+    return { uid, email: '', ok: false, reason: 'no email available (player + auth both empty)' }
   }
 
-  const payload = buildPayload(round, uid, APP_BASE_URL)
+  const bag = await resolveBag(uid)
+  const payload = buildPayload(round, uid, bag, APP_BASE_URL)
   const element = React.createElement(RoundSummary, { data: payload })
   const html = await render(element)
   const text = await render(element, { plainText: true })

@@ -22,6 +22,33 @@ export interface RoundLike {
   createdAt?: { toDate?: () => Date } | Date | null
 }
 
+export interface BagClubLite {
+  id: string
+  customName?: string
+}
+
+// Canonical short abbreviations for built-in clubs — kept in sync with
+// src/types/index.ts CLUB_ABBREV in the web app. Duplicated here so the
+// Functions bundle doesn't pull the whole web types module.
+const CLUB_ABBREV: Record<string, string> = {
+  Driver: 'DRV',
+  '3W': '3W', '5W': '5W', Hybrid: 'HY',
+  '3i': '3i', '4i': '4i', '5i': '5i', '6i': '6i', '7i': '7i', '8i': '8i', '9i': '9i',
+  PW: 'PW', GW: 'GW', SW: 'SW', LW: 'LW',
+  '50°': '50°', '54°': '54°', '58°': '58°', '60°': '60°',
+  Putter: 'PT',
+}
+
+function resolveClubLabel(clubId: string, bag: BagClubLite[] | undefined): string {
+  if (CLUB_ABBREV[clubId]) return CLUB_ABBREV[clubId]
+  if (bag) {
+    const found = bag.find(c => c.id === clubId)
+    if (found?.customName && found.customName.trim().length > 0) return found.customName.trim()
+  }
+  if (clubId.startsWith('custom-')) return 'Клюшка'
+  return clubId
+}
+
 function toDate(v: unknown): Date {
   if (!v) return new Date()
   if (v instanceof Date) return v
@@ -62,7 +89,14 @@ function bestHole(rows: EmailHoleRow[]): EmailHoleRow | null {
   return best
 }
 
-function topClubs(round: RoundLike, uid: string, limit = 3): EmailClubStat[] {
+function topClubs(
+  round: RoundLike,
+  uid: string,
+  bag: BagClubLite[] | undefined,
+  limit = 3,
+): EmailClubStat[] {
+  // Count by canonical/custom id first, then resolve labels at the end so
+  // multiple ids that share a label (rare, but possible) don't collide.
   const counts = new Map<string, number>()
   let total = 0
   for (const h of round.holes) {
@@ -74,8 +108,8 @@ function topClubs(round: RoundLike, uid: string, limit = 3): EmailClubStat[] {
   }
   if (total === 0) return []
   return Array.from(counts.entries())
-    .map(([club, count]) => ({
-      club,
+    .map(([clubId, count]) => ({
+      club: resolveClubLabel(clubId, bag),
       count,
       percent: Math.round((count / total) * 100),
     }))
@@ -123,6 +157,7 @@ function matchInfo(round: RoundLike): MatchPlayInfo | null {
 export function buildPayload(
   round: RoundLike,
   uid: string,
+  bag: BagClubLite[] | undefined,
   appBaseUrl = 'https://smart-golf-caddy.web.app',
 ): RoundSummaryPayload {
   const player = round.players[uid]
@@ -146,7 +181,7 @@ export function buildPayload(
     scoreDiff: totalScore - totalPar,
     bestHole: bestHole(scorecard),
     scorecard,
-    topClubs: topClubs(round, uid),
+    topClubs: topClubs(round, uid, bag),
     match: matchInfo(round),
     resultsUrl: `${appBaseUrl}/round/${round.id}/results`,
   }
