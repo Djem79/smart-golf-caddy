@@ -4,157 +4,306 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Smart Golf Caddy — mobile-first React PWA for tracking golf rounds (Russian UI). Stack: React 19 + TypeScript + Vite + Tailwind + Firebase 10 (Auth + Firestore) + Zustand + Vitest. Target viewport is **390 px wide** (`.screen` utility enforces `max-w-[390px] mx-auto`). Design system: **Fairway Elite** — green primary `#1B5E20`, Montserrat headlines, Inter body. All tokens live in `tailwind.config.js`.
+Smart Golf Caddy — mobile-first React PWA для трекинга гольф-раундов
+(русский UI). Target viewport — **390 px wide** (`.screen` утилита
+форсит `max-w-[390px] mx-auto`).
 
-Original specs and plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/`. The plan-driven Plan 1 is shipped; the doc still calls out group-play, profile and bag as "Plan 2", but those are in fact implemented.
+**Stack:**
+- Frontend: React 19 + TypeScript + Vite + Tailwind 3 + Zustand
+- Backend: Firebase 10 (Auth + Firestore + Hosting) + Cloud Functions
+  Gen 2 (Node 20, `functions/`)
+- Email: Resend + `react-email` (rendered server-side в functions)
+- PWA: `vite-plugin-pwa`, Sentry: `@sentry/react`
+- Tests: Vitest + @testing-library + jsdom
+
+**Design system:** Fairway Elite — green primary `#00450D` /
+primary-container `#1B5E20`. **Шрифт унифицирован: Playfair Display**
+(весь UI, headlines и body — один шрифт, см. Sprint 8). Иконки —
+**lucide-react** (никаких эмодзи). Все токены в `tailwind.config.js`.
+
+Сейчас в проде версия **v1.0.0** (см. git tag, GitHub Release,
+`BACKUP.md`).
 
 ## Common commands
 
 ```bash
-# Node is via nvm — these commands need `source ~/.nvm/nvm.sh` first in fresh shells.
-npm run dev              # Vite dev server on :5173
+# Node через nvm — в свежей сессии нужно `source ~/.nvm/nvm.sh`
+npm run dev              # Vite dev server :5173
 npm run build            # tsc -b && vite build
 npm run test             # vitest watch
 npm run test:run         # vitest run (CI mode)
-npm run test:run -- src/services/scoring.test.ts   # single file
+npm run test:run -- src/services/scoring.test.ts   # одиночный файл
 npm run lint             # eslint .
-npx tsc --noEmit         # type-check only (no emit, no build)
+npx tsc --noEmit         # type-check (без emit)
 ```
 
-Firebase CLI is installed globally via nvm. From a fresh terminal:
+Functions (отдельный TypeScript-проект в `functions/`):
+
+```bash
+cd functions
+npm run build            # tsc
+npx tsc --noEmit         # type-check functions без emit
+npm run email:dev        # react-email dev preview :3000
+```
+
+Firebase CLI (auth через `firebase login` уже сделан):
 
 ```bash
 source ~/.nvm/nvm.sh
-firebase deploy --only firestore   # deploys firestore.rules + firestore.indexes.json
-firebase deploy --only hosting     # builds-must-have-run; deploys dist/ to Firebase Hosting
-firebase projects:list             # verify CLI is authenticated
+firebase deploy --only hosting             # frontend
+firebase deploy --only functions           # cloud functions
+firebase deploy --only firestore           # rules + indexes
+firebase deploy --only firestore,functions,hosting   # всё сразу
+firebase functions:log                     # tail логов всех функций
+firebase functions:secrets:set RESEND_API_KEY   # ротация секрета
+firebase functions:list                    # список развёрнутых функций
 ```
 
-Setup steps for `.env.local`, Auth provider, Firestore creation, and Places API are in `SETUP.md`. Note that `SETUP.md` predates the group-play changes — the `/join/:code` deep-link route and the `lobbyCode + status` composite index aren't documented there yet.
+Setup-инструкции для `.env.local`, Auth provider, Places API и Resend —
+в `SETUP.md`. Бэкап / recovery — в `BACKUP.md`.
 
 ## Workflow orchestration
 
 ### 1. Plan-first by default
 
-- Any task that takes 3+ steps or touches architecture goes through a written plan **before** code.
-- If something goes off — **stop and re-plan**, don't grind.
-- Plans cover verification steps, not just build steps.
-- Write detailed specs up front to remove ambiguity.
+- Любая задача в 3+ шага или с архитектурой — через письменный план.
+- Если что-то пошло не так — **stop and re-plan**, не молотить.
+- Плана покрывают и verification, не только build.
 
 ### 2. Subagent strategy
 
-- Use subagents generously to keep the main conversation context clean — offload research, recon, and parallel analysis (the 4-way architecture/security/UX/prod-readiness audit is the model).
-- Hard tasks → throw more compute via parallel subagents.
-- **One task per subagent** to keep focus tight. This matches the user's stored preference (`memory/feedback_one_task_at_a_time.md`): during plan execution, dispatch one plan task per implementer subagent and wait for both reviews before the next.
+- Спавнить сабагентов щедро для разведки / параллельного анализа
+  (4-way audit architecture/security/UX/prod-readiness — это модель).
+- Тяжёлые задачи → больше compute через параллельных сабагентов.
+- **Одна задача на сабагента** — это хранится в
+  `memory/feedback_one_task_at_a_time.md`. При plan execution
+  диспатчить по одному таску, ждать обоих review перед следующим.
 
 ### 3. Self-improvement loop
 
-- After **any** user correction, append the pattern to `tasks/lessons.md` (create if missing).
-- Phrase lessons as rules that prevent the next repeat ("when X, do Y because Z").
-- Iterate lessons until the same kind of mistake stops happening.
-- Re-read `tasks/lessons.md` at the start of a session in this project.
+- После **любой** user correction — добавить паттерн в
+  `tasks/lessons.md` (создать если нет).
+- Формулировать lesson как правило, предотвращающее повтор.
 
 ### 4. Verify before "done"
 
-- Never mark a task complete without evidence: run the tests, show the logs, demonstrate behaviour.
-- When relevant, compare behaviour on `main` vs your branch.
-- Ask: "would a staff engineer approve this?" before sending.
+- Не маркировать таск как complete без доказательства: тесты,
+  логи, демонстрация поведения.
+- Спросить: «would a staff engineer approve this?» до отправки.
 
 ### 5. Demand elegance (in moderation)
 
-- On non-trivial changes, pause and ask: "is there a more elegant path?" If the fix is a workaround: "knowing what I know now, redo it cleanly."
-- Skip this for trivial obvious fixes — don't over-engineer.
-- Doubt your own work before showing it.
+- На нетривиальных правках паузить и спросить: «is there a more
+  elegant path?» Пропускать для тривиальных фиксов.
 
 ### 6. Autonomous bug fixing
 
-- Got a bug report? Just fix it. Don't ask the user to hold your hand.
-- Pull from logs, errors, failing tests directly; close them.
-- Zero context switches required from the user.
-- Failed CI tests — go fix them without asking "how?".
+- Багрепорт? Просто фиксить. Не держать пользователя за руку.
 
 ## Task management
 
-1. **Plan first**: write a checklisted plan in `tasks/todo.md`.
-2. **Validate plan**: re-read it before starting implementation.
-3. **Track progress**: tick items off as you go.
-4. **Explain as you go**: short summary at each step.
-5. **Document**: append a review section to `tasks/todo.md` when the task is done.
-6. **Capture lessons**: update `tasks/lessons.md` after user-driven corrections.
+1. **Plan first**: чек-лист в `tasks/todo.md`.
+2. **Validate plan**: перечитать перед стартом.
+3. **Track progress**: тикать пункты.
+4. **Document**: добавить review-секцию в `tasks/todo.md` по окончанию.
+5. **Capture lessons**: обновить `tasks/lessons.md` после корректировок.
 
-The `TodoWrite` tool is the in-session equivalent of `tasks/todo.md` for ephemeral progress. Use `tasks/todo.md` (file on disk) when the plan should survive across sessions or be visible to the user in diff.
+`TodoWrite` — эфемерный progress (in-session), `tasks/todo.md` —
+персистентный между сессиями.
 
 ## Operating principles
 
-- **Simplicity first** — every change is as small as possible. Minimal code wins.
-- **No laziness** — find root causes, no band-aids. Senior-engineer standard.
-- **Minimal blast radius** — touch only what's necessary. No drive-by side-effects.
+- **Simplicity first** — минимальный код побеждает.
+- **No laziness** — root cause, не band-aid. Senior-engineer стандарт.
+- **Minimal blast radius** — трогать только нужное, без drive-by.
 
 ## Architecture
 
-### Layers (one-way dependency arrows)
+### Layers (one-way arrows)
 
 ```
-screens/ → hooks/ + store/ + services/ + components/
-hooks/   → services/
-services/ → firebase.ts (only)
-types/   ← imported by everyone (no inbound deps)
+screens/  → hooks/ + store/ + services/ + components/
+hooks/    → services/
+services/ → firebase.ts (only) + Cloud Functions callables
+functions/ ← независимый TS-проект, импортит firebase-admin
+types/    ← импортит каждый, никаких inbound deps
 ```
 
-- `services/` is the **only** layer that imports `firebase/*`. Tests mock that boundary.
-- `hooks/` wraps services in React subscription patterns (`useAuth`, `useProfile`, `useGeolocation`).
-- `screens/` are full-page components. They subscribe via hooks and call services directly for mutations.
-- `components/ui/` are pure presentational primitives (`Button`, `Card`, `ScoreChip`, `ClubChip`, `ConfirmDialog`); `components/layout/` is `PageHeader` and `BottomNav`.
+- `services/` — **единственный** слой, импортящий `firebase/*` И
+  `firebase/functions`. Тесты мокают этот boundary.
+- `functions/` — отдельный TypeScript-проект со своим `package.json`
+  и `tsconfig.json`. Хранит email-шаблоны и Cloud Functions.
+  При работе с functions всегда `cd functions` для команд.
+
+### Cloud Functions (Sprint 6+7)
+
+Все Cloud Functions в `us-central1` (Firestore в `europe-west3` —
+cross-region warning подавляется, см. `firebase.json`). Список
+функций:
+
+| Function | Триггер | Что делает |
+|---|---|---|
+| `onRoundFinished` | `firestore.document('rounds/{id}').onUpdate` | Auto-email при `status: active → finished`. Atomic lease + per-uid tracking (`emailingStartedAt`, `emailedTo`, `emailedAt`) — см. inline комментарии в `functions/src/index.ts`. |
+| `recordShot` | callable | Server-authoritative запись ударов. Закрывает cross-player griefing. Клиентский transaction УБРАН. |
+| `joinLobbyByCode` | callable | Server-side lookup лобби. Клиент НЕ читает рунд напрямую — `allow get` требует participation. |
+| `updateHoleConfig` | callable | Host-only edit par + distanceMeters для лунки. |
+| `shareRoundByEmail` | callable | Manual share. Recipient-allowlist (только участники + caller's auth email), daily quota 10/uid в `userQuota/{uid}`. |
+
+Secrets через `defineSecret('RESEND_API_KEY')`. Ротация: `firebase
+functions:secrets:set RESEND_API_KEY` + redeploy.
 
 ### Data model — central source of truth
 
-`src/types/index.ts` is the **canonical schema** for everything stored in Firestore. Some fields carry legacy versions for backwards compatibility — always use the helpers, not the raw fields:
+`src/types/index.ts` — **каноничная схема** для всего в Firestore.
+Некоторые поля имеют legacy-версии — всегда юзать хелперы:
 
-- `HoleShots.clubs: string[]` is canonical. `HoleShots.club?: string` is the legacy "last club" field. Use `getHoleClubs(shots)` to read.
-- `AppUser.bag: BagClub[]` is canonical. `AppUser.clubs?: string[]` is the legacy enabled-club list. Use `getBagFromUser(user)` to read.
-- `Round.playerIds: string[]` is the denormalized membership array (required for the Firestore `array-contains` query in `getUserRounds`). Always maintained alongside `Round.players: Record<uid, PlayerInfo>` map.
-- `BagClub.category?: ClubCategory` is backfilled by `getClubCategory(club)` from id when missing.
+- `HoleShots.clubs: string[]` каноничный. `HoleShots.club?` — legacy.
+  Читать через `getHoleClubs(shots)`.
+- `AppUser.bag: BagClub[]` каноничный. `AppUser.clubs?` — legacy.
+  Читать через `getBagFromUser(user)`.
+- `Round.playerIds: string[]` — denormalised membership array
+  (нужен для `array-contains` query). Всегда поддерживается рядом с
+  `Round.players: Record<uid, PlayerInfo>` map.
+- `BagClub.category?` бэкфиллится `getClubCategory(club)` из id.
+- `PlayerInfo.email?` — добавлен в Sprint 6 для post-round email
+  rollup. Старые раунды без email отрабатываются через Auth lookup.
+- `Round.playMode?: 'stroke' | 'match'` — Sprint 4. Match play
+  работает только для `playerIds.length === 2`.
+- `Round.emailedAt`, `Round.emailedTo`, `Round.emailingStartedAt`,
+  `Round.emailResults` — server-only поля, клиент НЕ пишет (rules
+  блокируют).
 
-`normalizeRound(id, data)` in `services/rounds.ts` converts Firestore `Timestamp` → JS `Date` at the boundary so screens can use `date-fns` directly. This means `getDoc`-derived Round objects must always go through `normalizeRound`.
+`DEFAULT_BAG` — это **палитра 20 опций** (не строго 14). USGA-лимит
+14 enforced на UI-уровне в MyBag (`TOTAL_SLOTS = 14`).
+
+`normalizeRound(id, data)` в `services/rounds.ts` конвертирует
+Firestore `Timestamp` → JS `Date` на границе. `getDoc`-derived
+Round объекты ВСЕГДА через `normalizeRound`.
 
 ### State management
 
-- **Firestore is the source of truth** for rounds and profiles. Screens subscribe via `subscribeToRound` / `subscribeToProfile` and re-render on snapshots.
-- **`useAppStore` (Zustand)** holds only `lastClubUsed` (which club to default to when entering a new hole). Other fields exist but are dead — see `docs/superpowers/...` audit notes.
-- **Optimistic UI pattern** in `HoleTracker`: `localClubs` state masks server snapshot until `lastSyncedKeyRef.current === serverKey` (server has caught up to our write). Reset on hole change, player switch, or save error.
+- **Firestore — source of truth** для раундов и профилей. Screens
+  подписываются через `subscribeToRound` / `subscribeToProfile`.
+- **`useAppStore` (Zustand)** хранит только `lastClubUsed`.
+- **Optimistic UI** в `HoleTracker`: `localClubs` маскирует server
+  snapshot до `lastSyncedKeyRef.current === serverKey`. Reset на
+  смене лунки, игрока, или ошибке сохранения.
 
 ### Group play & concurrency
 
-`recordShot` uses `runTransaction` because two players can write the same `holes[i].shots[uid]` slot concurrently. Currently the transaction rewrites the **entire** `holes` array — this is a known scaling concern flagged in the audit; dot-path updates are the fix.
+`recordShot` теперь **callable Cloud Function** (Sprint 7). Клиент
+больше НЕ делает `runTransaction` напрямую — все записи в `holes`
+запрещены `firestore.rules` на уровне rules-engine. Сервер enforces
+`request.auth.uid` matching slot. Аналогично `joinRoundByCode` —
+callable, не клиентский `updateDoc`.
 
-Round lifecycle is encoded in `RoundStatus`: `'lobby' | 'active' | 'finished'`. Solo rounds skip lobby (start at `'active'`). Group rounds start in `'lobby'` until the host calls `startRound`. `GroupLobby` and `HoleTracker` both subscribe to status changes and auto-navigate when it flips.
-
-`joinRoundByCode(code)` queries `rounds where lobbyCode == code AND status == 'lobby'`. The matching Firestore composite index lives in `firestore.indexes.json`.
+`RoundStatus`: `'lobby' | 'active' | 'finished'`. Solo раунды
+скипают lobby. `GroupLobby` и `HoleTracker` подписываются на status
+и auto-navigate при flip.
 
 ### Firestore security
 
-`firestore.rules` is field-permissive right now (`status == 'lobby'` allows any auth user to update **any field** of the round, not just join-related fields). The security audit (see message history) flagged this as a **critical** issue to address before public users. When tightening, split `allow update` into per-action rules using `request.resource.data.diff(resource.data).affectedKeys()`.
+`firestore.rules` ужесточён в Sprint 7 — больше **НЕ field-permissive**:
+
+- `allow get` на rounds требует `auth.uid in resource.data.playerIds`
+  (никаких lobby-bypass — закрыта PII-leak).
+- Updates split per-action: JOIN / LEAVE / START / FINISH (RECORD
+  SHOT убран — теперь callable).
+- `holes`, `emailedAt`, `emailingStartedAt`, `emailedTo`,
+  `emailResults` — server-only (rules блокируют client writes).
+- `users/{uid}` — owner-only.
+- `userQuota/{uid}` — Admin SDK only (clients не имеют доступа).
+
+При изменении rules — обязательно тестировать в emulator перед
+`firebase deploy --only firestore`.
+
+### Email (Sprint 6)
+
+Email-шаблон в `functions/src/emails/RoundSummary.tsx` —
+react-email компоненты. Payload собирается `buildPayload.ts`. Цвета
+pill'ов в `functions/src/emails/types.ts` (дублируют `scoreColor`
+в web — keep в sync). При изменении club abbreviations в
+`src/types/index.ts:CLUB_ABBREV` — синхронизировать с
+`functions/src/emails/buildPayload.ts:CLUB_ABBREV`.
+
+Preview шаблона: `cd functions && npm run email:dev` (Storyboard
+на :3000).
 
 ### Routing
 
-`src/App.tsx` has all routes. Every non-`/auth` route is wrapped in `<ProtectedRoute>` which checks `useAuth()` and redirects to `/auth` if no user. Catch-all `*` redirects to `/home`. Deep-link `/join/:code` auto-attempts to join once auth resolves.
+`src/App.tsx` — все routes. Тяжёлые экраны лениво грузятся через
+`React.lazy` (HoleTracker, RoundResults, MyBag, GroupLobby,
+Leaderboard). Non-`/auth` routes обёрнуты в `<ProtectedRoute>`
+которая редиректит на `/auth` без user. Catch-all `*` → `/home`.
+Deep-link `/join/:code` auto-присоединяется по code.
 
 ### Testing
 
-Vitest + jsdom + @testing-library/react. Test files live alongside their source (`Foo.test.ts(x)` next to `Foo.ts(x)`). When importing a module that transitively pulls in `firebase/*`, **mock Firebase before the import** — see `src/services/rounds.test.ts` for the standard `vi.mock('../firebase', ...)` + `vi.mock('firebase/firestore', ...)` pattern. Strict TypeScript means test fixtures must include `playerIds` and every required field of the `Round` type.
+Vitest + jsdom + @testing-library/react. Tests рядом с source
+(`Foo.test.ts(x)` next to `Foo.ts(x)`).
+
+При импорте модуля, transitively пулящего `firebase/*`, **мокать
+Firebase ДО импорта**:
+
+```ts
+vi.mock('../firebase', () => ({ db: {}, app: {} }))
+vi.mock('firebase/firestore', () => ({...}))
+vi.mock('firebase/functions', () => ({
+  getFunctions: vi.fn(() => ({ __functions: true })),
+  httpsCallable: (_fns, name) => async (payload) => {
+    callableCalls.push({ name, payload })
+    return { data: callableResponses.get(name) ?? { ok: true } }
+  },
+}))
+```
+
+Стандартный паттерн — в `src/services/rounds.test.ts`. Strict TS
+требует, чтобы тестовые фикстуры включали `playerIds` и все
+required-поля `Round` типа.
 
 ## Conventions
 
-- **Russian copy** in all user-facing strings. The proper-plural helper `pluralRu(n, one, few, many)` exists inline in `CourseSearch.tsx` and should be the form used everywhere (other screens currently hard-code two-form fallbacks — known cleanup).
-- **Touch targets ≥ 48 px** via Tailwind tokens `min-h-touch` / `min-w-touch`. Do not hard-code `min-h-[48px]`.
-- **Numeric inputs in My Bag** use `defaultValue` + `onBlur` to commit; do not switch to controlled inputs without handling the auto-save UX.
-- **Firestore writes always merge** for user profile (`setDoc(..., { merge: true })`) so partial updates from MyBag don't blow away other fields.
-- After each shot write, `recordShot` also writes the legacy `club: lastUsedClub` field for backwards compatibility with old readers. Keep this in sync if you change the shape.
+- **Русский UI** во всех user-facing строках. `pluralRu(n, one, few, many)`
+  в `src/utils/intl.ts` — для plurals. Некоторые экраны хардкодят
+  два-форменные fallbacks (известный долг).
+- **Никаких эмодзи** — только lucide-react иконки (`grep -P
+  "[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]" src/` должен быть пуст).
+- **Touch targets ≥ 48 px** через токены `min-h-touch` /
+  `min-w-touch`. Не хардкодить `min-h-[48px]`.
+- **Numeric inputs в MyBag** используют `defaultValue` + `onBlur`.
+- **Firestore writes для user profile** — всегда `setDoc(..., {
+  merge: true })`.
+- **Модальные диалоги** используют hook `useDialogA11y` +
+  `trapTab` (body scroll lock + focus capture/restore + tab cycling).
+  См. `ShareDialog`, `ConfirmDialog`, и `HoleEditorDialog` в
+  `HoleTracker.tsx`.
+- **Buttons** — `Button` компонент с `icon`/`iconRight` для lucide
+  иконок. Variant `primary | secondary | ghost`. Full-pill
+  (`rounded-full`). Uppercase + `tracking-wider` для CTA-кнопок.
+- **Avatar** с fallback на инициалы (`src/components/ui/Avatar.tsx`)
+  — НЕ class через img + `?` для пустого src.
+- **`scoreColor(delta)`** + non-color cue `scoreDirection(delta)`
+  (`TrendingDown | Minus | TrendingUp`) для color-blind users.
+- **WCAG AA** color contrast — `scoreColor` values тщательно
+  подобраны (`#2E7D32` для birdie, `#EF6C00` для bogey, `#C62828`
+  для double+). Не возвращать к ярким Material defaults.
 
 ## Things to be aware of
 
-- The CourseSearch screen calls the Google Places API **directly from the browser** with `VITE_GOOGLE_PLACES_API_KEY` in the bundle. This is acknowledged in `services/courses.ts` and protected via HTTP-referrer + API restriction. A Cloud Function proxy is on the roadmap.
-- The bundle is ~609 kB (gzip ~185 kB) as one chunk. `React.lazy()` on the heavier screens (`HoleTracker`, `RoundResults`, `MyBag`, `GroupLobby`) would halve initial JS but isn't done yet.
-- There is no `ErrorBoundary` and no Sentry. A render error in production produces a blank screen.
-- No service worker. The app is "installable" via the manifest, but `vite-plugin-pwa` isn't wired up — there's no real offline support.
-- README.md is the stock Vite template; SETUP.md is the real onboarding doc.
+- **CourseSearch** вызывает Places API **из браузера** с
+  `VITE_GOOGLE_PLACES_API_KEY` в bundle. Защищён HTTP-referrer +
+  API restriction. Cloud Function proxy в roadmap.
+- **Sentry** wired (`@sentry/react`) — no-op без `VITE_SENTRY_DSN`.
+  ErrorBoundary в `src/components/ErrorBoundary.tsx`.
+- **PWA** через `vite-plugin-pwa` — есть offline-friendly precache
+  (sw.js + workbox-XXXX.js).
+- **Bundle** main chunk ~610 kB (gzip ~188 kB). React.lazy уже
+  применён на тяжёлых экранах.
+- **Backup** — git tag v1.0.0 + GitHub Release + Firestore PITR
+  (7 дней) + daily snapshots (98 дней). См. `BACKUP.md`.
+- **Functions secrets** в GCP Secret Manager — `RESEND_API_KEY`
+  ротируется через `firebase functions:secrets:set RESEND_API_KEY`
+  + redeploy. Старые версии остаются disabled (можно re-enable).
+- README.md — stock Vite template; SETUP.md — реальная onboarding.
+- `tasks/lessons.md` накапливает паттерны из user-corrections —
+  читать в начале сессии.
