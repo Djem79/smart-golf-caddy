@@ -31,3 +31,7 @@ dist-ssr
 
 # Firebase
 .firebase/
+
+# RuVector local cache (used by other tooling)
+ruvector.db
+ruvector.db-*
