@@ -141,19 +141,26 @@ export function RoundSetup() {
                   key={t}
                   type="button"
                   onClick={() => setTee(t)}
-                  className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors text-left ${
-                    selected ? 'border-primary bg-primary-container/15' : 'border-outline-variant'
+                  aria-pressed={selected}
+                  className={`flex flex-col items-start gap-2 p-3 rounded-lg border-2 transition-colors text-left min-h-[96px] ${
+                    selected
+                      ? 'border-primary bg-primary-container/10'
+                      : 'border-outline-variant/60 bg-surface-container-lowest'
                   }`}
                 >
                   <div
-                    className="w-8 h-8 shrink-0 rounded-full border border-outline-variant/40 flex items-center justify-center font-bold text-label-md"
+                    className="w-7 h-7 shrink-0 rounded-full border border-outline-variant/40 flex items-center justify-center font-bold text-label-md"
                     style={{ backgroundColor: info.bg, color: info.text }}
                   >
                     T
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-label-lg text-on-surface truncate">{info.label}</p>
-                    <p className="text-label-md text-on-surface-variant truncate">{info.description}</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-label-lg text-on-surface leading-tight">
+                      {info.label}
+                    </p>
+                    <p className="text-label-md text-on-surface-variant leading-tight mt-0.5">
+                      {info.description}
+                    </p>
                   </div>
                 </button>
               )
@@ -217,7 +224,7 @@ export function RoundSetup() {
         )}
       </div>
 
-      <div className="px-5 pb-8 space-y-3">
+      <div className="px-5 pt-8 pb-8 space-y-3 border-t border-outline-variant/30 mt-8">
         <Button onClick={handleStart} disabled={loading}>
           {loading
             ? 'Создаём раунд...'
