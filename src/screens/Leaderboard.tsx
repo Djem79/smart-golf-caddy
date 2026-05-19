@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, Trophy, Check } from 'lucide-react'
+import { ChevronLeft, Trophy, Check, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { subscribeToRound } from '../services/rounds'
 import { computeLeaderboard, computeMatchPlayStatus } from '../services/scoring'
 import type { Round } from '../types'
-import { scoreColor } from '../types'
+import { scoreColor, scoreDirection } from '../types'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -94,47 +94,58 @@ export function Leaderboard() {
       )}
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
-        {/* Column headers */}
-        <div className="grid grid-cols-[28px_1fr_auto_56px_56px] gap-3 px-3 text-label-md text-on-surface-variant uppercase tracking-wider font-semibold">
+        {/* Column headers — three columns: rank, player+score, diff. Thru is now under the name. */}
+        <div className="grid grid-cols-[28px_minmax(0,1fr)_64px] gap-3 px-3 text-label-md text-on-surface-variant uppercase tracking-wider font-semibold">
           <span>#</span>
           <span>Игрок</span>
-          <span className="text-right">Удары</span>
-          <span className="text-center">Thru</span>
           <span className="text-right">К пару</span>
         </div>
 
         {entries.map((entry, idx) => {
           const isMe = entry.uid === user?.uid
-          const color = entry.thru > 0 ? scoreColor(entry.scoreDiff) : '#FFFFFF'
+          const direction = scoreDirection(entry.scoreDiff)
+          const color = entry.thru > 0 ? scoreColor(entry.scoreDiff) : 'transparent'
+          // White text on filled bogey/double/worse pills; dark text on
+          // birdie/eagle/par (gold + dark green + white — all light enough).
+          const pillText =
+            entry.thru === 0 || entry.scoreDiff <= 0 ? '#1A1C1C' : '#FFFFFF'
+          const DirIcon = direction === 'under' ? TrendingDown : direction === 'over' ? TrendingUp : Minus
           return (
             <div
               key={entry.uid}
-              className={`grid grid-cols-[28px_1fr_auto_56px_56px] gap-3 items-center p-3 rounded-lg border ${
+              className={`grid grid-cols-[28px_minmax(0,1fr)_64px] gap-3 items-center p-3 rounded-lg border ${
                 isMe ? 'border-primary bg-primary-container/10' : 'border-outline-variant/30 bg-surface-container-lowest'
               }`}
             >
-              <span className="font-headline font-bold text-title-lg text-on-surface">
+              <span className="font-headline font-bold text-title-lg text-on-surface tabular-nums">
                 {idx + 1}
               </span>
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <Avatar src={entry.avatar} name={entry.name} size={32} />
-                <span className="font-semibold text-body-md text-on-surface truncate">
-                  {isMe ? `${entry.name} (вы)` : entry.name}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-body-md text-on-surface truncate">
+                    {isMe ? `${entry.name} (вы)` : entry.name}
+                  </p>
+                  <p className="text-label-md text-on-surface-variant tabular-nums">
+                    {entry.thru > 0 ? entry.totalScore : '—'} удар.{' '}
+                    <span className="opacity-70">· {entry.thru}/{totalHoles}</span>
+                  </p>
+                </div>
               </div>
-              <span className="font-headline font-bold text-title-lg text-on-surface text-right">
-                {entry.thru > 0 ? entry.totalScore : '—'}
-              </span>
-              <span className="text-label-lg text-on-surface-variant text-center">
-                {entry.thru}/{totalHoles}
-              </span>
               <span
-                className="font-headline font-bold text-title-lg text-right rounded px-1.5 py-0.5"
+                className="font-headline font-bold text-title-lg text-center rounded-md px-1.5 py-1 inline-flex items-center justify-center gap-1 tabular-nums"
                 style={{
                   backgroundColor: entry.thru > 0 && entry.scoreDiff !== 0 ? color : 'transparent',
-                  color: entry.thru > 0 && entry.scoreDiff > 0 ? '#FFFFFF' : '#1A1C1C',
+                  color: pillText,
+                  border:
+                    entry.thru > 0 && entry.scoreDiff === 0
+                      ? '1px solid #C0C9BB'
+                      : 'none',
                 }}
               >
+                {entry.thru > 0 && (
+                  <DirIcon size={12} strokeWidth={2.5} aria-hidden />
+                )}
                 {formatDiff(entry.scoreDiff, entry.thru)}
               </span>
             </div>

@@ -225,7 +225,10 @@ export function RoundSetup() {
         )}
       </div>
 
-      <div className="px-5 pt-8 pb-8 space-y-3 border-t border-outline-variant/30 mt-8">
+      <div
+        className="px-5 pt-8 space-y-3 border-t border-outline-variant/30 mt-8"
+        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+      >
         <Button onClick={handleStart} disabled={loading}>
           {loading
             ? 'Создаём раунд...'

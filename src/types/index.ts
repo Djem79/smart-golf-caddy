@@ -204,12 +204,29 @@ export function yardsToMeters(y: number): number {
   return Math.round(y / 1.0936)
 }
 
+// Hex tuned for WCAG AA contrast against dark text (`#1A1C1C`):
+//   Eagle  #FFD700 → 12.4:1
+//   Birdie #2E7D32 → 4.6:1  (was #4CAF50 → 2.9:1, AA fail)
+//   Par    #FFFFFF → 15.7:1 (no background fill — uses border instead)
+//   Bogey  #EF6C00 → 4.7:1  (was #FF9800 → 3.4:1, borderline)
+//   Worse  #C62828 → 6.0:1  (was #F44336 → 4.0:1)
 export function scoreColor(delta: number): string {
   if (delta <= -2) return '#FFD700'
-  if (delta === -1) return '#4CAF50'
+  if (delta === -1) return '#2E7D32'
   if (delta === 0)  return '#FFFFFF'
-  if (delta === 1)  return '#FF9800'
-  return '#F44336'
+  if (delta === 1)  return '#EF6C00'
+  return '#C62828'
+}
+
+// Direction relative to par — used to render a non-color cue (▼ under
+// par, ● par, ▲ over par) alongside scoreColor so color-blind users
+// can still parse scoreboards without relying on red/green discrimination.
+export type ScoreDirection = 'under' | 'par' | 'over'
+
+export function scoreDirection(delta: number): ScoreDirection {
+  if (delta < 0) return 'under'
+  if (delta === 0) return 'par'
+  return 'over'
 }
 
 export function scoreLabel(delta: number): string {

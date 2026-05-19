@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Copy, Mail, Send, X } from 'lucide-react'
 import { Button } from './Button'
 import { shareRoundByEmail } from '../../services/share'
+import { trapTab, useDialogA11y } from '../../hooks/useDialogA11y'
 
 interface ShareDialogProps {
   open: boolean
@@ -25,6 +26,7 @@ export function ShareDialog({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const dialogRef = useDialogA11y(open)
 
   // Escape closes the dialog
   useEffect(() => {
@@ -101,8 +103,10 @@ export function ShareDialog({
       onClick={onClose}
     >
       <div
-        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated overflow-hidden"
+        ref={dialogRef}
+        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated overflow-hidden focus:outline-none"
         onClick={e => e.stopPropagation()}
+        onKeyDown={trapTab}
       >
         <div className="flex items-center justify-between">
           <h2
@@ -115,6 +119,7 @@ export function ShareDialog({
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
+            data-autofocus
             className="min-h-touch min-w-touch -mr-2 flex items-center justify-center text-on-surface-variant rounded-full active:bg-surface-container/60"
           >
             <X size={20} strokeWidth={1.75} />

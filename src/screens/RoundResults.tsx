@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trophy, Share2 } from 'lucide-react'
+import { Trophy, Share2, Plus } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
 import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus } from '../services/scoring'
@@ -70,20 +70,7 @@ export function RoundResults() {
 
   return (
     <div className="screen pb-24">
-      <PageHeader
-        title="Итоги раунда"
-        showBack={false}
-        right={
-          <button
-            type="button"
-            onClick={() => setShareOpen(true)}
-            aria-label="Поделиться"
-            className="min-h-touch min-w-touch flex items-center justify-center text-on-surface rounded-full active:bg-surface-container-high/60 transition-colors"
-          >
-            <Share2 size={22} strokeWidth={1.75} />
-          </button>
-        }
-      />
+      <PageHeader title="Итоги раунда" showBack={false} />
 
       {isMatchPlay && matchStatus ? (
         <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-8 text-center">
@@ -231,8 +218,21 @@ export function RoundResults() {
       </div>
 
       <div className="px-5 pt-6 space-y-3">
-        <Button onClick={() => navigate('/courses')}>Новый раунд</Button>
-        <Button variant="secondary" onClick={() => navigate('/home')}>На главную</Button>
+        <Button
+          icon={Share2}
+          onClick={() => setShareOpen(true)}
+          className="uppercase tracking-wider"
+        >
+          Поделиться результатом
+        </Button>
+        <Button
+          variant="secondary"
+          icon={Plus}
+          onClick={() => navigate('/courses')}
+          className="uppercase tracking-wider"
+        >
+          Новая игра
+        </Button>
       </div>
 
       <BottomNav />

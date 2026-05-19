@@ -205,6 +205,28 @@ For this deep-link to work, make sure your deployed domain is in **Firebase Auth
 
 ---
 
+## Error monitoring (Sentry) — required before public launch
+
+Sentry is wired through `@sentry/react`. **Without `VITE_SENTRY_DSN` it
+no-ops** — render errors caught by `ErrorBoundary` only land in the
+browser console, and there is no notification mechanism. Before opening
+the app to real users:
+
+1. Create a free Sentry project ([sentry.io](https://sentry.io)).
+2. Copy the DSN string (looks like `https://abc123@oNNN.ingest.sentry.io/PPP`).
+3. Add to `.env.local`:
+   `VITE_SENTRY_DSN=https://abc123@oNNN.ingest.sentry.io/PPP`
+4. Set the same secret in Netlify/Hosting build environment (for prod
+   builds — `firebase deploy` reads `.env.local` during local `vite build`).
+5. Redeploy. ErrorBoundary catches will now reach Sentry within seconds.
+
+Cloud Functions **do not** auto-forward to Sentry (separate setup). If
+you want function alerting today, set up a Cloud Logging alert on
+`severity>=ERROR` in the GCP console — or add `@sentry/node` to
+`functions/` later.
+
+---
+
 ## Post-round email (Resend + Cloud Functions)
 
 После завершения раунда Cloud Function `onRoundFinished` рендерит

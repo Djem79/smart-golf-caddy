@@ -15,13 +15,29 @@ export function Home() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [recentRounds, setRecentRounds] = useState<Round[]>([])
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!user) return
-    getUserRounds(user.uid).then(rounds =>
-      setRecentRounds(rounds.filter(r => r.status === 'finished').slice(0, 3)),
-    ).catch(() => {})
-  }, [user])
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clears stale error before refetching; the async result-handlers set the next value via .then/.catch
+    setLoadError(false)
+    // Pull a small window — Home only renders the 3 most-recent finished
+    // rounds, so reading more than ~10 would be wasted. Bumping a bit above 3
+    // because the page filters to `status === 'finished'` (the user may have
+    // a live round in flight that we want to skip).
+    getUserRounds(user.uid, 10)
+      .then(rounds => {
+        if (cancelled) return
+        setRecentRounds(rounds.filter(r => r.status === 'finished').slice(0, 3))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setLoadError(true)
+      })
+    return () => { cancelled = true }
+  }, [user, reloadKey])
 
   function formatDate(round: Round) {
     return format(round.createdAt, 'd MMM yyyy', { locale: ru })
@@ -58,6 +74,21 @@ export function Home() {
           Присоединиться к игре
         </Button>
       </div>
+
+      {loadError && (
+        <div className="px-5 mt-6">
+          <div className="bg-error-container/40 border border-error/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-label-lg text-on-surface">Не удалось загрузить раунды</p>
+            <button
+              type="button"
+              onClick={() => setReloadKey(k => k + 1)}
+              className="text-label-lg font-semibold text-primary underline-offset-4 hover:underline shrink-0"
+            >
+              Повторить
+            </button>
+          </div>
+        </div>
+      )}
 
       {recentRounds.length > 0 && (
         <div className="px-5 mt-8">

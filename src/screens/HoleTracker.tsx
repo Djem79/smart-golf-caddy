@@ -68,6 +68,7 @@ export function HoleTracker() {
   const hole = round?.holes[holeIndex]
   const playerIds = round?.playerIds ?? []
   const isMultiplayer = playerIds.length > 1
+  const isHost = !!round && !!user && round.hostId === user.uid
 
   const serverClubs = (hole && activeUserId) ? getHoleClubs(hole.shots[activeUserId]) : []
   const serverKey = serverClubs.join('|')
@@ -161,7 +162,10 @@ export function HoleTracker() {
   const currentHole = holeIndex + 1
 
   return (
-    <div className="screen pb-6">
+    <div
+      className="screen"
+      style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+    >
       <PageHeader
         title={`Лунка ${currentHole} / ${totalHoles}`}
         right={
@@ -246,27 +250,27 @@ export function HoleTracker() {
             ? 'Ваши удары'
             : `Удары: ${round.players[activeUserId]?.name ?? '—'}`}
         </p>
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-10">
           <button
             type="button"
             onClick={removeShot}
             disabled={myShots <= 0 || saving}
-            className="w-16 h-16 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30 shadow-card"
+            className="w-16 h-16 rounded-full border-2 border-primary text-primary bg-transparent flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary hover:text-on-primary"
             aria-label="Убавить удар"
           >
-            <Minus size={26} strokeWidth={2} />
+            <Minus size={28} strokeWidth={2} />
           </button>
-          <span className="font-headline font-bold text-display-lg text-on-surface w-16 text-center tabular-nums">
+          <span className="font-headline font-bold text-[88px] leading-none text-primary w-20 text-center tabular-nums">
             {myShots}
           </span>
           <button
             type="button"
             onClick={addShot}
             disabled={saving}
-            className="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30 shadow-card"
+            className="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary-container"
             aria-label="Добавить удар"
           >
-            <Plus size={26} strokeWidth={2} />
+            <Plus size={28} strokeWidth={2} />
           </button>
         </div>
 
@@ -322,32 +326,36 @@ export function HoleTracker() {
           <Button iconRight={ChevronRight} onClick={() => goToHole(currentHole + 1)} className="flex-1">
             Дальше
           </Button>
-        ) : (
+        ) : isHost ? (
           <Button
             icon={Flag}
             onClick={requestFinish}
             disabled={finishing}
-            className="flex-1"
+            className="flex-1 uppercase tracking-wider"
           >
-            Завершить раунд
+            Закончить игру
           </Button>
+        ) : (
+          <div className="flex-1 min-h-touch flex items-center justify-center text-center text-label-md text-on-surface-variant px-3">
+            Игру завершит хост
+          </div>
         )}
       </div>
 
-      {currentHole < totalHoles && (
+      {isHost && currentHole < totalHoles && (
         <button
           type="button"
           onClick={requestFinish}
           disabled={finishing}
           className="mt-3 mx-auto text-label-lg text-on-surface-variant font-semibold underline min-h-touch px-3 disabled:opacity-40"
         >
-          Завершить раунд досрочно
+          Закончить игру досрочно
         </button>
       )}
 
       <ConfirmDialog
         open={showFinishConfirm}
-        title="Завершить раунд?"
+        title="Закончить игру?"
         body={
           currentHole < totalHoles
             ? `Вы прошли ${currentHole - 1} из ${totalHoles} лунок. Пройденные удары попадут в итоги, незавершённые лунки — без ударов.`

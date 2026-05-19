@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Button } from './Button'
+import { trapTab, useDialogA11y } from '../../hooks/useDialogA11y'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -33,6 +34,8 @@ export function ConfirmDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onCancel])
 
+  const dialogRef = useDialogA11y(open)
+
   if (!open) return null
 
   return (
@@ -44,8 +47,10 @@ export function ConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated overflow-hidden"
+        ref={dialogRef}
+        className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated overflow-hidden focus:outline-none"
         onClick={e => e.stopPropagation()}
+        onKeyDown={trapTab}
       >
         <h2
           id="confirm-title"
@@ -57,7 +62,13 @@ export function ConfirmDialog({
           <p className="text-body-md text-on-surface-variant">{body}</p>
         )}
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onCancel} disabled={loading} className="flex-1">
+          <Button
+            variant="secondary"
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1"
+            data-autofocus
+          >
             {cancelLabel}
           </Button>
           <Button

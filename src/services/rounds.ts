@@ -1,6 +1,6 @@
 import {
   collection, doc, setDoc, updateDoc,
-  onSnapshot, query, where, orderBy, getDocs, serverTimestamp,
+  onSnapshot, query, where, orderBy, limit, getDocs, serverTimestamp,
   Timestamp, arrayRemove,
 } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
@@ -160,11 +160,15 @@ export function subscribeToRound(
   })
 }
 
-export async function getUserRounds(userId: string): Promise<Round[]> {
+// Fetches the user's rounds, newest first. Capped to `limitTo` (default 50)
+// so the read cost doesn't grow unbounded with play history — History/Profile
+// only need recent activity for stats and the timeline.
+export async function getUserRounds(userId: string, limitTo = 50): Promise<Round[]> {
   const q = query(
     collection(db, 'rounds'),
     where('playerIds', 'array-contains', userId),
     orderBy('createdAt', 'desc'),
+    limit(limitTo),
   )
   const snap = await getDocs(q)
   return snap.docs.map(d => normalizeRound(d.id, d.data()))

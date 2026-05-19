@@ -15,10 +15,10 @@ export function ClubChip({ club, selected, onSelect, label }: ClubChipProps) {
   return (
     <button
       onClick={() => onSelect(club)}
-      className={`px-3 py-2 rounded-full text-label-lg font-semibold min-h-touch min-w-touch shrink-0 transition-colors ${
+      className={`px-5 py-2.5 rounded-full text-label-lg font-semibold min-h-touch shrink-0 transition-all border ${
         selected
-          ? 'bg-primary text-on-primary'
-          : 'bg-surface-container border border-outline-variant text-on-surface-variant'
+          ? 'bg-primary text-on-primary border-primary'
+          : 'bg-transparent border-outline-variant text-on-surface-variant hover:border-primary'
       }`}
     >
       {displayed}

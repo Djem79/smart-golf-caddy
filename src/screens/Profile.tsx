@@ -21,17 +21,21 @@ export function Profile() {
   const { profile } = useProfile()
   const [signingOut, setSigningOut] = useState(false)
   const [rounds, setRounds] = useState<Round[]>([])
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const bag = useMemo(() => getBagFromUser(profile), [profile])
 
   useEffect(() => {
     if (!user) return
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clears stale error before refetching; the async result-handlers set the next value via .then/.catch
+    setLoadError(false)
     getUserRounds(user.uid)
       .then(all => { if (!cancelled) setRounds(all) })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setLoadError(true) })
     return () => { cancelled = true }
-  }, [user])
+  }, [user, reloadKey])
 
   const stats = useMemo(
     () => user ? computePlayerStats(rounds, user.uid) : null,
@@ -67,6 +71,18 @@ export function Profile() {
       <PageHeader title="Профиль" showBack={false} />
 
       <div className="flex-1 px-5 pt-5 space-y-5 overflow-y-auto">
+        {loadError && (
+          <div className="bg-error-container/40 border border-error/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-label-lg text-on-surface">Не удалось загрузить статистику</p>
+            <button
+              type="button"
+              onClick={() => setReloadKey(k => k + 1)}
+              className="text-label-lg font-semibold text-primary underline-offset-4 hover:underline shrink-0"
+            >
+              Повторить
+            </button>
+          </div>
+        )}
         <Card>
           <div className="flex items-center gap-4">
             <Avatar src={user?.photoURL} name={user?.displayName} size={64} />

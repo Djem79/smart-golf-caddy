@@ -1,31 +1,47 @@
 import { describe, it, expect } from 'vitest'
 import {
-  scoreColor, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
+  scoreColor, scoreDirection, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
   DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory, getClubLabel,
   metersToYards, yardsToMeters,
 } from './index'
 
 describe('scoreColor', () => {
+  // Colors tuned for WCAG AA contrast against #1A1C1C text — see types/index.ts
   it('returns gold (#FFD700) for eagle (-2)', () => {
     expect(scoreColor(-2)).toBe('#FFD700')
   })
   it('returns gold for albatross (-3)', () => {
     expect(scoreColor(-3)).toBe('#FFD700')
   })
-  it('returns green (#4CAF50) for birdie (-1)', () => {
-    expect(scoreColor(-1)).toBe('#4CAF50')
+  it('returns dark green (#2E7D32) for birdie (-1)', () => {
+    expect(scoreColor(-1)).toBe('#2E7D32')
   })
   it('returns white (#FFFFFF) for par (0)', () => {
     expect(scoreColor(0)).toBe('#FFFFFF')
   })
-  it('returns orange (#FF9800) for bogey (+1)', () => {
-    expect(scoreColor(1)).toBe('#FF9800')
+  it('returns deep orange (#EF6C00) for bogey (+1)', () => {
+    expect(scoreColor(1)).toBe('#EF6C00')
   })
-  it('returns red (#F44336) for double bogey (+2)', () => {
-    expect(scoreColor(2)).toBe('#F44336')
+  it('returns deep red (#C62828) for double bogey (+2)', () => {
+    expect(scoreColor(2)).toBe('#C62828')
   })
-  it('returns red for triple bogey (+3)', () => {
-    expect(scoreColor(3)).toBe('#F44336')
+  it('returns deep red for triple bogey (+3)', () => {
+    expect(scoreColor(3)).toBe('#C62828')
+  })
+})
+
+describe('scoreDirection', () => {
+  it('returns "under" for any negative delta', () => {
+    expect(scoreDirection(-1)).toBe('under')
+    expect(scoreDirection(-2)).toBe('under')
+    expect(scoreDirection(-5)).toBe('under')
+  })
+  it('returns "par" for zero', () => {
+    expect(scoreDirection(0)).toBe('par')
+  })
+  it('returns "over" for any positive delta', () => {
+    expect(scoreDirection(1)).toBe('over')
+    expect(scoreDirection(3)).toBe('over')
   })
 })
 

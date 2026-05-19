@@ -17,16 +17,21 @@ export function History() {
   const { user } = useAuth()
   const [rounds, setRounds] = useState<Round[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!user) return
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- prime loading + clear stale error before refetching; result-handlers below transition them through .then/.catch/.finally
+    setLoading(true)
+    setLoadError(false)
     getUserRounds(user.uid)
       .then(all => { if (!cancelled) setRounds(all.filter(r => r.status === 'finished')) })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setLoadError(true) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [user])
+  }, [user, reloadKey])
 
   function formatDate(round: Round) {
     return format(round.createdAt, 'd MMMM yyyy', { locale: ru })
@@ -37,10 +42,22 @@ export function History() {
       <PageHeader title="История раундов" showBack={false} />
 
       <div className="flex-1 px-5 pt-5 space-y-3 overflow-y-auto">
-        {loading && (
+        {loadError && (
+          <div className="bg-error-container/40 border border-error/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-label-lg text-on-surface">Не удалось загрузить историю</p>
+            <button
+              type="button"
+              onClick={() => setReloadKey(k => k + 1)}
+              className="text-label-lg font-semibold text-primary underline-offset-4 hover:underline shrink-0"
+            >
+              Повторить
+            </button>
+          </div>
+        )}
+        {loading && !loadError && (
           <p className="text-center text-on-surface-variant text-body-md pt-8">Загрузка...</p>
         )}
-        {!loading && rounds.length === 0 && (
+        {!loading && !loadError && rounds.length === 0 && (
           <div className="text-center pt-16 space-y-3">
             <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mx-auto text-on-surface-variant">
               <Flag size={26} strokeWidth={1.5} />

@@ -29,7 +29,7 @@ export default {
         'on-error': '#FFFFFF',
       },
       fontFamily: {
-        headline: ['Montserrat', 'sans-serif'],
+        headline: ['"Playfair Display"', 'Georgia', 'serif'],
         body: ['Inter', 'sans-serif'],
       },
       fontSize: {

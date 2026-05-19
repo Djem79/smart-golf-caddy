@@ -14,9 +14,11 @@ export function Button({
   iconRight: IconRight,
   ...props
 }: ButtonProps) {
+  // Buttons are full-pill (rounded-full) per the premium design system —
+  // serif headlines + pill CTAs read as "editorial / luxury".
   const base =
-    'font-headline font-semibold text-label-lg rounded-md min-h-touch w-full min-w-0 ' +
-    'flex items-center justify-center gap-2 px-4 ' +
+    'font-body font-semibold text-label-lg rounded-full min-h-touch w-full min-w-0 ' +
+    'flex items-center justify-center gap-2 px-5 ' +
     'transition-[transform,background-color,opacity] duration-150 ease-out ' +
     'active:scale-[0.985] disabled:opacity-40 disabled:active:scale-100 ' +
     'focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2'

@@ -329,7 +329,7 @@ function ClubRow({
         aria-label={`Перетащить ${displayLabel}`}
         {...attributes}
         {...listeners}
-        className="w-6 h-10 shrink-0 flex items-center justify-center text-on-surface-variant/50 cursor-grab active:cursor-grabbing touch-none select-none"
+        className="min-w-touch h-10 -mx-1 shrink-0 flex items-center justify-center text-on-surface-variant/50 cursor-grab active:cursor-grabbing touch-none select-none"
       >
         <GripVertical size={16} strokeWidth={1.75} />
       </button>
@@ -375,19 +375,21 @@ function ClubRow({
       ) : (
         <div className="text-label-md text-on-surface-variant w-10 text-center shrink-0">—</div>
       )}
-      <input
-        type="checkbox"
-        checked={club.enabled}
-        onChange={onToggle}
-        aria-label={`Включить ${displayLabel} в сумку`}
-        className="w-5 h-5 accent-primary cursor-pointer shrink-0"
-      />
+      <label className="min-h-touch min-w-touch shrink-0 flex items-center justify-center cursor-pointer">
+        <input
+          type="checkbox"
+          checked={club.enabled}
+          onChange={onToggle}
+          aria-label={`Включить ${displayLabel} в сумку`}
+          className="w-5 h-5 accent-primary cursor-pointer"
+        />
+      </label>
       {onDelete && (
         <button
           type="button"
           onClick={onDelete}
           aria-label="Удалить клюшку"
-          className="w-6 h-6 shrink-0 flex items-center justify-center text-error text-title-lg leading-none rounded-full hover:bg-error-container/30 transition-colors"
+          className="min-h-touch min-w-touch shrink-0 flex items-center justify-center text-error text-title-lg leading-none rounded-full hover:bg-error-container/30 transition-colors"
         >
           ×
         </button>
