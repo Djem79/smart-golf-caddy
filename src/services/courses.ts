@@ -3,21 +3,25 @@ import { haversineMetres } from './distance'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY as string
 
-interface PlacesResponse {
-  status: string
-  error_message?: string
-  results: Array<{
-    place_id: string
-    name: string
-    vicinity?: string
+// Places API (New) — REST endpoint that supports CORS, designed for browser
+// use. The legacy /maps/api/place/* endpoints under maps.googleapis.com do
+// NOT send CORS headers and fail with "TypeError: Load failed" in Safari
+// when called from any HTTPS origin other than the special-cased localhost.
+const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby'
+
+interface PlacesNewResponse {
+  places?: Array<{
+    id?: string
+    displayName?: { text?: string }
+    formattedAddress?: string
     rating?: number
-    user_ratings_total?: number
-    photos?: Array<{ photo_reference: string }>
-    geometry: { location: { lat: number; lng: number } }
+    userRatingCount?: number
+    photos?: Array<{ name: string }>
+    location?: { latitude: number; longitude: number }
   }>
+  error?: { code?: number; message?: string; status?: string }
 }
 
-// Typed error so the UI can pick a specific message per failure mode.
 export type CourseFetchErrorKind = 'config' | 'network' | 'denied' | 'quota' | 'invalid' | 'unknown'
 
 export class CourseFetchError extends Error {
@@ -35,64 +39,99 @@ export async function findNearbyCourses(
     throw new CourseFetchError('config', 'API ключ Google Places не настроен')
   }
 
-  const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json')
-  url.searchParams.set('location', `${lat},${lng}`)
-  url.searchParams.set('radius', '20000')
-  url.searchParams.set('type', 'golf_course')
-  url.searchParams.set('key', API_KEY)
+  // FieldMask tells the API which fields to return — required by the new API
+  // and helps minimise billing (you only pay for fields you request).
+  const fieldMask = [
+    'places.id',
+    'places.displayName',
+    'places.formattedAddress',
+    'places.rating',
+    'places.userRatingCount',
+    'places.photos',
+    'places.location',
+  ].join(',')
 
-  // Note: Google Places API requires a server-side proxy in production
-  // to avoid exposing the API key. For MVP/dev, we call directly.
   let res: Response
   try {
-    res = await fetch(url.toString())
+    res = await fetch(SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': API_KEY,
+        'X-Goog-FieldMask': fieldMask,
+      },
+      body: JSON.stringify({
+        includedTypes: ['golf_course'],
+        maxResultCount: 20,
+        locationRestriction: {
+          circle: {
+            center: { latitude: lat, longitude: lng },
+            radius: 20000.0,
+          },
+        },
+      }),
+    })
   } catch (e) {
     throw new CourseFetchError('network', 'Нет связи с серверами Google', String(e))
   }
+
   if (!res.ok) {
-    throw new CourseFetchError('network', `Places API HTTP ${res.status}`)
-  }
+    // The new API returns structured error JSON for 4xx/5xx
+    let detail = ''
+    try {
+      const body = (await res.json()) as PlacesNewResponse
+      detail = body.error?.message ?? ''
+    } catch { /* response wasn't JSON */ }
 
-  const data = (await res.json()) as PlacesResponse
-
-  if (data.status === 'ZERO_RESULTS') return []
-  if (data.status !== 'OK') {
-    const detail = data.error_message ?? ''
-    if (data.status === 'REQUEST_DENIED') {
+    if (res.status === 403) {
       throw new CourseFetchError(
         'denied',
-        'Доступ к Google Places запрещён',
-        detail || 'Скорее всего, текущий домен не в списке разрешённых в Google Cloud Console (HTTP referrers). Добавьте https://smart-golf-caddy.web.app/* в ограничения API-ключа.',
+        'Доступ к Places API (New) запрещён',
+        detail || 'Проверьте, что Places API (New) включён в Google Cloud Console и что текущий домен добавлен в HTTP referrers для API-ключа: https://smart-golf-caddy.web.app/*',
       )
     }
-    if (data.status === 'OVER_QUERY_LIMIT') {
-      throw new CourseFetchError('quota', 'Превышен лимит запросов к Google Places', detail)
+    if (res.status === 429) {
+      throw new CourseFetchError('quota', 'Превышен лимит запросов к Places API', detail)
     }
-    if (data.status === 'INVALID_REQUEST') {
+    if (res.status === 400) {
       throw new CourseFetchError('invalid', 'Некорректный запрос к Places API', detail)
     }
-    throw new CourseFetchError('unknown', `Places API: ${data.status}`, detail)
+    throw new CourseFetchError('unknown', `Places API HTTP ${res.status}`, detail)
   }
 
-  return data.results.map((p) => ({
-    placeId: p.place_id,
-    name: p.name,
-    vicinity: p.vicinity ?? '',
-    rating: p.rating,
-    userRatingsTotal: p.user_ratings_total,
-    photoReference: p.photos?.[0]?.photo_reference,
-    location: p.geometry.location,
-    distanceKm: Math.round(haversineMetres(lat, lng, p.geometry.location.lat, p.geometry.location.lng) / 100) / 10,
-  }))
+  const data = (await res.json()) as PlacesNewResponse
+  const places = data.places ?? []
+
+  return places.map(p => {
+    const placeLat = p.location?.latitude ?? lat
+    const placeLng = p.location?.longitude ?? lng
+    return {
+      placeId: p.id ?? '',
+      name: p.displayName?.text ?? 'Поле для гольфа',
+      vicinity: p.formattedAddress ?? '',
+      rating: p.rating,
+      userRatingsTotal: p.userRatingCount,
+      photoUrl: p.photos?.[0]?.name ? buildPhotoUrl(p.photos[0].name, 800) : undefined,
+      location: { lat: placeLat, lng: placeLng },
+      distanceKm: Math.round(haversineMetres(lat, lng, placeLat, placeLng) / 100) / 10,
+    }
+  })
 }
 
-// Google Place Photos URL — usable directly as <img src>.
-// CORS allows browsers to fetch these. Costs 1 quota unit per request.
-export function getCoursePhotoUrl(photoReference: string, maxWidth = 600): string {
+// Places API (New) photo endpoint. The browser <img> tag follows the 302
+// redirect from this URL to the actual image automatically, and CORS is
+// configured permissively for photo media.
+function buildPhotoUrl(photoName: string, maxWidth: number): string {
   if (!API_KEY) return ''
-  const url = new URL('https://maps.googleapis.com/maps/api/place/photo')
-  url.searchParams.set('maxwidth', String(maxWidth))
-  url.searchParams.set('photo_reference', photoReference)
-  url.searchParams.set('key', API_KEY)
-  return url.toString()
+  return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidth}&key=${API_KEY}`
+}
+
+// Backward-compat shim kept so existing imports don't break — accepts a
+// resource name OR a pre-built URL and returns a usable <img src>.
+export function getCoursePhotoUrl(photoRef: string, maxWidth = 600): string {
+  if (!photoRef) return ''
+  // The new API gives us a fully-formed URL via photoUrl on CourseResult;
+  // this helper just exists for legacy callers that still pass a raw ref.
+  if (photoRef.startsWith('http')) return photoRef
+  return buildPhotoUrl(photoRef, maxWidth)
 }

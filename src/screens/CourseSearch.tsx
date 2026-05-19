@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGeolocation } from '../hooks/useGeolocation'
-import { findNearbyCourses, getCoursePhotoUrl, CourseFetchError } from '../services/courses'
+import { findNearbyCourses, CourseFetchError } from '../services/courses'
 import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -133,7 +133,7 @@ export function CourseSearch() {
 }
 
 function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: CourseResult) => void }) {
-  const photoUrl = course.photoReference ? getCoursePhotoUrl(course.photoReference, 800) : null
+  const photoUrl = course.photoUrl ?? null
 
   return (
     <div className="bg-surface-container-lowest rounded-lg border border-outline-variant/30 shadow-card overflow-hidden">

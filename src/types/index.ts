@@ -75,7 +75,7 @@ export interface CourseResult {
   vicinity: string
   rating?: number
   userRatingsTotal?: number
-  photoReference?: string
+  photoUrl?: string             // fully-formed URL usable directly as <img src>
   location: { lat: number; lng: number }
 }
 
