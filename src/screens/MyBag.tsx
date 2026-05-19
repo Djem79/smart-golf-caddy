@@ -1,4 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  DndContext, PointerSensor, KeyboardSensor, TouchSensor,
+  useSensor, useSensors, closestCenter,
+} from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import {
+  SortableContext, arrayMove, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { updateBag, updateUnits } from '../services/users'
@@ -90,33 +100,34 @@ export function MyBag() {
     await persistBag(bag.filter(c => c.id !== id))
   }
 
-  // Swap a club with the previous/next club in the same category.
-  // The bag array is the order of truth — HoleTracker's picker reads
-  // enabledBagClubs(bag) which preserves array order.
-  async function moveClub(id: string, direction: 'up' | 'down') {
-    const idx = bag.findIndex(c => c.id === id)
-    if (idx === -1) return
-    const category = getClubCategory(bag[idx])
+  // Drag-and-drop reorder within a single category. The bag array is the
+  // order of truth — HoleTracker's picker reads enabledBagClubs(bag) which
+  // preserves array order. We reorder within the category's positional
+  // slice, then splice the reordered slice back into the bag.
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
 
-    // Find the neighbour in the same category, scanning the bag in the
-    // requested direction. Skipping clubs of other categories keeps the
-    // section visually intact (groups in MyBag stay coherent).
-    let neighbour = -1
-    if (direction === 'up') {
-      for (let i = idx - 1; i >= 0; i--) {
-        if (getClubCategory(bag[i]) === category) { neighbour = i; break }
-      }
-    } else {
-      for (let i = idx + 1; i < bag.length; i++) {
-        if (getClubCategory(bag[i]) === category) { neighbour = i; break }
-      }
-    }
-    if (neighbour === -1) return
+    const activeIdx = bag.findIndex(c => c.id === active.id)
+    const overIdx = bag.findIndex(c => c.id === over.id)
+    if (activeIdx === -1 || overIdx === -1) return
 
-    const next = [...bag]
-    ;[next[idx], next[neighbour]] = [next[neighbour], next[idx]]
-    await persistBag(next)
+    // Only allow reordering within the same category — dropping a Driver
+    // into the Wedges section would confuse the grouped UI.
+    const activeCat = getClubCategory(bag[activeIdx])
+    const overCat = getClubCategory(bag[overIdx])
+    if (activeCat !== overCat) return
+
+    await persistBag(arrayMove(bag, activeIdx, overIdx))
   }
+
+  // DnD sensors: pointer (mouse/stylus), touch (long-press 200ms to avoid
+  // accidental drag while scrolling), keyboard (tab + space + arrows).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   function distanceValue(club: BagClub): number {
     if (getClubCategory(club) === 'putter') return 0
@@ -190,9 +201,12 @@ export function MyBag() {
           <p className="text-center text-label-lg text-error">{error}</p>
         )}
 
-        {/* Grouped club list */}
+        {/* Grouped club list — wrapped in a single DndContext; each category
+            gets its own SortableContext so drag is constrained per group. */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         {CLUB_GROUPS.map(group => {
           const clubs = clubsInGroup(group.category)
+          const ids = clubs.map(c => c.id)
           return (
             <div key={group.category} className="space-y-2.5">
               <div className="flex items-center justify-between px-1">
@@ -203,8 +217,9 @@ export function MyBag() {
                   {clubs.filter(c => c.enabled).length}/{clubs.length}
                 </span>
               </div>
+              <SortableContext items={ids} strategy={verticalListSortingStrategy}>
               <div className="space-y-2">
-                {clubs.map((club, idx) => (
+                {clubs.map(club => (
                   <ClubRow
                     key={club.id}
                     club={club}
@@ -215,13 +230,13 @@ export function MyBag() {
                     onSetName={(n) => setName(club.id, n)}
                     onSetDistance={(d) => setDistance(club.id, d)}
                     onDelete={club.custom ? () => deleteClub(club.id) : undefined}
-                    canMoveUp={idx > 0}
-                    canMoveDown={idx < clubs.length - 1}
-                    onMoveUp={() => moveClub(club.id, 'up')}
-                    onMoveDown={() => moveClub(club.id, 'down')}
                   />
                 ))}
 
+              </div>
+              </SortableContext>
+
+              <div className="space-y-2 mt-2">
                 {adding === group.category ? (
                   <AddClubForm
                     units={units}
@@ -242,6 +257,7 @@ export function MyBag() {
             </div>
           )
         })}
+        </DndContext>
       </div>
 
       <BottomNav />
@@ -258,41 +274,50 @@ interface ClubRowProps {
   onSetName: (name: string) => void
   onSetDistance: (raw: string) => void
   onDelete?: () => void
-  canMoveUp: boolean
-  canMoveDown: boolean
-  onMoveUp: () => void
-  onMoveDown: () => void
 }
 
 function ClubRow({
   club, units, distanceValue, isPutter,
   onToggle, onSetName, onSetDistance, onDelete,
-  canMoveUp, canMoveDown, onMoveUp, onMoveDown,
 }: ClubRowProps) {
   const displayLabel = club.custom ? (club.customName || 'Клюшка') : club.id
 
+  // useSortable wires this row into the surrounding SortableContext.
+  // `setNodeRef` is the whole row; `setActivatorNodeRef` + listeners go on
+  // the grip handle so other taps (checkbox / inputs) still work normally.
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: club.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : (club.enabled ? 1 : 0.6),
+    zIndex: isDragging ? 10 : undefined,
+  }
+
   return (
-    <div className={`flex items-center gap-2 p-3 bg-surface-container-lowest border border-outline-variant/30 rounded-lg transition-opacity ${!club.enabled ? 'opacity-60' : ''}`}>
-      <div className="flex flex-col shrink-0">
-        <button
-          type="button"
-          onClick={onMoveUp}
-          disabled={!canMoveUp}
-          aria-label={`Поднять ${displayLabel} выше`}
-          className="w-6 h-5 flex items-center justify-center text-on-surface-variant disabled:opacity-20 active:scale-95"
-        >
-          ▲
-        </button>
-        <button
-          type="button"
-          onClick={onMoveDown}
-          disabled={!canMoveDown}
-          aria-label={`Опустить ${displayLabel} ниже`}
-          className="w-6 h-5 flex items-center justify-center text-on-surface-variant disabled:opacity-20 active:scale-95"
-        >
-          ▼
-        </button>
-      </div>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 p-3 bg-surface-container-lowest border border-outline-variant/30 rounded-lg touch-manipulation"
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        aria-label={`Перетащить ${displayLabel}`}
+        {...attributes}
+        {...listeners}
+        className="w-7 h-11 shrink-0 flex items-center justify-center text-on-surface-variant/70 cursor-grab active:cursor-grabbing touch-none select-none"
+      >
+        ⋮⋮
+      </button>
       <div className="w-11 h-11 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-label-lg text-on-surface">
         {CLUB_ABBREV[club.id] ?? (club.custom ? '✦' : club.id)}
       </div>
