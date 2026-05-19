@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGeolocation } from '../hooks/useGeolocation'
-import { findNearbyCourses, CourseFetchError } from '../services/courses'
+import { findNearbyCourses, searchCoursesByText, CourseFetchError } from '../services/courses'
 import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -11,18 +11,21 @@ import { pluralRu } from '../utils/intl'
 export function CourseSearch() {
   const navigate = useNavigate()
   const { lat, lng, error: geoError, loading: geoLoading, request: requestLocation } = useGeolocation()
-  const [courses, setCourses] = useState<CourseResult[]>([])
-  const [loading, setLoading] = useState(false)
+  const [nearby, setNearby] = useState<CourseResult[]>([])
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+  const [textResults, setTextResults] = useState<CourseResult[] | null>(null)
+  const [textLoading, setTextLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
+  // 1) Nearby search — runs once geolocation resolves
   useEffect(() => {
     if (lat == null || lng == null) return
     let cancelled = false
-    setLoading(true)
+    setNearbyLoading(true)
     setError(null)
     findNearbyCourses(lat, lng)
-      .then(r => { if (!cancelled) setCourses(r) })
+      .then(r => { if (!cancelled) setNearby(r) })
       .catch((e: unknown) => {
         if (cancelled) return
         if (e instanceof CourseFetchError) {
@@ -33,14 +36,48 @@ export function CourseSearch() {
         }
         if (import.meta.env.DEV) console.error('[CourseSearch] findNearbyCourses failed:', e)
       })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .finally(() => { if (!cancelled) setNearbyLoading(false) })
     return () => { cancelled = true }
   }, [lat, lng])
 
-  const filtered = courses.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-    || c.vicinity.toLowerCase().includes(search.toLowerCase()),
-  )
+  // 2) Debounced text search — runs whenever the input changes (>= 2 chars)
+  useEffect(() => {
+    const q = search.trim()
+    if (q.length < 2) {
+      setTextResults(null)
+      return
+    }
+    let cancelled = false
+    setTextLoading(true)
+    const timer = window.setTimeout(() => {
+      const bias = (lat != null && lng != null) ? { lat, lng } : undefined
+      searchCoursesByText(q, bias)
+        .then(r => { if (!cancelled) setTextResults(r) })
+        .catch((e: unknown) => {
+          if (cancelled) return
+          // Don't replace the global nearby error; fall back to local filter.
+          setTextResults([])
+          if (import.meta.env.DEV) console.error('[CourseSearch] searchCoursesByText failed:', e)
+        })
+        .finally(() => { if (!cancelled) setTextLoading(false) })
+    }, 400)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [search, lat, lng])
+
+  // What gets rendered. When the user is searching by text, show those
+  // results. Otherwise show nearby. Always also apply a local substring
+  // match so 1-character queries still filter the nearby list instantly.
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (textResults != null) return textResults
+    if (q.length === 0) return nearby
+    return nearby.filter(c =>
+      c.name.toLowerCase().includes(q) || c.vicinity.toLowerCase().includes(q),
+    )
+  }, [nearby, textResults, search])
+
+  const loading = nearbyLoading || textLoading
+  const isTextSearch = textResults != null
 
   function selectCourse(course: CourseResult) {
     navigate('/round/setup', { state: { course } })
@@ -78,15 +115,17 @@ export function CourseSearch() {
       {/* List */}
       <div className="flex-1 px-5 pb-6 overflow-y-auto">
         <div className="flex items-baseline justify-between mb-3 pt-2">
-          <h2 className="font-headline font-bold text-headline-md text-on-surface">Ближайшие поля</h2>
-          {filtered.length > 0 && (
+          <h2 className="font-headline font-bold text-headline-md text-on-surface">
+            {isTextSearch ? 'Результаты поиска' : 'Ближайшие поля'}
+          </h2>
+          {visible.length > 0 && (
             <span className="text-label-lg text-on-surface-variant">
-              {filtered.length} {pluralRu(filtered.length, 'поле', 'поля', 'полей')}
+              {visible.length} {pluralRu(visible.length, 'поле', 'поля', 'полей')}
             </span>
           )}
         </div>
 
-        {geoLoading && (
+        {!isTextSearch && geoLoading && (
           <div className="text-center pt-8 space-y-3">
             <p className="text-on-surface-variant text-body-md">Определяем вашу позицию...</p>
             <button
@@ -98,32 +137,34 @@ export function CourseSearch() {
             </button>
           </div>
         )}
-        {geoError && (
+        {!isTextSearch && geoError && (
           <div className="text-center pt-8 space-y-3">
             <p className="text-error text-body-md px-4">{geoError}</p>
             <Button onClick={requestLocation}>📍 Определить местоположение</Button>
             <p className="text-label-md text-on-surface-variant">
-              Или введите название поля в поиске выше
+              Или введите название поля в поиске выше — он работает и без геолокации
             </p>
           </div>
         )}
-        {loading && (
+        {loading && visible.length === 0 && (
           <div className="space-y-4">
             {[0, 1].map(i => <SkeletonCard key={i} />)}
           </div>
         )}
-        {error && (
+        {error && !isTextSearch && (
           <p className="text-center text-error text-body-md pt-8">{error}</p>
         )}
 
         <div className="space-y-4">
-          {filtered.map(course => (
+          {visible.map(course => (
             <CourseCard key={course.placeId} course={course} onSelect={selectCourse} />
           ))}
         </div>
 
-        {!loading && !geoLoading && filtered.length === 0 && courses.length > 0 && (
-          <p className="text-center text-on-surface-variant text-body-md pt-4">Поля не найдены</p>
+        {!loading && !geoLoading && visible.length === 0 && (nearby.length > 0 || isTextSearch) && (
+          <p className="text-center text-on-surface-variant text-body-md pt-4">
+            {isTextSearch ? `По запросу «${search.trim()}» поля не найдены` : 'Поля не найдены'}
+          </p>
         )}
       </div>
 
