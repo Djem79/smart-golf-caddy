@@ -250,33 +250,33 @@ export function HoleTracker() {
             ? 'Ваши удары'
             : `Удары: ${round.players[activeUserId]?.name ?? '—'}`}
         </p>
-        <div className="flex items-center gap-10">
-          <button
-            type="button"
-            onClick={removeShot}
-            disabled={myShots <= 0 || saving}
-            className="w-16 h-16 rounded-xl border-2 border-primary text-primary bg-transparent flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary hover:text-on-primary"
-            aria-label="Убавить удар"
-          >
-            <Minus size={28} strokeWidth={2} />
-          </button>
-          <div className="flex flex-col items-center w-20">
-            <span className="font-headline font-bold text-[88px] leading-none text-primary text-center tabular-nums">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-10">
+            <button
+              type="button"
+              onClick={removeShot}
+              disabled={myShots <= 0 || saving}
+              className="w-16 h-16 rounded-xl border-2 border-primary text-primary bg-transparent flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary hover:text-on-primary"
+              aria-label="Убавить удар"
+            >
+              <Minus size={28} strokeWidth={2} />
+            </button>
+            <span className="font-headline font-bold text-[88px] leading-none text-primary text-center tabular-nums w-20 flex items-center justify-center">
               {myShots}
             </span>
-            <span className="text-label-md text-on-surface-variant uppercase tracking-[0.2em] font-semibold mt-1">
-              Удары
-            </span>
+            <button
+              type="button"
+              onClick={addShot}
+              disabled={saving}
+              className="w-16 h-16 rounded-xl bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary-container"
+              aria-label="Добавить удар"
+            >
+              <Plus size={28} strokeWidth={2} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={addShot}
-            disabled={saving}
-            className="w-16 h-16 rounded-xl bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary-container"
-            aria-label="Добавить удар"
-          >
-            <Plus size={28} strokeWidth={2} />
-          </button>
+          <span className="text-label-md text-on-surface-variant uppercase tracking-[0.2em] font-semibold">
+            Удары
+          </span>
         </div>
 
         {myClubs.length > 0 && (
