@@ -29,8 +29,11 @@ export default {
         'on-error': '#FFFFFF',
       },
       fontFamily: {
+        // Single-font system per design choice. `headline` and `body` are
+        // kept as separate aliases so existing class usages keep working
+        // — both resolve to Playfair Display.
         headline: ['"Playfair Display"', 'Georgia', 'serif'],
-        body: ['Inter', 'sans-serif'],
+        body: ['"Playfair Display"', 'Georgia', 'serif'],
       },
       fontSize: {
         'display-lg': ['40px', { lineHeight: '48px', letterSpacing: '-0.02em', fontWeight: '700' }],
