@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createRound } from '../services/rounds'
-import type { CourseResult, TeeColor } from '../types'
+import type { CourseResult, TeeColor, PlayMode } from '../types'
 import { TEE_LABELS } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -24,6 +24,7 @@ export function RoundSetup() {
   const [totalHoles, setTotalHoles] = useState<9 | 18>(18)
   const [mode, setMode] = useState<'solo' | 'group'>('solo')
   const [tee, setTee] = useState<TeeColor>('men')
+  const [playMode, setPlayMode] = useState<PlayMode>('stroke')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,6 +51,7 @@ export function RoundSetup() {
         totalHoles,
         mode,
         tee,
+        playMode,
       )
       if (mode === 'group') {
         navigate(`/round/${roundId}/lobby`)
@@ -189,6 +191,41 @@ export function RoundSetup() {
             </p>
           )}
         </div>
+
+        {/* Play mode — only meaningful for group rounds */}
+        {mode === 'group' && (
+          <div>
+            <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
+              Формат игры
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { id: 'stroke' as const, emoji: '📊', title: 'Stroke', desc: 'Общий счёт по ударам' },
+                { id: 'match'  as const, emoji: '🤝', title: 'Match',  desc: '2 игрока · по лункам' },
+              ]).map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setPlayMode(opt.id)}
+                  className={`flex flex-col items-center justify-center gap-1 p-4 rounded-lg border-2 transition-colors ${
+                    playMode === opt.id
+                      ? 'border-primary bg-primary-container/15 text-on-surface'
+                      : 'border-outline-variant text-on-surface-variant'
+                  }`}
+                >
+                  <span className="text-3xl">{opt.emoji}</span>
+                  <span className="font-headline font-semibold text-label-lg">{opt.title}</span>
+                  <span className="text-label-md text-on-surface-variant">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+            {playMode === 'match' && (
+              <p className="text-label-md text-on-surface-variant mt-2 text-center">
+                Match play считается по победам в каждой лунке. Лучше всего работает 1v1.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="px-5 pb-8 space-y-3">

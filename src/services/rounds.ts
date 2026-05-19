@@ -4,7 +4,7 @@ import {
   runTransaction, Timestamp, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Round, HoleConfig, PlayerInfo, TeeColor } from '../types'
+import type { Round, HoleConfig, PlayerInfo, TeeColor, PlayMode } from '../types'
 import { DEFAULT_HOLE_PARS, TEE_MULTIPLIERS } from '../types'
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
@@ -60,7 +60,12 @@ export async function createRound(
   totalHoles: 9 | 18,
   mode: 'solo' | 'group' = 'solo',
   tee: TeeColor = 'men',
+  playMode: PlayMode = 'stroke',
 ): Promise<string> {
+  // Match play only makes sense with at least 2 players — solo rounds always
+  // fall back to stroke play even if the caller requested match.
+  const effectivePlayMode: PlayMode = mode === 'group' ? playMode : 'stroke'
+
   const ref = doc(collection(db, 'rounds'))
   await setDoc(ref, {
     courseId,
@@ -72,6 +77,7 @@ export async function createRound(
     players: { [hostId]: hostInfo },
     playerIds: [hostId],
     tee,
+    playMode: effectivePlayMode,
     holes: buildDefaultHoles(totalHoles, tee),
     startedAt: mode === 'group' ? null : serverTimestamp(),
     finishedAt: null,

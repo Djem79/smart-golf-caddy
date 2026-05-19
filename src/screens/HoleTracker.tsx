@@ -160,7 +160,19 @@ export function HoleTracker() {
 
   return (
     <div className="screen pb-6">
-      <PageHeader title={`Лунка ${currentHole} / ${totalHoles}`} />
+      <PageHeader
+        title={`Лунка ${currentHole} / ${totalHoles}`}
+        right={
+          <button
+            type="button"
+            onClick={() => navigate(`/round/${roundId}/leaderboard`)}
+            aria-label="Турнирная таблица"
+            className="min-h-touch min-w-touch flex items-center justify-center text-on-surface text-headline-md"
+          >
+            🏆
+          </button>
+        }
+      />
 
       <div className="bg-primary-container px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">

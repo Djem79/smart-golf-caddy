@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
-import { computePlayerTotals, computeClubUsage } from '../services/scoring'
+import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus } from '../services/scoring'
 import { scoreColor, scoreLabel, getBagFromUser, getClubLabel } from '../types'
 import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
@@ -51,18 +51,35 @@ export function RoundResults() {
   }
 
   const players = Object.entries(round.players)
-  const winner = findWinner(round)
   const totalPar = round.holes.reduce((s, h) => s + h.par, 0)
+
+  const isMatchPlay = round.playMode === 'match' && round.playerIds.length === 2
+  const matchStatus = isMatchPlay
+    ? computeMatchPlayStatus(round, round.playerIds[0], round.playerIds[1])
+    : null
 
   return (
     <div className="screen pb-24">
       <PageHeader title="Итоги раунда" showBack={false} />
 
-      <div className="bg-primary-container px-5 py-6 text-center">
-        <p className="text-on-primary/70 text-label-lg uppercase tracking-wider">Победитель</p>
-        <p className="font-headline font-bold text-headline-lg text-on-primary mt-1">🏆 {winner}</p>
-        <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
-      </div>
+      {isMatchPlay && matchStatus ? (
+        <div className="bg-primary-container px-5 py-6 text-center">
+          <p className="text-on-primary/70 text-label-lg uppercase tracking-wider">Match play</p>
+          <p className="font-headline font-bold text-display-lg text-on-primary mt-1">{matchStatus.label}</p>
+          <p className="text-on-primary/90 text-body-md mt-1">
+            {matchStatus.leaderUid
+              ? `🏆 ${round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'}`
+              : 'Игроки на равных'}
+          </p>
+          <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
+        </div>
+      ) : (
+        <div className="bg-primary-container px-5 py-6 text-center">
+          <p className="text-on-primary/70 text-label-lg uppercase tracking-wider">Победитель</p>
+          <p className="font-headline font-bold text-headline-lg text-on-primary mt-1">🏆 {findWinner(round)}</p>
+          <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
+        </div>
+      )}
 
       <div className="px-5 pt-5 space-y-3">
         {players

@@ -52,6 +52,8 @@ export interface PlayerInfo {
 
 export type RoundStatus = 'lobby' | 'active' | 'finished'
 
+export type PlayMode = 'stroke' | 'match'
+
 // Tee colour determines how far back you play from on each hole.
 // Multipliers are applied to the par-based default distance.
 export type TeeColor = 'pro' | 'men' | 'senior' | 'ladies'
@@ -81,6 +83,7 @@ export interface Round {
   players: Record<string, PlayerInfo>
   playerIds: string[]            // denormalized for Firestore array-contains queries
   tee?: TeeColor                 // tee everyone in the round plays from; default 'men'
+  playMode?: PlayMode            // 'stroke' (default) or 'match' (2-player head-to-head)
   holes: HoleConfig[]
   startedAt: Date | null         // null while a group round is in lobby state
   finishedAt: Date | null

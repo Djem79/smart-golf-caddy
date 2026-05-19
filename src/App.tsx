@@ -15,6 +15,7 @@ const Profile      = lazy(() => import('./screens/Profile').then(m => ({ default
 const MyBag        = lazy(() => import('./screens/MyBag').then(m => ({ default: m.MyBag })))
 const JoinGame     = lazy(() => import('./screens/JoinGame').then(m => ({ default: m.JoinGame })))
 const GroupLobby   = lazy(() => import('./screens/GroupLobby').then(m => ({ default: m.GroupLobby })))
+const Leaderboard  = lazy(() => import('./screens/Leaderboard').then(m => ({ default: m.Leaderboard })))
 
 function LoadingScreen({ label = 'Загрузка...' }: { label?: string }) {
   return (
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/round/setup" element={<ProtectedRoute><RoundSetup /></ProtectedRoute>} />
           <Route path="/round/:roundId/lobby" element={<ProtectedRoute><GroupLobby /></ProtectedRoute>} />
           <Route path="/round/:roundId/hole/:holeNumber" element={<ProtectedRoute><HoleTracker /></ProtectedRoute>} />
+          <Route path="/round/:roundId/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
           <Route path="/round/:roundId/results" element={<ProtectedRoute><RoundResults /></ProtectedRoute>} />
           <Route path="/join" element={<ProtectedRoute><JoinGame /></ProtectedRoute>} />
           <Route path="/join/:code" element={<ProtectedRoute><JoinGame /></ProtectedRoute>} />
