@@ -319,7 +319,7 @@ function ClubRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 p-3 bg-surface-container-lowest border border-outline-variant/30 rounded-lg touch-manipulation"
+      className="flex items-center gap-1.5 p-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-lg touch-manipulation"
     >
       <button
         type="button"
@@ -327,11 +327,11 @@ function ClubRow({
         aria-label={`Перетащить ${displayLabel}`}
         {...attributes}
         {...listeners}
-        className="w-7 h-11 shrink-0 flex items-center justify-center text-on-surface-variant/70 cursor-grab active:cursor-grabbing touch-none select-none"
+        className="w-5 h-10 shrink-0 flex items-center justify-center text-on-surface-variant/60 cursor-grab active:cursor-grabbing touch-none select-none text-label-md"
       >
         ⋮⋮
       </button>
-      <div className="w-11 h-11 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-label-lg text-on-surface">
+      <div className="w-10 h-10 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-label-lg text-on-surface">
         {CLUB_ABBREV[club.id] ?? (club.custom ? '✦' : club.id)}
       </div>
       <div className="flex-1 min-w-0">
@@ -341,11 +341,11 @@ function ClubRow({
           placeholder={club.custom ? 'Название' : 'Модель'}
           defaultValue={club.customName ?? ''}
           onBlur={e => onSetName(e.target.value)}
-          className="w-full h-7 px-0 text-label-md bg-transparent border-none text-on-surface-variant placeholder:text-on-surface-variant/50"
+          className="w-full h-6 px-0 text-label-md bg-transparent border-none text-on-surface-variant placeholder:text-on-surface-variant/50"
         />
       </div>
       {!isPutter ? (
-        <div className="flex items-center bg-surface-container rounded h-10 px-2 border border-outline-variant focus-within:border-primary">
+        <div className="flex items-center bg-surface-container rounded h-9 px-1.5 border border-outline-variant focus-within:border-primary shrink-0">
           <input
             key={`${club.id}-${units}-${club.distanceMeters}`}
             type="number"
@@ -354,26 +354,26 @@ function ClubRow({
             max={400}
             defaultValue={distanceValue}
             onBlur={e => onSetDistance(e.target.value)}
-            className="w-12 bg-transparent border-none text-right text-label-md font-semibold text-on-surface p-0"
+            className="w-10 bg-transparent border-none text-right text-label-md font-semibold text-on-surface p-0"
           />
           <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? 'я' : 'м'}</span>
         </div>
       ) : (
-        <div className="text-label-md text-on-surface-variant w-16 text-center">—</div>
+        <div className="text-label-md text-on-surface-variant w-10 text-center shrink-0">—</div>
       )}
       <input
         type="checkbox"
         checked={club.enabled}
         onChange={onToggle}
         aria-label={`Включить ${displayLabel} в сумку`}
-        className="w-6 h-6 accent-primary cursor-pointer shrink-0"
+        className="w-5 h-5 accent-primary cursor-pointer shrink-0"
       />
       {onDelete && (
         <button
           type="button"
           onClick={onDelete}
           aria-label="Удалить клюшку"
-          className="w-8 h-8 shrink-0 flex items-center justify-center text-error text-headline-md leading-none rounded-full hover:bg-error-container/30 transition-colors"
+          className="w-6 h-6 shrink-0 flex items-center justify-center text-error text-title-lg leading-none rounded-full hover:bg-error-container/30 transition-colors"
         >
           ×
         </button>

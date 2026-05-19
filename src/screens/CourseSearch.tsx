@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGeolocation } from '../hooks/useGeolocation'
-import { findNearbyCourses, getCoursePhotoUrl } from '../services/courses'
+import { findNearbyCourses, getCoursePhotoUrl, CourseFetchError } from '../services/courses'
 import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -23,7 +23,16 @@ export function CourseSearch() {
     setError(null)
     findNearbyCourses(lat, lng)
       .then(r => { if (!cancelled) setCourses(r) })
-      .catch(() => { if (!cancelled) setError('Не удалось загрузить поля. Проверьте интернет.') })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        if (e instanceof CourseFetchError) {
+          const detail = e.detail ? ` ${e.detail}` : ''
+          setError(`${e.message}.${detail}`)
+        } else {
+          setError('Не удалось загрузить поля. Проверьте интернет.')
+        }
+        if (import.meta.env.DEV) console.error('[CourseSearch] findNearbyCourses failed:', e)
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [lat, lng])

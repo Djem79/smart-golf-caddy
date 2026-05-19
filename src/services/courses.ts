@@ -17,12 +17,22 @@ interface PlacesResponse {
   }>
 }
 
+// Typed error so the UI can pick a specific message per failure mode.
+export type CourseFetchErrorKind = 'config' | 'network' | 'denied' | 'quota' | 'invalid' | 'unknown'
+
+export class CourseFetchError extends Error {
+  constructor(public kind: CourseFetchErrorKind, message: string, public detail?: string) {
+    super(message)
+    this.name = 'CourseFetchError'
+  }
+}
+
 export async function findNearbyCourses(
   lat: number,
   lng: number,
 ): Promise<CourseResult[]> {
   if (!API_KEY) {
-    throw new Error('VITE_GOOGLE_PLACES_API_KEY is not configured')
+    throw new CourseFetchError('config', 'API ключ Google Places не настроен')
   }
 
   const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json')
@@ -33,14 +43,35 @@ export async function findNearbyCourses(
 
   // Note: Google Places API requires a server-side proxy in production
   // to avoid exposing the API key. For MVP/dev, we call directly.
-  const res = await fetch(url.toString())
-  if (!res.ok) throw new Error(`Places API HTTP error: ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(url.toString())
+  } catch (e) {
+    throw new CourseFetchError('network', 'Нет связи с серверами Google', String(e))
+  }
+  if (!res.ok) {
+    throw new CourseFetchError('network', `Places API HTTP ${res.status}`)
+  }
 
   const data = (await res.json()) as PlacesResponse
 
   if (data.status === 'ZERO_RESULTS') return []
   if (data.status !== 'OK') {
-    throw new Error(`Places API error: ${data.status}${data.error_message ? ` — ${data.error_message}` : ''}`)
+    const detail = data.error_message ?? ''
+    if (data.status === 'REQUEST_DENIED') {
+      throw new CourseFetchError(
+        'denied',
+        'Доступ к Google Places запрещён',
+        detail || 'Скорее всего, текущий домен не в списке разрешённых в Google Cloud Console (HTTP referrers). Добавьте https://smart-golf-caddy.web.app/* в ограничения API-ключа.',
+      )
+    }
+    if (data.status === 'OVER_QUERY_LIMIT') {
+      throw new CourseFetchError('quota', 'Превышен лимит запросов к Google Places', detail)
+    }
+    if (data.status === 'INVALID_REQUEST') {
+      throw new CourseFetchError('invalid', 'Некорректный запрос к Places API', detail)
+    }
+    throw new CourseFetchError('unknown', `Places API: ${data.status}`, detail)
   }
 
   return data.results.map((p) => ({
