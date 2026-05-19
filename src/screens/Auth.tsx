@@ -30,8 +30,27 @@ export function Auth() {
     try {
       await signInWithGoogle()
       navigate('/home')
-    } catch {
-      setError('Ошибка входа. Попробуйте ещё раз.')
+    } catch (e: unknown) {
+      // Firebase Auth errors have a `code` field with a stable identifier.
+      // Map the ones users can actually act on to clear Russian copy.
+      const code = (e && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : ''
+      const detail = (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message) : ''
+
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        // User aborted on their own — not really an error
+        setError(null)
+      } else if (code === 'auth/popup-blocked') {
+        setError('Браузер заблокировал всплывающее окно. Разрешите всплывающие окна для этого сайта.')
+      } else if (code === 'auth/unauthorized-domain') {
+        setError('Этот домен не разрешён в Firebase Authentication. Добавьте его в Firebase Console → Authentication → Settings → Authorized domains.')
+      } else if (code === 'auth/operation-not-allowed') {
+        setError('Вход через Google не включён в Firebase Console (Authentication → Sign-in method).')
+      } else if (code === 'auth/network-request-failed') {
+        setError('Нет связи с серверами Firebase. Проверьте интернет.')
+      } else {
+        setError(`Ошибка входа${code ? ` (${code})` : ''}. ${detail || 'Попробуйте ещё раз.'}`)
+      }
+      console.error('[Auth] signInWithGoogle failed:', e)
     } finally {
       setLoading(false)
     }
