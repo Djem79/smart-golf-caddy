@@ -510,13 +510,15 @@ function HoleEditorDialog({
                   type="button"
                   disabled={saving}
                   onClick={() => setPar(p)}
-                  className={`min-h-touch rounded-xl border-2 font-headline font-bold text-display-lg transition-colors ${
+                  className={`h-16 rounded-xl border-2 transition-colors flex items-center justify-center disabled:opacity-50 ${
                     selected
                       ? 'border-primary bg-primary text-on-primary'
                       : 'border-outline-variant text-on-surface bg-surface-container-lowest hover:border-primary'
-                  } disabled:opacity-50`}
+                  }`}
                 >
-                  {p}
+                  <span className="font-headline font-bold text-display-lg leading-none -translate-y-[3px]">
+                    {p}
+                  </span>
                 </button>
               )
             })}
