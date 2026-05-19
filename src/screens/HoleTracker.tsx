@@ -4,7 +4,7 @@ import { Trophy, Flag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-rea
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
-import { subscribeToRound, recordShot, finishRound } from '../services/rounds'
+import { subscribeToRound, recordShot, finishRound, setHolePar } from '../services/rounds'
 import type { Round } from '../types'
 import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_LABELS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
@@ -35,6 +35,8 @@ export function HoleTracker() {
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [showFinishConfirm, setShowFinishConfirm] = useState(false)
+  const [showParPicker, setShowParPicker] = useState(false)
+  const [savingPar, setSavingPar] = useState(false)
 
   // Active player whose shots we're editing — defaults to self
   const [activeUserId, setActiveUserId] = useState<string>('')
@@ -181,12 +183,26 @@ export function HoleTracker() {
       />
 
       <div className="bg-primary-container px-5 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        {isHost ? (
+          <button
+            type="button"
+            onClick={() => setShowParPicker(true)}
+            className="text-left -m-2 p-2 rounded-md active:bg-on-primary/10 transition-colors"
+            aria-label={`Изменить пар лунки (сейчас ${hole.par})`}
+          >
+            <p className="text-on-primary/70 text-label-lg flex items-center gap-1">
+              Пар <span className="text-[10px] uppercase tracking-wider">изменить</span>
+            </p>
+            <p className="font-headline font-bold text-headline-md text-on-primary underline-offset-4 decoration-on-primary/40 decoration-dotted underline">
+              {hole.par}
+            </p>
+          </button>
+        ) : (
           <div>
             <p className="text-on-primary/70 text-label-lg">Пар</p>
             <p className="font-headline font-bold text-headline-md text-on-primary">{hole.par}</p>
           </div>
-        </div>
+        )}
         <div className="text-center">
           <p className="font-headline font-bold text-display-lg text-on-primary">{currentHole}</p>
         </div>
@@ -371,6 +387,75 @@ export function HoleTracker() {
         onConfirm={confirmFinish}
         onCancel={() => setShowFinishConfirm(false)}
       />
+
+      {showParPicker && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="par-picker-title"
+          className="fixed inset-0 z-[100] bg-on-surface/40 flex items-end sm:items-center justify-center px-3 sm:px-5"
+          onClick={() => !savingPar && setShowParPicker(false)}
+        >
+          <div
+            className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated"
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <h2
+                id="par-picker-title"
+                className="font-headline font-bold text-title-lg text-on-surface tracking-tight"
+              >
+                Пар лунки {currentHole}
+              </h2>
+              <p className="text-label-md text-on-surface-variant mt-1">
+                Подгоните под реальное поле. Изменение видно всем игрокам.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {([3, 4, 5] as const).map(p => {
+                const selected = hole.par === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    disabled={savingPar}
+                    onClick={async () => {
+                      if (p === hole.par) {
+                        setShowParPicker(false)
+                        return
+                      }
+                      setSavingPar(true)
+                      try {
+                        await setHolePar(roundId!, holeIndex, p)
+                        setShowParPicker(false)
+                      } catch {
+                        setError('Не удалось сохранить пар.')
+                      } finally {
+                        setSavingPar(false)
+                      }
+                    }}
+                    className={`min-h-touch rounded-xl border-2 font-headline font-bold text-display-lg transition-colors ${
+                      selected
+                        ? 'border-primary bg-primary text-on-primary'
+                        : 'border-outline-variant text-on-surface bg-surface-container-lowest hover:border-primary'
+                    } disabled:opacity-50`}
+                  >
+                    {p}
+                  </button>
+                )
+              })}
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => setShowParPicker(false)}
+              disabled={savingPar}
+              className="uppercase tracking-wider"
+            >
+              {savingPar ? 'Сохраняем...' : 'Отмена'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -17,6 +17,10 @@ const joinLobbyCallable = httpsCallable<
   { code: string; playerInfo: PlayerInfo },
   { roundId: string | null }
 >(fns, 'joinLobbyByCode')
+const setHoleParCallable = httpsCallable<
+  { roundId: string; holeIndex: number; par: 3 | 4 | 5 },
+  { ok: boolean }
+>(fns, 'setHolePar')
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
 
@@ -158,6 +162,16 @@ export function subscribeToRound(
   return onSnapshot(doc(db, 'rounds', roundId), (snap) => {
     if (snap.exists()) callback(normalizeRound(snap.id, snap.data()))
   })
+}
+
+// Host-only: change the par for a single hole. Server-side enforces the
+// host check and shape; client just passes through.
+export async function setHolePar(
+  roundId: string,
+  holeIndex: number,
+  par: 3 | 4 | 5,
+): Promise<void> {
+  await setHoleParCallable({ roundId, holeIndex, par })
 }
 
 // Fetches the user's rounds, newest first. Capped to `limitTo` (default 50)

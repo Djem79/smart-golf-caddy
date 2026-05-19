@@ -294,6 +294,50 @@ export const recordShot = onCall(
   },
 )
 
+// Set the par for a single hole — host-only, used to correct the
+// hardcoded DEFAULT_HOLE_PARS template against the real course layout.
+// Server-side enforces host check and shape so a participant cannot
+// silently alter another player's expected scoring.
+interface SetHoleParInput {
+  roundId?: string
+  holeIndex?: number
+  par?: number
+}
+
+export const setHolePar = onCall(
+  { region: 'us-central1', enforceAppCheck: false },
+  async request => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
+    const { roundId, holeIndex, par } = (request.data ?? {}) as SetHoleParInput
+    if (!roundId) throw new HttpsError('invalid-argument', 'roundId обязателен')
+    if (typeof holeIndex !== 'number' || holeIndex < 0 || holeIndex > 17) {
+      throw new HttpsError('invalid-argument', 'Некорректный holeIndex')
+    }
+    if (par !== 3 && par !== 4 && par !== 5) {
+      throw new HttpsError('invalid-argument', 'Par должен быть 3, 4 или 5')
+    }
+
+    const uid = request.auth.uid
+    const ref = getFirestore().doc(`rounds/${roundId}`)
+    await getFirestore().runTransaction(async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists) throw new HttpsError('not-found', 'Раунд не найден')
+      const data = snap.data() as { hostId?: string; holes?: { par: number }[] }
+      if (data.hostId !== uid) {
+        throw new HttpsError('permission-denied', 'Только хост может менять пар')
+      }
+      const holes = (data.holes ?? []).slice()
+      if (holeIndex >= holes.length) {
+        throw new HttpsError('invalid-argument', 'Лунка вне диапазона')
+      }
+      holes[holeIndex] = { ...holes[holeIndex], par }
+      tx.update(ref, { holes })
+    })
+
+    return { ok: true }
+  },
+)
+
 // 3. Join lobby by code — server-authoritative lookup so we can keep
 //    rounds/{id} reads strictly participant-only. Client passes the 6-char
 //    lobby code + their own PlayerInfo; function finds the round and adds
