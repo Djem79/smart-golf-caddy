@@ -255,19 +255,24 @@ export function HoleTracker() {
             type="button"
             onClick={removeShot}
             disabled={myShots <= 0 || saving}
-            className="w-16 h-16 rounded-full border-2 border-primary text-primary bg-transparent flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary hover:text-on-primary"
+            className="w-16 h-16 rounded-xl border-2 border-primary text-primary bg-transparent flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary hover:text-on-primary"
             aria-label="Убавить удар"
           >
             <Minus size={28} strokeWidth={2} />
           </button>
-          <span className="font-headline font-bold text-[88px] leading-none text-primary w-20 text-center tabular-nums">
-            {myShots}
-          </span>
+          <div className="flex flex-col items-center w-20">
+            <span className="font-headline font-bold text-[88px] leading-none text-primary text-center tabular-nums">
+              {myShots}
+            </span>
+            <span className="text-label-md text-on-surface-variant uppercase tracking-[0.2em] font-semibold mt-1">
+              Удары
+            </span>
+          </div>
           <button
             type="button"
             onClick={addShot}
             disabled={saving}
-            className="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary-container"
+            className="w-16 h-16 rounded-xl bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary-container"
             aria-label="Добавить удар"
           >
             <Plus size={28} strokeWidth={2} />
@@ -326,19 +331,15 @@ export function HoleTracker() {
           <Button iconRight={ChevronRight} onClick={() => goToHole(currentHole + 1)} className="flex-1">
             Дальше
           </Button>
-        ) : isHost ? (
+        ) : (
           <Button
             icon={Flag}
             onClick={requestFinish}
-            disabled={finishing}
+            disabled={!isHost || finishing}
             className="flex-1 uppercase tracking-wider"
           >
-            Закончить игру
+            {isHost ? 'Закончить игру' : 'Завершит хост'}
           </Button>
-        ) : (
-          <div className="flex-1 min-h-touch flex items-center justify-center text-center text-label-md text-on-surface-variant px-3">
-            Игру завершит хост
-          </div>
         )}
       </div>
 

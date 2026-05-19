@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { Briefcase, ChevronRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { signOut } from '../services/auth'
@@ -229,17 +229,26 @@ export function Profile() {
           )}
         </Card>
 
-        <Card onClick={() => navigate('/bag')}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-headline font-semibold text-title-lg text-on-surface tracking-tight">Моя сумка</h3>
-              <p className="text-label-lg text-on-surface-variant mt-1">
-                Состав клюшек, дистанции, единицы измерения
-              </p>
+        <button
+          type="button"
+          onClick={() => navigate('/bag')}
+          className="w-full text-left rounded-lg overflow-hidden bg-gradient-to-br from-primary-container to-primary text-on-primary p-5 active:scale-[0.995] transition-transform shadow-card"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-md bg-on-primary/15 flex items-center justify-center shrink-0">
+              <Briefcase size={20} strokeWidth={1.75} />
             </div>
-            <ChevronRight size={20} strokeWidth={1.75} className="text-on-surface-variant ml-3 shrink-0" />
+            <p className="font-headline font-semibold text-label-lg uppercase tracking-[0.18em]">
+              Моя сумка
+            </p>
           </div>
-        </Card>
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-body-md text-on-primary/85">
+              {bag.filter(c => c.enabled).length} клюшек · {profile?.units === 'yd' ? 'ярды' : 'метры'}
+            </p>
+            <ChevronRight size={20} strokeWidth={1.75} />
+          </div>
+        </button>
 
         <Button variant="secondary" onClick={handleSignOut} disabled={signingOut}>
           {signingOut ? 'Выходим...' : 'Выйти из аккаунта'}
