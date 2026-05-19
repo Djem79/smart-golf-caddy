@@ -23,7 +23,10 @@ function normalizeRound(id: string, data: Record<string, unknown>): Round {
   return {
     ...data,
     id,
-    startedAt: toDate(data.startedAt) ?? new Date(),
+    // `startedAt` is null for group rounds in lobby state; preserve that.
+    // `createdAt` is set via serverTimestamp at create, so should always exist —
+    // fall back to now only as last-resort defense.
+    startedAt: toDate(data.startedAt),
     finishedAt: toDate(data.finishedAt),
     createdAt: toDate(data.createdAt) ?? new Date(),
   } as Round
@@ -124,6 +127,14 @@ export async function recordShot(
     const snap = await tx.get(ref)
     if (!snap.exists()) throw new Error('Round not found')
     const data = snap.data() as Omit<Round, 'id'>
+    if (data.status !== 'active') throw new Error('Round is not active')
+    if (!data.playerIds.includes(userId)) throw new Error('User is not a participant')
+    if (holeIndex < 0 || holeIndex >= data.holes.length) throw new Error('Invalid hole index')
+
+    // Note: `holes` is an array, so Firestore dot-path indexing (`holes.${i}.shots.${uid}`)
+    // is not supported. The full holes array is rewritten on every shot. Migrating to a
+    // map keyed by hole number (or a shots subcollection) would unlock per-field updates
+    // and let rules enforce "only edit your own shots". Deferred — see audit.
     const holes = data.holes.map((h, i) =>
       i === holeIndex
         ? {

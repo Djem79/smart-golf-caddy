@@ -63,7 +63,7 @@ export interface Round {
   players: Record<string, PlayerInfo>
   playerIds: string[]            // denormalized for Firestore array-contains queries
   holes: HoleConfig[]
-  startedAt: Date
+  startedAt: Date | null         // null while a group round is in lobby state
   finishedAt: Date | null
   createdAt: Date
 }

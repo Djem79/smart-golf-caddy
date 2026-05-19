@@ -129,7 +129,7 @@ export function Profile() {
         <Card>
           <h3 className="font-headline font-semibold text-title-lg text-on-surface">Гандикап</h3>
           <p className="text-label-lg text-on-surface-variant mt-1">
-            Будет рассчитан после нескольких раундов (Plan 2).
+            Скоро будет доступен — рассчитаем по вашим завершённым раундам.
           </p>
         </Card>
 
