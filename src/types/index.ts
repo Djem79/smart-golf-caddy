@@ -52,6 +52,24 @@ export interface PlayerInfo {
 
 export type RoundStatus = 'lobby' | 'active' | 'finished'
 
+// Tee colour determines how far back you play from on each hole.
+// Multipliers are applied to the par-based default distance.
+export type TeeColor = 'pro' | 'men' | 'senior' | 'ladies'
+
+export const TEE_MULTIPLIERS: Record<TeeColor, number> = {
+  pro:    1.10,
+  men:    1.00,
+  senior: 0.90,
+  ladies: 0.80,
+}
+
+export const TEE_LABELS: Record<TeeColor, { label: string; bg: string; text: string; description: string }> = {
+  pro:    { label: 'Pro',        bg: '#0A3010', text: '#FFFFFF', description: 'Чемпионские · +10%' },
+  men:    { label: 'Мужские',    bg: '#FFFFFF', text: '#1A1C1C', description: 'Стандартные' },
+  senior: { label: 'Сеньорские', bg: '#FFC107', text: '#1A1C1C', description: 'Чуть ближе · −10%' },
+  ladies: { label: 'Женские',    bg: '#F44336', text: '#FFFFFF', description: 'Ближе всего · −20%' },
+}
+
 export interface Round {
   id: string
   courseId: string
@@ -62,6 +80,7 @@ export interface Round {
   hostId: string
   players: Record<string, PlayerInfo>
   playerIds: string[]            // denormalized for Firestore array-contains queries
+  tee?: TeeColor                 // tee everyone in the round plays from; default 'men'
   holes: HoleConfig[]
   startedAt: Date | null         // null while a group round is in lobby state
   finishedAt: Date | null

@@ -5,7 +5,7 @@ import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, recordShot, finishRound } from '../services/rounds'
 import type { Round } from '../types'
-import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG } from '../types'
+import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_LABELS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -160,16 +160,28 @@ export function HoleTracker() {
       <PageHeader title={`Лунка ${currentHole} / ${totalHoles}`} />
 
       <div className="bg-primary-container px-5 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-on-primary/70 text-label-lg">Пар</p>
-          <p className="font-headline font-bold text-headline-md text-on-primary">{hole.par}</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <p className="text-on-primary/70 text-label-lg">Пар</p>
+            <p className="font-headline font-bold text-headline-md text-on-primary">{hole.par}</p>
+          </div>
         </div>
         <div className="text-center">
           <p className="font-headline font-bold text-display-lg text-on-primary">{currentHole}</p>
         </div>
         <div className="text-right">
           <p className="text-on-primary/70 text-label-lg">Дист.</p>
-          <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} м</p>
+          <div className="flex items-center justify-end gap-2">
+            <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} м</p>
+            {round.tee && (
+              <span
+                aria-label={`Тии: ${TEE_LABELS[round.tee].label}`}
+                className="w-5 h-5 rounded-full border border-on-primary/30 shrink-0"
+                style={{ backgroundColor: TEE_LABELS[round.tee].bg }}
+                title={TEE_LABELS[round.tee].label}
+              />
+            )}
+          </div>
         </div>
       </div>
 

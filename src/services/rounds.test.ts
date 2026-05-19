@@ -82,6 +82,28 @@ describe('buildDefaultHoles', () => {
     expect(holes[0].holeNumber).toBe(1)
     expect(holes[8].holeNumber).toBe(9)
   })
+
+  it('applies tee multiplier to distances', () => {
+    const par4Default = 360
+    const men    = buildDefaultHoles(18, 'men')
+    const pro    = buildDefaultHoles(18, 'pro')
+    const senior = buildDefaultHoles(18, 'senior')
+    const ladies = buildDefaultHoles(18, 'ladies')
+
+    // First par-4 hole exists in default; check multiplier ratios approximately
+    const par4Idx = men.findIndex(h => h.par === 4)
+    expect(par4Idx).toBeGreaterThanOrEqual(0)
+    expect(men[par4Idx].distanceMeters).toBe(par4Default)
+    expect(pro[par4Idx].distanceMeters).toBe(Math.round(par4Default * 1.10))
+    expect(senior[par4Idx].distanceMeters).toBe(Math.round(par4Default * 0.90))
+    expect(ladies[par4Idx].distanceMeters).toBe(Math.round(par4Default * 0.80))
+  })
+
+  it('defaults to men tees when no tee argument is given', () => {
+    const noArg = buildDefaultHoles(9)
+    const explicit = buildDefaultHoles(9, 'men')
+    expect(noArg).toEqual(explicit)
+  })
 })
 
 describe('joinRoundByCode', () => {

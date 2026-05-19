@@ -4,8 +4,8 @@ import {
   runTransaction, Timestamp, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Round, HoleConfig, PlayerInfo } from '../types'
-import { DEFAULT_HOLE_PARS } from '../types'
+import type { Round, HoleConfig, PlayerInfo, TeeColor } from '../types'
+import { DEFAULT_HOLE_PARS, TEE_MULTIPLIERS } from '../types'
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
 
@@ -39,13 +39,17 @@ export function generateLobbyCode(): string {
   return code
 }
 
-export function buildDefaultHoles(totalHoles: 9 | 18): HoleConfig[] {
-  return DEFAULT_HOLE_PARS[totalHoles].map((par, i) => ({
-    holeNumber: i + 1,
-    par,
-    distanceMeters: par === 3 ? 150 : par === 5 ? 480 : 360,
-    shots: {},
-  }))
+export function buildDefaultHoles(totalHoles: 9 | 18, tee: TeeColor = 'men'): HoleConfig[] {
+  const mult = TEE_MULTIPLIERS[tee] ?? 1.0
+  return DEFAULT_HOLE_PARS[totalHoles].map((par, i) => {
+    const base = par === 3 ? 150 : par === 5 ? 480 : 360
+    return {
+      holeNumber: i + 1,
+      par,
+      distanceMeters: Math.round(base * mult),
+      shots: {},
+    }
+  })
 }
 
 export async function createRound(
@@ -55,6 +59,7 @@ export async function createRound(
   courseName: string,
   totalHoles: 9 | 18,
   mode: 'solo' | 'group' = 'solo',
+  tee: TeeColor = 'men',
 ): Promise<string> {
   const ref = doc(collection(db, 'rounds'))
   await setDoc(ref, {
@@ -66,7 +71,8 @@ export async function createRound(
     hostId,
     players: { [hostId]: hostInfo },
     playerIds: [hostId],
-    holes: buildDefaultHoles(totalHoles),
+    tee,
+    holes: buildDefaultHoles(totalHoles, tee),
     startedAt: mode === 'group' ? null : serverTimestamp(),
     finishedAt: null,
     createdAt: serverTimestamp(),

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createRound } from '../services/rounds'
-import type { CourseResult } from '../types'
+import type { CourseResult, TeeColor } from '../types'
+import { TEE_LABELS } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
@@ -22,6 +23,7 @@ export function RoundSetup() {
   const [customName, setCustomName] = useState(state.customName ?? '')
   const [totalHoles, setTotalHoles] = useState<9 | 18>(18)
   const [mode, setMode] = useState<'solo' | 'group'>('solo')
+  const [tee, setTee] = useState<TeeColor>('men')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,6 +49,7 @@ export function RoundSetup() {
         effectiveName,
         totalHoles,
         mode,
+        tee,
       )
       if (mode === 'group') {
         navigate(`/round/${roundId}/lobby`)
@@ -119,6 +122,39 @@ export function RoundSetup() {
                 {n}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
+            Тии (откуда играем)
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['pro', 'men', 'senior', 'ladies'] as const).map(t => {
+              const info = TEE_LABELS[t]
+              const selected = tee === t
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTee(t)}
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors text-left ${
+                    selected ? 'border-primary bg-primary-container/15' : 'border-outline-variant'
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 shrink-0 rounded-full border border-outline-variant/40 flex items-center justify-center font-bold text-label-md"
+                    style={{ backgroundColor: info.bg, color: info.text }}
+                  >
+                    T
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-label-lg text-on-surface truncate">{info.label}</p>
+                    <p className="text-label-md text-on-surface-variant truncate">{info.description}</p>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
 
