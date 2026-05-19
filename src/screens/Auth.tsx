@@ -57,19 +57,29 @@ export function Auth() {
   }
 
   return (
-    <div className="screen items-center justify-center px-5 gap-8">
-      <div className="text-center space-y-3">
-        <div className="text-6xl">⛳</div>
-        <h1 className="font-headline font-bold text-headline-lg text-primary">Smart Golf Caddy</h1>
-        <p className="text-body-md text-on-surface-variant">Ваш цифровой кэдди на поле</p>
+    <div className="screen relative items-stretch px-5 pt-16 pb-10">
+      <div className="absolute inset-x-0 top-0 h-[42%] bg-gradient-to-b from-primary-container to-primary -z-10" />
+
+      <div className="flex-1 flex flex-col">
+        <div className="space-y-3">
+          <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.2em] font-semibold">
+            Premium golf companion
+          </p>
+          <h1 className="font-headline font-bold text-display-lg text-on-primary leading-[1.05] tracking-tight">
+            Smart<br />Golf Caddy
+          </h1>
+          <p className="text-on-primary/80 text-body-md max-w-[260px]">
+            Считайте удары, ведите статистику и играйте с друзьями — всё в одном месте.
+          </p>
+        </div>
       </div>
 
-      <div className="w-full space-y-3">
+      <div className="space-y-3">
         <button
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full min-h-touch bg-surface-container-lowest border border-outline-variant rounded flex items-center justify-center gap-3 px-6 font-headline font-semibold text-label-lg text-on-surface active:scale-[0.98] transition-transform disabled:opacity-40"
+          className="w-full min-h-touch bg-surface-container-lowest border border-outline-variant/60 rounded-md flex items-center justify-center gap-3 px-6 font-headline font-semibold text-label-lg text-on-surface active:scale-[0.985] transition-transform disabled:opacity-40 shadow-card"
         >
           <GoogleGLogo className="w-5 h-5 shrink-0" />
           {loading ? 'Вход...' : 'Войти через Google'}
@@ -78,6 +88,10 @@ export function Auth() {
         {error && (
           <p className="text-center text-label-lg text-error">{error}</p>
         )}
+
+        <p className="text-center text-label-md text-on-surface-variant pt-2">
+          Продолжая, вы соглашаетесь с условиями использования
+        </p>
       </div>
     </div>
   )

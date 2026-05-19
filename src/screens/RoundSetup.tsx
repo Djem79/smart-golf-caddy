@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { User, Users, BarChart3, Swords, type LucideIcon } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { createRound } from '../services/rounds'
 import type { CourseResult, TeeColor, PlayMode } from '../types'
@@ -166,23 +167,17 @@ export function RoundSetup() {
           </p>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { id: 'solo' as const,  emoji: '⛳', title: 'Соло',   desc: 'Только вы' },
-              { id: 'group' as const, emoji: '👥', title: 'Группа', desc: 'С друзьями' },
-            ]).map(opt => (
-              <button
+              { id: 'solo' as const,  Icon: User,  title: 'Соло',   desc: 'Только вы' },
+              { id: 'group' as const, Icon: Users, title: 'Группа', desc: 'С друзьями' },
+            ] satisfies { id: 'solo' | 'group'; Icon: LucideIcon; title: string; desc: string }[]).map(opt => (
+              <ChoiceCard
                 key={opt.id}
-                type="button"
+                selected={mode === opt.id}
+                Icon={opt.Icon}
+                title={opt.title}
+                desc={opt.desc}
                 onClick={() => setMode(opt.id)}
-                className={`flex flex-col items-center justify-center gap-1 p-4 rounded-lg border-2 transition-colors ${
-                  mode === opt.id
-                    ? 'border-primary bg-primary-container/15 text-on-surface'
-                    : 'border-outline-variant text-on-surface-variant'
-                }`}
-              >
-                <span className="text-3xl">{opt.emoji}</span>
-                <span className="font-headline font-semibold text-label-lg">{opt.title}</span>
-                <span className="text-label-md text-on-surface-variant">{opt.desc}</span>
-              </button>
+              />
             ))}
           </div>
           {mode === 'group' && (
@@ -200,23 +195,17 @@ export function RoundSetup() {
             </p>
             <div className="grid grid-cols-2 gap-3">
               {([
-                { id: 'stroke' as const, emoji: '📊', title: 'Stroke', desc: 'Общий счёт по ударам' },
-                { id: 'match'  as const, emoji: '🤝', title: 'Match',  desc: '2 игрока · по лункам' },
-              ]).map(opt => (
-                <button
+                { id: 'stroke' as const, Icon: BarChart3, title: 'Stroke', desc: 'Общий счёт по ударам' },
+                { id: 'match'  as const, Icon: Swords,    title: 'Match',  desc: '2 игрока · по лункам' },
+              ] satisfies { id: 'stroke' | 'match'; Icon: LucideIcon; title: string; desc: string }[]).map(opt => (
+                <ChoiceCard
                   key={opt.id}
-                  type="button"
+                  selected={playMode === opt.id}
+                  Icon={opt.Icon}
+                  title={opt.title}
+                  desc={opt.desc}
                   onClick={() => setPlayMode(opt.id)}
-                  className={`flex flex-col items-center justify-center gap-1 p-4 rounded-lg border-2 transition-colors ${
-                    playMode === opt.id
-                      ? 'border-primary bg-primary-container/15 text-on-surface'
-                      : 'border-outline-variant text-on-surface-variant'
-                  }`}
-                >
-                  <span className="text-3xl">{opt.emoji}</span>
-                  <span className="font-headline font-semibold text-label-lg">{opt.title}</span>
-                  <span className="text-label-md text-on-surface-variant">{opt.desc}</span>
-                </button>
+                />
               ))}
             </div>
             {playMode === 'match' && (
@@ -243,5 +232,42 @@ export function RoundSetup() {
 
       <BottomNav />
     </div>
+  )
+}
+
+interface ChoiceCardProps {
+  Icon: LucideIcon
+  title: string
+  desc: string
+  selected: boolean
+  onClick: () => void
+}
+
+function ChoiceCard({ Icon, title, desc, selected, onClick }: ChoiceCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`flex flex-col items-start gap-2 p-4 rounded-lg border-2 transition-all duration-150 text-left min-h-[120px] ${
+        selected
+          ? 'border-primary bg-primary-container/10 text-on-surface'
+          : 'border-outline-variant/60 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant'
+      }`}
+    >
+      <span
+        className={`w-9 h-9 rounded-md flex items-center justify-center transition-colors ${
+          selected ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
+        }`}
+      >
+        <Icon size={20} strokeWidth={1.75} />
+      </span>
+      <div>
+        <p className={`font-headline font-semibold text-label-lg ${selected ? 'text-on-surface' : 'text-on-surface'}`}>
+          {title}
+        </p>
+        <p className="text-label-md text-on-surface-variant mt-0.5">{desc}</p>
+      </div>
+    </button>
   )
 }

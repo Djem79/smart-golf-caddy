@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
+import { Play, Check, Copy } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { subscribeToRound, startRound, leaveLobby } from '../services/rounds'
 import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { pluralRu } from '../utils/intl'
@@ -93,7 +95,9 @@ export function GroupLobby() {
 
         {/* Lobby code */}
         <Card>
-          <p className="text-label-md text-on-surface-variant uppercase tracking-wider text-center">Код лобби</p>
+          <p className="text-label-md text-on-surface-variant uppercase tracking-[0.15em] font-semibold text-center">
+            Код лобби
+          </p>
           <button
             type="button"
             onClick={copyCode}
@@ -101,14 +105,24 @@ export function GroupLobby() {
           >
             {round.lobbyCode}
           </button>
-          <p className="text-center text-label-md text-on-surface-variant mt-1">
-            {copied ? 'Скопировано' : 'Тап чтобы скопировать'}
+          <p className="text-center text-label-md text-on-surface-variant mt-1 inline-flex items-center justify-center gap-1 w-full">
+            {copied ? (
+              <>
+                <Check size={14} strokeWidth={2.5} className="text-primary" /> Скопировано
+              </>
+            ) : (
+              <>
+                <Copy size={14} strokeWidth={1.75} /> Тап чтобы скопировать
+              </>
+            )}
           </p>
         </Card>
 
         {/* QR */}
         <Card>
-          <p className="text-label-md text-on-surface-variant uppercase tracking-wider text-center mb-3">Или отсканируйте QR</p>
+          <p className="text-label-md text-on-surface-variant uppercase tracking-[0.15em] font-semibold text-center mb-3">
+            Или отсканируйте QR
+          </p>
           <div className="flex justify-center bg-surface-container-lowest p-3 rounded-lg">
             <QRCodeSVG value={joinUrl} size={200} level="M" bgColor="#FFFFFF" fgColor="#1A1C1C" />
           </div>
@@ -131,18 +145,15 @@ export function GroupLobby() {
             {players.map(([uid, p]) => (
               <Card key={uid}>
                 <div className="flex items-center gap-3">
-                  {p.avatar
-                    ? <img src={p.avatar} alt={p.name} className="w-10 h-10 rounded-full shrink-0" />
-                    : <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shrink-0 text-headline-md">⛳</div>
-                  }
+                  <Avatar src={p.avatar} name={p.name} size={40} />
                   <span className="flex-1 font-semibold text-body-md text-on-surface truncate">{p.name}</span>
                   {uid === round.hostId && (
-                    <span className="text-label-md font-semibold text-primary-container bg-primary-container/15 px-2 py-0.5 rounded-full">
-                      хост
+                    <span className="text-label-md font-semibold text-primary bg-primary-container/15 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Хост
                     </span>
                   )}
                   {uid === user?.uid && uid !== round.hostId && (
-                    <span className="text-label-md text-on-surface-variant">вы</span>
+                    <span className="text-label-md text-on-surface-variant uppercase tracking-wider">Вы</span>
                   )}
                 </div>
               </Card>
@@ -158,8 +169,10 @@ export function GroupLobby() {
       {/* Actions */}
       <div className="px-5 pb-6 space-y-3">
         {isHost ? (
-          <Button onClick={handleStart} disabled={starting || players.length === 0}>
-            {starting ? 'Запускаем...' : `🏁 Начать раунд (${players.length} ${pluralRu(players.length, 'игрок', 'игрока', 'игроков')})`}
+          <Button icon={Play} onClick={handleStart} disabled={starting || players.length === 0}>
+            {starting
+              ? 'Запускаем...'
+              : `Начать раунд (${players.length} ${pluralRu(players.length, 'игрок', 'игрока', 'игроков')})`}
           </Button>
         ) : (
           <div className="text-center text-body-md text-on-surface-variant py-3">

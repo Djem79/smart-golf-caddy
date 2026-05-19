@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Trophy, Flag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
@@ -8,6 +9,7 @@ import type { Round } from '../types'
 import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_LABELS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
+import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 
@@ -167,9 +169,9 @@ export function HoleTracker() {
             type="button"
             onClick={() => navigate(`/round/${roundId}/leaderboard`)}
             aria-label="Турнирная таблица"
-            className="min-h-touch min-w-touch flex items-center justify-center text-on-surface text-headline-md"
+            className="min-h-touch min-w-touch flex items-center justify-center text-on-surface rounded-full active:bg-surface-container-high/60 transition-colors"
           >
-            🏆
+            <Trophy size={22} strokeWidth={1.75} />
           </button>
         }
       />
@@ -218,20 +220,17 @@ export function HoleTracker() {
                   key={uid}
                   type="button"
                   onClick={() => setActiveUserId(uid)}
-                  className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-colors min-h-touch ${
+                  className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border transition-colors min-h-touch ${
                     active
                       ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container-lowest text-on-surface border-outline-variant'
+                      : 'bg-surface-container-lowest text-on-surface border-outline-variant/60 hover:border-outline-variant'
                   }`}
                 >
-                  {p.avatar
-                    ? <img src={p.avatar} alt="" className="w-6 h-6 rounded-full" />
-                    : <span className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-label-md">⛳</span>
-                  }
+                  <Avatar src={p.avatar} name={p.name} size={24} />
                   <span className="font-semibold text-label-lg truncate max-w-[100px]">
                     {isMe ? 'Вы' : p.name}
                   </span>
-                  <span className={`text-label-lg font-bold ${active ? 'text-on-primary' : 'text-primary'}`}>
+                  <span className={`text-label-lg font-bold tabular-nums ${active ? 'text-on-primary' : 'text-primary'}`}>
                     {count}
                   </span>
                 </button>
@@ -252,22 +251,22 @@ export function HoleTracker() {
             type="button"
             onClick={removeShot}
             disabled={myShots <= 0 || saving}
-            className="w-16 h-16 rounded-full bg-surface-container-high text-on-surface text-headline-lg font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
+            className="w-16 h-16 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30 shadow-card"
             aria-label="Убавить удар"
           >
-            −
+            <Minus size={26} strokeWidth={2} />
           </button>
-          <span className="font-headline font-bold text-display-lg text-on-surface w-16 text-center">
+          <span className="font-headline font-bold text-display-lg text-on-surface w-16 text-center tabular-nums">
             {myShots}
           </span>
           <button
             type="button"
             onClick={addShot}
             disabled={saving}
-            className="w-16 h-16 rounded-full bg-primary text-on-primary text-headline-lg font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
+            className="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30 shadow-card"
             aria-label="Добавить удар"
           >
-            +
+            <Plus size={26} strokeWidth={2} />
           </button>
         </div>
 
@@ -312,23 +311,25 @@ export function HoleTracker() {
       <div className="flex gap-3 px-5 mt-4">
         <Button
           variant="secondary"
+          icon={ChevronLeft}
           disabled={currentHole === 1}
           onClick={() => goToHole(currentHole - 1)}
           className="w-auto flex-1"
         >
-          ← Пред.
+          Пред.
         </Button>
         {currentHole < totalHoles ? (
-          <Button onClick={() => goToHole(currentHole + 1)} className="flex-1">
-            След. →
+          <Button iconRight={ChevronRight} onClick={() => goToHole(currentHole + 1)} className="flex-1">
+            Дальше
           </Button>
         ) : (
           <Button
+            icon={Flag}
             onClick={requestFinish}
             disabled={finishing}
             className="flex-1"
           >
-            🏁  Завершить раунд
+            Завершить раунд
           </Button>
         )}
       </div>

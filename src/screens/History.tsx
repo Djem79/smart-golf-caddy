@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Flag } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getUserRounds } from '../services/rounds'
 import type { Round } from '../types'
@@ -41,7 +42,9 @@ export function History() {
         )}
         {!loading && rounds.length === 0 && (
           <div className="text-center pt-16 space-y-3">
-            <p className="text-4xl">⛳</p>
+            <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mx-auto text-on-surface-variant">
+              <Flag size={26} strokeWidth={1.5} />
+            </div>
             <p className="text-on-surface-variant text-body-md">Нет завершённых раундов</p>
           </div>
         )}
@@ -60,8 +63,8 @@ export function History() {
                   </p>
                 </div>
                 <div className="ml-3 text-right shrink-0">
-                  <p className="font-headline font-bold text-title-lg text-primary">{totalScore}</p>
-                  <p className="text-label-md text-on-surface-variant">{sign}{scoreDiff}</p>
+                  <p className="font-headline font-bold text-title-lg text-primary tabular-nums">{totalScore}</p>
+                  <p className="text-label-md text-on-surface-variant tabular-nums">{sign}{scoreDiff}</p>
                 </div>
               </div>
             </Card>

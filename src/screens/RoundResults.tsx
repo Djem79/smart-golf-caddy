@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Trophy } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
 import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus } from '../services/scoring'
@@ -7,6 +8,7 @@ import { scoreColor, scoreLabel, getBagFromUser, getClubLabel } from '../types'
 import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { Avatar } from '../components/ui/Avatar'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
 import { pluralRu } from '../utils/intl'
@@ -63,21 +65,41 @@ export function RoundResults() {
       <PageHeader title="Итоги раунда" showBack={false} />
 
       {isMatchPlay && matchStatus ? (
-        <div className="bg-primary-container px-5 py-6 text-center">
-          <p className="text-on-primary/70 text-label-lg uppercase tracking-wider">Match play</p>
-          <p className="font-headline font-bold text-display-lg text-on-primary mt-1">{matchStatus.label}</p>
-          <p className="text-on-primary/90 text-body-md mt-1">
+        <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-on-primary/10 mx-auto flex items-center justify-center text-on-primary mb-3">
+            <Trophy size={24} strokeWidth={1.5} />
+          </div>
+          <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
+            Match play
+          </p>
+          <p className="font-headline font-bold text-display-lg text-on-primary mt-2 tracking-tight tabular-nums">
+            {matchStatus.label}
+          </p>
+          <p className="text-on-primary text-body-md mt-1 font-medium">
             {matchStatus.leaderUid
-              ? `🏆 ${round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'}`
+              ? round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'
               : 'Игроки на равных'}
           </p>
-          <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
+          <p className="text-on-primary/70 text-label-md mt-2">
+            {round.courseName} · {round.totalHoles}{' '}
+            {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+          </p>
         </div>
       ) : (
-        <div className="bg-primary-container px-5 py-6 text-center">
-          <p className="text-on-primary/70 text-label-lg uppercase tracking-wider">Победитель</p>
-          <p className="font-headline font-bold text-headline-lg text-on-primary mt-1">🏆 {findWinner(round)}</p>
-          <p className="text-on-primary/70 text-label-md mt-1">{round.courseName} · {round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
+        <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-on-primary/10 mx-auto flex items-center justify-center text-on-primary mb-3">
+            <Trophy size={24} strokeWidth={1.5} />
+          </div>
+          <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
+            Победитель
+          </p>
+          <p className="font-headline font-bold text-headline-lg text-on-primary mt-2 tracking-tight">
+            {findWinner(round)}
+          </p>
+          <p className="text-on-primary/70 text-label-md mt-2">
+            {round.courseName} · {round.totalHoles}{' '}
+            {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+          </p>
         </div>
       )}
 
@@ -91,18 +113,15 @@ export function RoundResults() {
           )
           .map(({ uid, player, totalScore, scoreDiff }) => (
             <Card key={uid}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {player.avatar
-                    ? <img src={player.avatar} className="w-10 h-10 rounded-full" alt={player.name} />
-                    : <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-headline-md">⛳</div>
-                  }
-                  <span className="font-semibold text-body-md text-on-surface">{player.name}</span>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar src={player.avatar} name={player.name} size={40} />
+                  <span className="font-semibold text-body-md text-on-surface truncate">{player.name}</span>
                 </div>
-                <div className="text-right">
-                  <p className="font-headline font-bold text-title-lg text-on-surface">{totalScore}</p>
+                <div className="text-right shrink-0">
+                  <p className="font-headline font-bold text-title-lg text-on-surface tabular-nums">{totalScore}</p>
                   <p
-                    className="text-label-lg"
+                    className="text-label-lg tabular-nums"
                     style={{
                       color: scoreColor(scoreDiff) === '#FFFFFF' ? '#717A6D' : scoreColor(scoreDiff),
                     }}

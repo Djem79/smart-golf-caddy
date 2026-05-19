@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Ticket } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { joinRoundByCode } from '../services/rounds'
 import { Button } from '../components/ui/Button'
@@ -61,11 +62,15 @@ export function JoinGame() {
     <div className="screen pb-20">
       <PageHeader title="Присоединиться к игре" />
 
-      <div className="flex-1 px-5 pt-8 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="text-5xl">🎟️</div>
-          <h2 className="font-headline font-bold text-headline-md text-on-surface">Введите код лобби</h2>
-          <p className="text-body-md text-on-surface-variant">
+      <div className="flex-1 px-5 pt-10 space-y-7">
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 rounded-2xl bg-primary-container/15 border border-primary-container/20 flex items-center justify-center mx-auto text-primary">
+            <Ticket size={28} strokeWidth={1.5} />
+          </div>
+          <h2 className="font-headline font-bold text-headline-md text-on-surface tracking-tight">
+            Введите код лобби
+          </h2>
+          <p className="text-body-md text-on-surface-variant max-w-[280px] mx-auto">
             Хост в своём приложении видит 6-значный код или QR
           </p>
         </div>

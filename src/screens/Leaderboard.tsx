@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { ChevronLeft, Trophy, Check } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { subscribeToRound } from '../services/rounds'
 import { computeLeaderboard, computeMatchPlayStatus } from '../services/scoring'
 import type { Round } from '../types'
 import { scoreColor } from '../types'
+import { Avatar } from '../components/ui/Avatar'
+import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 
 export function Leaderboard() {
@@ -45,35 +48,45 @@ export function Leaderboard() {
     <div className="screen pb-6">
       <PageHeader title="Турнирная таблица" />
 
-      <div className="bg-primary-container px-5 py-3">
-        <p className="text-on-primary/80 text-label-md uppercase tracking-wider">{round.courseName}</p>
-        <p className="text-on-primary font-headline font-bold text-title-lg">
-          {round.status === 'lobby' ? 'Лобби (ещё не начали)'
-          : round.status === 'finished' ? 'Раунд завершён'
-          : `${round.totalHoles} лунок`}
-        </p>
-        {isMatchPlay && (
-          <p className="text-on-primary/80 text-label-md mt-1">
-            Match play · 1 v 1
+      <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-md bg-on-primary/10 flex items-center justify-center text-on-primary shrink-0">
+          <Trophy size={20} strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-on-primary/70 text-label-md uppercase tracking-[0.15em] font-semibold truncate">
+            {round.courseName}
           </p>
-        )}
+          <p className="text-on-primary font-headline font-bold text-title-lg tracking-tight">
+            {round.status === 'lobby' ? 'Лобби (ещё не начали)'
+            : round.status === 'finished' ? 'Раунд завершён'
+            : `${round.totalHoles} лунок`}
+            {isMatchPlay && <span className="text-on-primary/80 font-normal"> · Match 1 v 1</span>}
+          </p>
+        </div>
       </div>
 
       {/* Match-play headline — replaces the stroke-play list view for 2-player matches */}
       {isMatchPlay && matchStatus && (
         <div className="px-5 pt-4">
-          <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-5 text-center">
-            <p className="text-label-md text-on-surface-variant uppercase tracking-wider">Match status</p>
-            <p className="font-headline font-bold text-display-lg text-primary mt-1">{matchStatus.label}</p>
-            <p className="text-label-md text-on-surface-variant mt-1">
+          <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-5 text-center shadow-card">
+            <p className="text-label-md text-on-surface-variant uppercase tracking-[0.15em] font-semibold">
+              Match status
+            </p>
+            <p className="font-headline font-bold text-display-lg text-primary mt-1 tabular-nums tracking-tight">
+              {matchStatus.label}
+            </p>
+            <p className="text-label-lg text-on-surface mt-1">
               {matchStatus.leaderUid
                 ? `Ведёт: ${round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'}`
                 : 'Игроки на равных'}
             </p>
             {matchStatus.closed && (
-              <p className="text-label-md text-primary font-semibold mt-2">Матч решён ✓</p>
+              <p className="text-label-md text-primary font-semibold mt-2 inline-flex items-center gap-1.5">
+                <Check size={14} strokeWidth={2.5} />
+                Матч решён
+              </p>
             )}
-            <p className="text-label-md text-on-surface-variant mt-1">
+            <p className="text-label-md text-on-surface-variant mt-2">
               Сыграно: {matchStatus.holesPlayed} · Осталось: {matchStatus.holesRemaining}
             </p>
           </div>
@@ -104,10 +117,7 @@ export function Leaderboard() {
                 {idx + 1}
               </span>
               <div className="flex items-center gap-2 min-w-0">
-                {entry.avatar
-                  ? <img src={entry.avatar} alt={entry.name} className="w-8 h-8 rounded-full shrink-0" />
-                  : <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-label-md shrink-0">⛳</div>
-                }
+                <Avatar src={entry.avatar} name={entry.name} size={32} />
                 <span className="font-semibold text-body-md text-on-surface truncate">
                   {isMe ? `${entry.name} (вы)` : entry.name}
                 </span>
@@ -140,22 +150,14 @@ export function Leaderboard() {
 
       <div className="px-5 pb-6">
         {round.status === 'active' && (
-          <button
-            type="button"
-            onClick={() => navigate(`/round/${roundId}/hole/1`)}
-            className="w-full min-h-touch bg-primary text-on-primary font-headline font-semibold text-label-lg rounded active:scale-[0.98] transition-transform"
-          >
-            ← Назад к лунке
-          </button>
+          <Button icon={ChevronLeft} onClick={() => navigate(`/round/${roundId}/hole/1`)}>
+            Назад к лунке
+          </Button>
         )}
         {round.status === 'finished' && (
-          <button
-            type="button"
-            onClick={() => navigate(`/round/${roundId}/results`)}
-            className="w-full min-h-touch bg-primary text-on-primary font-headline font-semibold text-label-lg rounded active:scale-[0.98] transition-transform"
-          >
-            Итоги раунда →
-          </button>
+          <Button onClick={() => navigate(`/round/${roundId}/results`)}>
+            Итоги раунда
+          </Button>
         )}
       </div>
     </div>

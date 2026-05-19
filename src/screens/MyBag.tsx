@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { GripVertical, Sparkle } from 'lucide-react'
 import {
   DndContext, PointerSensor, KeyboardSensor, TouchSensor,
   useSensor, useSensors, closestCenter,
@@ -328,12 +329,14 @@ function ClubRow({
         aria-label={`Перетащить ${displayLabel}`}
         {...attributes}
         {...listeners}
-        className="w-5 h-10 shrink-0 flex items-center justify-center text-on-surface-variant/60 cursor-grab active:cursor-grabbing touch-none select-none text-label-md"
+        className="w-6 h-10 shrink-0 flex items-center justify-center text-on-surface-variant/50 cursor-grab active:cursor-grabbing touch-none select-none"
       >
-        ⋮⋮
+        <GripVertical size={16} strokeWidth={1.75} />
       </button>
       <div className="w-10 h-10 shrink-0 rounded-md bg-secondary-container flex items-center justify-center font-headline font-bold text-label-lg text-on-surface">
-        {CLUB_ABBREV[club.id] ?? (club.custom ? '✦' : club.id)}
+        {CLUB_ABBREV[club.id] ?? (club.custom
+          ? <Sparkle size={16} strokeWidth={1.75} className="text-on-surface/70" />
+          : club.id)}
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-label-lg text-on-surface truncate">{displayLabel}</p>

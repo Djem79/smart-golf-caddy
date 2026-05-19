@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { signOut } from '../services/auth'
@@ -9,6 +10,7 @@ import { getBagFromUser, getClubLabel, scoreColor } from '../types'
 import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Avatar } from '../components/ui/Avatar'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
 import { pluralRu } from '../utils/intl'
@@ -67,12 +69,9 @@ export function Profile() {
       <div className="flex-1 px-5 pt-5 space-y-5 overflow-y-auto">
         <Card>
           <div className="flex items-center gap-4">
-            {user?.photoURL
-              ? <img src={user.photoURL} alt={user.displayName ?? 'Avatar'} className="w-16 h-16 rounded-full" />
-              : <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-headline-md">⛳</div>
-            }
+            <Avatar src={user?.photoURL} name={user?.displayName} size={64} />
             <div className="min-w-0 flex-1">
-              <p className="font-headline font-bold text-title-lg text-on-surface truncate">
+              <p className="font-headline font-bold text-title-lg text-on-surface truncate tracking-tight">
                 {user?.displayName ?? 'Голфер'}
               </p>
               <p className="text-label-lg text-on-surface-variant truncate">{user?.email ?? ''}</p>
@@ -217,12 +216,12 @@ export function Profile() {
         <Card onClick={() => navigate('/bag')}>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-headline font-semibold text-title-lg text-on-surface">Моя сумка</h3>
+              <h3 className="font-headline font-semibold text-title-lg text-on-surface tracking-tight">Моя сумка</h3>
               <p className="text-label-lg text-on-surface-variant mt-1">
                 Состав клюшек, дистанции, единицы измерения
               </p>
             </div>
-            <span className="text-primary text-headline-md ml-3 shrink-0">→</span>
+            <ChevronRight size={20} strokeWidth={1.75} className="text-on-surface-variant ml-3 shrink-0" />
           </div>
         </Card>
 

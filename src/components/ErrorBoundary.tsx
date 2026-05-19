@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { captureError } from '../sentry'
 
 interface ErrorBoundaryProps {
@@ -36,9 +37,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     return (
       <div className="screen items-center justify-center px-5 py-10 gap-6 text-center">
-        <div className="text-5xl">⚠️</div>
+        <div className="w-16 h-16 rounded-full bg-error-container flex items-center justify-center text-error">
+          <AlertTriangle size={28} strokeWidth={1.5} />
+        </div>
         <div className="space-y-2">
-          <h1 className="font-headline font-bold text-headline-md text-on-surface">
+          <h1 className="font-headline font-bold text-headline-md text-on-surface tracking-tight">
             Что-то пошло не так
           </h1>
           <p className="text-body-md text-on-surface-variant">
@@ -57,14 +60,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <button
             type="button"
             onClick={this.handleReload}
-            className="w-full min-h-touch bg-primary text-on-primary font-headline font-semibold text-label-lg rounded"
+            className="w-full min-h-touch bg-primary text-on-primary font-headline font-semibold text-label-lg rounded-md active:scale-[0.985] transition-transform"
           >
             Обновить страницу
           </button>
           <button
             type="button"
             onClick={this.handleHome}
-            className="w-full min-h-touch border border-outline text-on-surface font-headline font-semibold text-label-lg rounded"
+            className="w-full min-h-touch border border-outline-variant text-on-surface font-headline font-semibold text-label-lg rounded-md active:scale-[0.985] transition-transform"
           >
             На главную
           </button>

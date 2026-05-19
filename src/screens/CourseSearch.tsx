@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { MapPin, Search, Flag, Star, Navigation } from 'lucide-react'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { findNearbyCourses, searchCoursesByText, CourseFetchError } from '../services/courses'
 import type { CourseResult } from '../types'
@@ -96,13 +97,17 @@ export function CourseSearch() {
       {/* Search field */}
       <div className="px-5 pt-4 pb-2">
         <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-headline-md select-none">⌕</span>
+          <Search
+            size={20}
+            strokeWidth={1.75}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
+          />
           <input
             type="text"
             placeholder="Поиск полей или городов"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full h-14 pl-11 pr-4 bg-surface-container-low border-none rounded-md text-body-md shadow-card placeholder:text-on-surface-variant/60"
+            className="w-full h-12 pl-11 pr-4 bg-surface-container-low rounded-md text-body-md border border-outline-variant/30 focus:border-primary focus:outline-none placeholder:text-on-surface-variant/70 transition-colors"
           />
         </div>
       </div>
@@ -142,7 +147,9 @@ export function CourseSearch() {
         {!isTextSearch && geoError && (
           <div className="text-center pt-8 space-y-3">
             <p className="text-error text-body-md px-4">{geoError}</p>
-            <Button onClick={requestLocation}>📍 Определить местоположение</Button>
+            <Button icon={Navigation} onClick={requestLocation}>
+              Определить местоположение
+            </Button>
             <p className="text-label-md text-on-surface-variant">
               Или введите название поля в поиске выше — он работает и без геолокации
             </p>
@@ -185,7 +192,9 @@ function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: 
         {photoUrl ? (
           <img src={photoUrl} alt={course.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl opacity-30">⛳</div>
+          <div className="w-full h-full flex items-center justify-center text-on-primary/40">
+            <Flag size={56} strokeWidth={1.25} />
+          </div>
         )}
         {/* Distance badge */}
         <div className="absolute top-3 left-3 bg-primary text-on-primary px-3 py-1 rounded-full text-label-md font-bold shadow-card">
@@ -194,7 +203,7 @@ function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: 
         {/* Rating badge */}
         {course.rating != null && (
           <div className="absolute top-3 right-3 bg-surface-container-lowest text-on-surface px-2.5 py-1 rounded-full text-label-md font-semibold shadow-card flex items-center gap-1">
-            <span className="text-[#FFC107]">★</span>
+            <Star size={14} strokeWidth={2} fill="#FFC107" className="text-[#FFC107]" />
             {course.rating.toFixed(1)}
           </div>
         )}
@@ -203,10 +212,12 @@ function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: 
       {/* Content */}
       <div className="p-4 space-y-3">
         <div>
-          <h3 className="font-headline font-bold text-title-lg text-on-surface leading-tight">{course.name}</h3>
+          <h3 className="font-headline font-bold text-title-lg text-on-surface leading-tight tracking-tight">
+            {course.name}
+          </h3>
           {course.vicinity && (
-            <p className="text-label-lg text-on-surface-variant mt-1 flex items-start gap-1">
-              <span className="shrink-0 mt-0.5">📍</span>
+            <p className="text-label-lg text-on-surface-variant mt-1.5 flex items-start gap-1.5">
+              <MapPin size={14} strokeWidth={1.75} className="shrink-0 mt-0.5" />
               <span>{course.vicinity}</span>
             </p>
           )}
