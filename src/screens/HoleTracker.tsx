@@ -261,7 +261,7 @@ export function HoleTracker() {
             >
               <Minus size={28} strokeWidth={2} />
             </button>
-            <span className="font-headline font-bold text-[64px] leading-none text-primary text-center tabular-nums w-20 h-16 flex items-center justify-center">
+            <span className="font-headline font-bold text-[64px] leading-none text-primary text-center tabular-nums w-20 h-16 flex items-center justify-center -translate-y-2">
               {myShots}
             </span>
             <button
