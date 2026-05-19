@@ -97,11 +97,11 @@ export function ShareDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="share-title"
-      className="fixed inset-0 z-[100] bg-on-surface/40 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-[100] bg-on-surface/40 flex items-end sm:items-center justify-center px-3 sm:px-5"
       onClick={onClose}
     >
       <div
-        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated"
+        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

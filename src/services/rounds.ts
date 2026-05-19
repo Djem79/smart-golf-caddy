@@ -1,11 +1,22 @@
 import {
   collection, doc, setDoc, updateDoc,
   onSnapshot, query, where, orderBy, getDocs, serverTimestamp,
-  runTransaction, Timestamp, arrayUnion, arrayRemove,
+  Timestamp, arrayRemove,
 } from 'firebase/firestore'
-import { db } from '../firebase'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { app, db } from '../firebase'
 import type { Round, HoleConfig, PlayerInfo, TeeColor, PlayMode } from '../types'
 import { DEFAULT_HOLE_PARS, TEE_MULTIPLIERS } from '../types'
+
+const fns = getFunctions(app, 'us-central1')
+const recordShotCallable = httpsCallable<
+  { roundId: string; holeIndex: number; clubs: string[] },
+  { ok: boolean }
+>(fns, 'recordShot')
+const joinLobbyCallable = httpsCallable<
+  { code: string; playerInfo: PlayerInfo },
+  { roundId: string | null }
+>(fns, 'joinLobbyByCode')
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
 
@@ -86,30 +97,20 @@ export async function createRound(
   return ref.id
 }
 
-// Find an open lobby by code and add the joining user to its players map.
-// Returns the round id if successful; null if no matching lobby was found.
+// Join an open lobby by 6-char code. Goes through a callable function so
+// the client never needs `get` access to a lobby it hasn't joined — closes
+// the lobby-PII leak (lobbyCode + players + emails) from the audit.
+// `userId` is kept in the signature for callsite stability but must match
+// the calling user's auth uid (the callable infers from request.auth).
 export async function joinRoundByCode(
   code: string,
-  userId: string,
+  _userId: string,
   playerInfo: PlayerInfo,
 ): Promise<string | null> {
   const trimmed = code.trim().toUpperCase()
   if (trimmed.length === 0) return null
-
-  const q = query(
-    collection(db, 'rounds'),
-    where('lobbyCode', '==', trimmed),
-    where('status', '==', 'lobby'),
-  )
-  const snap = await getDocs(q)
-  if (snap.empty) return null
-
-  const docSnap = snap.docs[0]
-  await updateDoc(doc(db, 'rounds', docSnap.id), {
-    [`players.${userId}`]: playerInfo,
-    playerIds: arrayUnion(userId),
-  })
-  return docSnap.id
+  const res = await joinLobbyCallable({ code: trimmed, playerInfo })
+  return res.data.roundId
 }
 
 export async function leaveLobby(roundId: string, userId: string): Promise<void> {
@@ -128,43 +129,19 @@ export async function startRound(roundId: string): Promise<void> {
   })
 }
 
+// Records the player's shots through a server-authoritative callable.
+// Clients are no longer permitted to write `holes` directly (rules block it)
+// because client transactions could rewrite ANY player's shots. The callable
+// enforces uid match server-side. The `userId` arg is kept in the signature
+// for callsite stability — it must equal the calling user's auth uid or the
+// function rejects with permission-denied.
 export async function recordShot(
   roundId: string,
   holeIndex: number,
-  userId: string,
+  _userId: string,
   clubs: string[],
 ): Promise<void> {
-  const ref = doc(db, 'rounds', roundId)
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref)
-    if (!snap.exists()) throw new Error('Round not found')
-    const data = snap.data() as Omit<Round, 'id'>
-    if (data.status !== 'active') throw new Error('Round is not active')
-    if (!data.playerIds.includes(userId)) throw new Error('User is not a participant')
-    if (holeIndex < 0 || holeIndex >= data.holes.length) throw new Error('Invalid hole index')
-
-    // Note: `holes` is an array, so Firestore dot-path indexing (`holes.${i}.shots.${uid}`)
-    // is not supported. The full holes array is rewritten on every shot. Migrating to a
-    // map keyed by hole number (or a shots subcollection) would unlock per-field updates
-    // and let rules enforce "only edit your own shots". Deferred — see audit.
-    const holes = data.holes.map((h, i) =>
-      i === holeIndex
-        ? {
-            ...h,
-            shots: {
-              ...h.shots,
-              [userId]: {
-                count: clubs.length,
-                clubs,
-                club: clubs[clubs.length - 1] ?? '',
-                updatedAt: new Date(),
-              },
-            },
-          }
-        : h,
-    )
-    tx.update(ref, { holes })
-  })
+  await recordShotCallable({ roundId, holeIndex, clubs })
 }
 
 export async function finishRound(roundId: string): Promise<void> {

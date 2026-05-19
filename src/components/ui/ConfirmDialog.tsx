@@ -40,11 +40,11 @@ export function ConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
-      className="fixed inset-0 z-[100] bg-on-surface/40 flex items-center justify-center p-5"
+      className="fixed inset-0 z-[100] bg-on-surface/40 flex items-center justify-center p-4"
       onClick={onCancel}
     >
       <div
-        className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-5 space-y-4 shadow-card"
+        className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <h2

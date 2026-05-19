@@ -8,23 +8,31 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Per-user share quota (userQuota/{uid}) — Admin SDK only. Clients must
+    // never read or write this document; the shareRoundByEmail Cloud Function
+    // is the sole writer.
+    match /userQuota/{userId} {
+      allow read, write: if false;
+    }
+
     // Rounds — field-aware update rules split per action.
     match /rounds/{roundId} {
 
       // READ
-      // `get` requires being a participant OR the round being in open lobby state.
-      // `list` is left permissive (authed only) because joinRoundByCode needs to
-      // query by lobbyCode without yet being a member. The query itself filters
-      // by status == 'lobby', so listing returns at most one open lobby document.
+      // `get` requires participation. The lobby-bypass exception was removed
+      // because it exposed PII (full players map + emails + lobbyCode) to any
+      // authenticated attacker. Join-by-code now goes through a callable
+      // function (`joinLobbyByCode`) that uses Admin SDK.
       allow get: if request.auth != null
-        && (
-          (resource.data.playerIds is list && request.auth.uid in resource.data.playerIds)
-          || resource.data.status == 'lobby'
-        );
+        && resource.data.playerIds is list
+        && request.auth.uid in resource.data.playerIds;
+
+      // `list` is left permissive (authed only) for `getUserRounds` which
+      // queries by `playerIds array-contains <auth.uid>` — Firestore evaluates
+      // per-doc get rules during list, so non-participant docs are filtered.
       allow list: if request.auth != null;
 
-      // CREATE
-      // Host creates a round with themselves as the only player.
+      // CREATE — host creates a round with themselves as the only player.
       allow create: if request.auth != null
         && request.resource.data.hostId == request.auth.uid
         && request.resource.data.playerIds is list
@@ -33,8 +41,14 @@ service cloud.firestore {
         && request.resource.data.status in ['lobby', 'active']
         && request.resource.data.totalHoles in [9, 18];
 
-      // UPDATE — one of five per-action rules must match.
+      // UPDATE — one of four per-action rules must match. Shot recording
+      // (formerly rule 5) moved to a callable function (`recordShotV2`)
+      // because per-shot dot-path enforcement is not expressible in rules.
+      // No client may write `holes`, `emailedAt`, `emailingStartedAt`, or
+      // `emailedTo` directly — those belong to the server.
       allow update: if request.auth != null
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['holes', 'emailedAt', 'emailingStartedAt', 'emailedTo', 'emailResults'])
         && (
           // 1. JOIN — open lobby, user adding themselves to players
           (
@@ -50,7 +64,6 @@ service cloud.firestore {
             && request.resource.data.courseId == resource.data.courseId
             && request.resource.data.courseName == resource.data.courseName
             && request.resource.data.totalHoles == resource.data.totalHoles
-            && request.resource.data.holes == resource.data.holes
           )
           // 2. LEAVE — user removing only themselves from playerIds
           || (
@@ -71,21 +84,6 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'finishedAt'])
             && resource.data.status == 'active'
             && request.resource.data.status == 'finished'
-          )
-          // 5. RECORD SHOT — participant updates a single nested hole shots map
-          // We can't validate dot-path field shape via diff (Firestore reports the
-          // full top-level key 'holes'), so we restrict to: status must be active,
-          // user must be a player, holes is the only affected key, holes.size()
-          // matches existing (no holes added/removed), and host-only fields stay
-          // immutable.
-          || (
-            resource.data.status == 'active'
-            && request.auth.uid in resource.data.playerIds
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['holes'])
-            && request.resource.data.holes.size() == resource.data.holes.size()
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.lobbyCode == resource.data.lobbyCode
-            && request.resource.data.totalHoles == resource.data.totalHoles
           )
         );
 
