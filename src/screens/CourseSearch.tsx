@@ -10,7 +10,7 @@ import { pluralRu } from '../utils/intl'
 
 export function CourseSearch() {
   const navigate = useNavigate()
-  const { lat, lng, error: geoError, loading: geoLoading } = useGeolocation()
+  const { lat, lng, error: geoError, loading: geoLoading, request: requestLocation } = useGeolocation()
   const [courses, setCourses] = useState<CourseResult[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,14 +78,25 @@ export function CourseSearch() {
         </div>
 
         {geoLoading && (
-          <p className="text-center text-on-surface-variant text-body-md pt-8">
-            Определяем вашу позицию...
-          </p>
+          <div className="text-center pt-8 space-y-3">
+            <p className="text-on-surface-variant text-body-md">Определяем вашу позицию...</p>
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="text-label-lg text-primary font-semibold underline min-h-touch px-3"
+            >
+              Запросить разрешение вручную
+            </button>
+          </div>
         )}
         {geoError && (
-          <p className="text-center text-error text-body-md pt-8">
-            {geoError}. Введите название поля выше.
-          </p>
+          <div className="text-center pt-8 space-y-3">
+            <p className="text-error text-body-md px-4">{geoError}</p>
+            <Button onClick={requestLocation}>📍 Определить местоположение</Button>
+            <p className="text-label-md text-on-surface-variant">
+              Или введите название поля в поиске выше
+            </p>
+          </div>
         )}
         {loading && (
           <div className="space-y-4">

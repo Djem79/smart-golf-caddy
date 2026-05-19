@@ -92,7 +92,20 @@ export function MyBag() {
       id, customName: trimmed, distanceMeters: meters,
       enabled: true, category, custom: true,
     }
-    await persistBag([...bag, newClub])
+    // Insert at the end of this category's slice rather than appending to the
+    // very end of the bag. The picker in HoleTracker iterates bag in order
+    // (only filtering disabled), so appending to the absolute end would push
+    // a new wood/iron behind the Putter row in that picker, mismatching the
+    // grouped UI here.
+    let insertAt = bag.length
+    for (let i = bag.length - 1; i >= 0; i--) {
+      if (getClubCategory(bag[i]) === category) {
+        insertAt = i + 1
+        break
+      }
+    }
+    const next = [...bag.slice(0, insertAt), newClub, ...bag.slice(insertAt)]
+    await persistBag(next)
     setAdding(null)
   }
 
