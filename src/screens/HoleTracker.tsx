@@ -301,8 +301,8 @@ export function HoleTracker() {
       </div>
 
       <div className="px-5 space-y-2">
-        <p className="text-label-lg text-on-surface-variant font-semibold uppercase tracking-wider">
-          Клюшка для следующего удара
+        <p className="text-label-lg text-on-surface-variant font-semibold uppercase tracking-wider text-center">
+          Выбор клюшки
         </p>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5">
           {pickerClubs.map(c => (
