@@ -4,7 +4,7 @@ import { Trophy, Flag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-rea
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
-import { subscribeToRound, recordShot, finishRound, setHolePar } from '../services/rounds'
+import { subscribeToRound, recordShot, finishRound, updateHoleConfig } from '../services/rounds'
 import type { Round } from '../types'
 import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_LABELS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
@@ -35,8 +35,8 @@ export function HoleTracker() {
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [showFinishConfirm, setShowFinishConfirm] = useState(false)
-  const [showParPicker, setShowParPicker] = useState(false)
-  const [savingPar, setSavingPar] = useState(false)
+  const [showHoleEditor, setShowHoleEditor] = useState(false)
+  const [savingHole, setSavingHole] = useState(false)
 
   // Active player whose shots we're editing — defaults to self
   const [activeUserId, setActiveUserId] = useState<string>('')
@@ -186,13 +186,11 @@ export function HoleTracker() {
         {isHost ? (
           <button
             type="button"
-            onClick={() => setShowParPicker(true)}
+            onClick={() => setShowHoleEditor(true)}
             className="text-left -m-2 p-2 rounded-md active:bg-on-primary/10 transition-colors"
             aria-label={`Изменить пар лунки (сейчас ${hole.par})`}
           >
-            <p className="text-on-primary/70 text-label-lg flex items-center gap-1">
-              Пар <span className="text-[10px] uppercase tracking-wider">изменить</span>
-            </p>
+            <p className="text-on-primary/70 text-label-lg">Пар</p>
             <p className="font-headline font-bold text-headline-md text-on-primary underline-offset-4 decoration-on-primary/40 decoration-dotted underline">
               {hole.par}
             </p>
@@ -206,20 +204,44 @@ export function HoleTracker() {
         <div className="text-center">
           <p className="font-headline font-bold text-display-lg text-on-primary">{currentHole}</p>
         </div>
-        <div className="text-right">
-          <p className="text-on-primary/70 text-label-lg">Дист.</p>
-          <div className="flex items-center justify-end gap-2">
-            <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} м</p>
-            {round.tee && (
-              <span
-                aria-label={`Тии: ${TEE_LABELS[round.tee].label}`}
-                className="w-5 h-5 rounded-full border border-on-primary/30 shrink-0"
-                style={{ backgroundColor: TEE_LABELS[round.tee].bg }}
-                title={TEE_LABELS[round.tee].label}
-              />
-            )}
+        {isHost ? (
+          <button
+            type="button"
+            onClick={() => setShowHoleEditor(true)}
+            className="text-right -m-2 p-2 rounded-md active:bg-on-primary/10 transition-colors"
+            aria-label={`Изменить дистанцию лунки (сейчас ${hole.distanceMeters} метров)`}
+          >
+            <p className="text-on-primary/70 text-label-lg">Дист.</p>
+            <div className="flex items-center justify-end gap-2">
+              <p className="font-headline font-bold text-headline-md text-on-primary underline-offset-4 decoration-on-primary/40 decoration-dotted underline">
+                {hole.distanceMeters} м
+              </p>
+              {round.tee && (
+                <span
+                  aria-label={`Тии: ${TEE_LABELS[round.tee].label}`}
+                  className="w-5 h-5 rounded-full border border-on-primary/30 shrink-0"
+                  style={{ backgroundColor: TEE_LABELS[round.tee].bg }}
+                  title={TEE_LABELS[round.tee].label}
+                />
+              )}
+            </div>
+          </button>
+        ) : (
+          <div className="text-right">
+            <p className="text-on-primary/70 text-label-lg">Дист.</p>
+            <div className="flex items-center justify-end gap-2">
+              <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} м</p>
+              {round.tee && (
+                <span
+                  aria-label={`Тии: ${TEE_LABELS[round.tee].label}`}
+                  className="w-5 h-5 rounded-full border border-on-primary/30 shrink-0"
+                  style={{ backgroundColor: TEE_LABELS[round.tee].bg }}
+                  title={TEE_LABELS[round.tee].label}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Player switcher (only in multiplayer) */}
@@ -388,74 +410,164 @@ export function HoleTracker() {
         onCancel={() => setShowFinishConfirm(false)}
       />
 
-      {showParPicker && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="par-picker-title"
-          className="fixed inset-0 z-[100] bg-on-surface/40 flex items-end sm:items-center justify-center px-3 sm:px-5"
-          onClick={() => !savingPar && setShowParPicker(false)}
-        >
-          <div
-            className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-4 shadow-elevated"
-            onClick={e => e.stopPropagation()}
+      {showHoleEditor && (
+        <HoleEditorDialog
+          holeNumber={currentHole}
+          currentPar={hole.par}
+          currentDistance={hole.distanceMeters}
+          saving={savingHole}
+          onSave={async patch => {
+            setSavingHole(true)
+            setError(null)
+            try {
+              await updateHoleConfig(roundId!, holeIndex, patch)
+              setShowHoleEditor(false)
+            } catch {
+              setError('Не удалось сохранить параметры лунки.')
+            } finally {
+              setSavingHole(false)
+            }
+          }}
+          onClose={() => !savingHole && setShowHoleEditor(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+interface HoleEditorDialogProps {
+  holeNumber: number
+  currentPar: 3 | 4 | 5
+  currentDistance: number
+  saving: boolean
+  onSave: (patch: { par?: 3 | 4 | 5; distanceMeters?: number }) => void | Promise<void>
+  onClose: () => void
+}
+
+function HoleEditorDialog({
+  holeNumber,
+  currentPar,
+  currentDistance,
+  saving,
+  onSave,
+  onClose,
+}: HoleEditorDialogProps) {
+  const [par, setPar] = useState<3 | 4 | 5>(currentPar)
+  const [distance, setDistance] = useState<string>(String(currentDistance))
+  const [validationError, setValidationError] = useState<string | null>(null)
+
+  function handleSave() {
+    const parsed = Number(distance)
+    if (!Number.isFinite(parsed) || parsed < 50 || parsed > 700) {
+      setValidationError('Дистанция должна быть 50–700 метров')
+      return
+    }
+    setValidationError(null)
+    const patch: { par?: 3 | 4 | 5; distanceMeters?: number } = {}
+    if (par !== currentPar) patch.par = par
+    if (Math.round(parsed) !== currentDistance) patch.distanceMeters = Math.round(parsed)
+    if (Object.keys(patch).length === 0) {
+      onClose()
+      return
+    }
+    onSave(patch)
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="hole-editor-title"
+      className="fixed inset-0 z-[100] bg-on-surface/40 flex items-end sm:items-center justify-center px-3 sm:px-5"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-5 shadow-elevated"
+        onClick={e => e.stopPropagation()}
+      >
+        <div>
+          <h2
+            id="hole-editor-title"
+            className="font-headline font-bold text-title-lg text-on-surface tracking-tight"
           >
-            <div>
-              <h2
-                id="par-picker-title"
-                className="font-headline font-bold text-title-lg text-on-surface tracking-tight"
-              >
-                Пар лунки {currentHole}
-              </h2>
-              <p className="text-label-md text-on-surface-variant mt-1">
-                Подгоните под реальное поле. Изменение видно всем игрокам.
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {([3, 4, 5] as const).map(p => {
-                const selected = hole.par === p
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    disabled={savingPar}
-                    onClick={async () => {
-                      if (p === hole.par) {
-                        setShowParPicker(false)
-                        return
-                      }
-                      setSavingPar(true)
-                      try {
-                        await setHolePar(roundId!, holeIndex, p)
-                        setShowParPicker(false)
-                      } catch {
-                        setError('Не удалось сохранить пар.')
-                      } finally {
-                        setSavingPar(false)
-                      }
-                    }}
-                    className={`min-h-touch rounded-xl border-2 font-headline font-bold text-display-lg transition-colors ${
-                      selected
-                        ? 'border-primary bg-primary text-on-primary'
-                        : 'border-outline-variant text-on-surface bg-surface-container-lowest hover:border-primary'
-                    } disabled:opacity-50`}
-                  >
-                    {p}
-                  </button>
-                )
-              })}
-            </div>
-            <Button
-              variant="secondary"
-              onClick={() => setShowParPicker(false)}
-              disabled={savingPar}
-              className="uppercase tracking-wider"
-            >
-              {savingPar ? 'Сохраняем...' : 'Отмена'}
-            </Button>
+            Параметры лунки {holeNumber}
+          </h2>
+          <p className="text-label-md text-on-surface-variant mt-1">
+            Подгоните под реальное поле — изменение видно всем игрокам.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-label-md text-on-surface-variant uppercase tracking-wider font-semibold mb-2">
+            Пар
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {([3, 4, 5] as const).map(p => {
+              const selected = par === p
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setPar(p)}
+                  className={`min-h-touch rounded-xl border-2 font-headline font-bold text-display-lg transition-colors ${
+                    selected
+                      ? 'border-primary bg-primary text-on-primary'
+                      : 'border-outline-variant text-on-surface bg-surface-container-lowest hover:border-primary'
+                  } disabled:opacity-50`}
+                >
+                  {p}
+                </button>
+              )
+            })}
           </div>
         </div>
-      )}
+
+        <div>
+          <label
+            htmlFor="hole-distance-input"
+            className="text-label-md text-on-surface-variant uppercase tracking-wider font-semibold mb-2 block"
+          >
+            Дистанция, метров
+          </label>
+          <input
+            id="hole-distance-input"
+            type="number"
+            inputMode="numeric"
+            min={50}
+            max={700}
+            step={1}
+            value={distance}
+            disabled={saving}
+            onChange={e => {
+              setDistance(e.target.value)
+              if (validationError) setValidationError(null)
+            }}
+            className="w-full h-14 px-4 bg-surface-container-low rounded-md text-headline-md font-headline font-bold border border-outline-variant/30 focus:border-primary focus:outline-none disabled:opacity-50 tabular-nums"
+          />
+          {validationError && (
+            <p className="text-label-md text-error mt-1">{validationError}</p>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 uppercase tracking-wider"
+          >
+            Отмена
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 uppercase tracking-wider"
+          >
+            {saving ? 'Сохраняем...' : 'Сохранить'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

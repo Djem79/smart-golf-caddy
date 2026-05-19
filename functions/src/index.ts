@@ -294,27 +294,41 @@ export const recordShot = onCall(
   },
 )
 
-// Set the par for a single hole — host-only, used to correct the
-// hardcoded DEFAULT_HOLE_PARS template against the real course layout.
-// Server-side enforces host check and shape so a participant cannot
-// silently alter another player's expected scoring.
-interface SetHoleParInput {
+// Update hole config (par and/or distance) — host-only. Used to correct
+// the hardcoded DEFAULT_HOLE_PARS template + distance multipliers against
+// the real course layout. At least one field must be present.
+interface UpdateHoleConfigInput {
   roundId?: string
   holeIndex?: number
   par?: number
+  distanceMeters?: number
 }
 
-export const setHolePar = onCall(
+export const updateHoleConfig = onCall(
   { region: 'us-central1', enforceAppCheck: false },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    const { roundId, holeIndex, par } = (request.data ?? {}) as SetHoleParInput
+    const { roundId, holeIndex, par, distanceMeters } =
+      (request.data ?? {}) as UpdateHoleConfigInput
     if (!roundId) throw new HttpsError('invalid-argument', 'roundId обязателен')
     if (typeof holeIndex !== 'number' || holeIndex < 0 || holeIndex > 17) {
       throw new HttpsError('invalid-argument', 'Некорректный holeIndex')
     }
-    if (par !== 3 && par !== 4 && par !== 5) {
+    if (par != null && par !== 3 && par !== 4 && par !== 5) {
       throw new HttpsError('invalid-argument', 'Par должен быть 3, 4 или 5')
+    }
+    if (distanceMeters != null) {
+      if (
+        typeof distanceMeters !== 'number' ||
+        !Number.isFinite(distanceMeters) ||
+        distanceMeters < 50 ||
+        distanceMeters > 700
+      ) {
+        throw new HttpsError('invalid-argument', 'Дистанция должна быть 50–700 метров')
+      }
+    }
+    if (par == null && distanceMeters == null) {
+      throw new HttpsError('invalid-argument', 'Нечего обновлять')
     }
 
     const uid = request.auth.uid
@@ -322,15 +336,21 @@ export const setHolePar = onCall(
     await getFirestore().runTransaction(async tx => {
       const snap = await tx.get(ref)
       if (!snap.exists) throw new HttpsError('not-found', 'Раунд не найден')
-      const data = snap.data() as { hostId?: string; holes?: { par: number }[] }
+      const data = snap.data() as {
+        hostId?: string
+        holes?: { par: number; distanceMeters: number }[]
+      }
       if (data.hostId !== uid) {
-        throw new HttpsError('permission-denied', 'Только хост может менять пар')
+        throw new HttpsError('permission-denied', 'Только хост может менять конфигурацию лунки')
       }
       const holes = (data.holes ?? []).slice()
       if (holeIndex >= holes.length) {
         throw new HttpsError('invalid-argument', 'Лунка вне диапазона')
       }
-      holes[holeIndex] = { ...holes[holeIndex], par }
+      const next = { ...holes[holeIndex] }
+      if (par != null) next.par = par
+      if (distanceMeters != null) next.distanceMeters = Math.round(distanceMeters)
+      holes[holeIndex] = next
       tx.update(ref, { holes })
     })
 

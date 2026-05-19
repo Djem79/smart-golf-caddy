@@ -17,10 +17,10 @@ const joinLobbyCallable = httpsCallable<
   { code: string; playerInfo: PlayerInfo },
   { roundId: string | null }
 >(fns, 'joinLobbyByCode')
-const setHoleParCallable = httpsCallable<
-  { roundId: string; holeIndex: number; par: 3 | 4 | 5 },
+const updateHoleConfigCallable = httpsCallable<
+  { roundId: string; holeIndex: number; par?: 3 | 4 | 5; distanceMeters?: number },
   { ok: boolean }
->(fns, 'setHolePar')
+>(fns, 'updateHoleConfig')
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
 
@@ -164,14 +164,15 @@ export function subscribeToRound(
   })
 }
 
-// Host-only: change the par for a single hole. Server-side enforces the
-// host check and shape; client just passes through.
-export async function setHolePar(
+// Host-only: change the par and/or distance for a single hole. At least
+// one field must be provided. Server-side enforces the host check, value
+// ranges, and preserves shots.
+export async function updateHoleConfig(
   roundId: string,
   holeIndex: number,
-  par: 3 | 4 | 5,
+  patch: { par?: 3 | 4 | 5; distanceMeters?: number },
 ): Promise<void> {
-  await setHoleParCallable({ roundId, holeIndex, par })
+  await updateHoleConfigCallable({ roundId, holeIndex, ...patch })
 }
 
 // Fetches the user's rounds, newest first. Capped to `limitTo` (default 50)
