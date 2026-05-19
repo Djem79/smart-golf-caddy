@@ -48,6 +48,7 @@ export interface PlayerInfo {
   avatar: string
   totalScore: number
   scoreDiff: number
+  email?: string             // captured at round join/create for post-round email rollup
 }
 
 export type RoundStatus = 'lobby' | 'active' | 'finished'

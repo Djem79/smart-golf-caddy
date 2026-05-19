@@ -46,6 +46,7 @@ export function RoundSetup() {
           avatar: user.photoURL ?? '',
           totalScore: 0,
           scoreDiff: 0,
+          email: user.email ?? '',
         },
         effectiveId,
         effectiveName,

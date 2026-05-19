@@ -38,6 +38,7 @@ export function JoinGame() {
         avatar: user.photoURL ?? '',
         totalScore: 0,
         scoreDiff: 0,
+        email: user.email ?? '',
       })
       if (!roundId) {
         setError('Лобби с таким кодом не найдено. Проверьте код или попросите хоста создать новое.')

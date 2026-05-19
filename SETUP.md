@@ -205,6 +205,78 @@ For this deep-link to work, make sure your deployed domain is in **Firebase Auth
 
 ---
 
+## Post-round email (Resend + Cloud Functions)
+
+После завершения раунда Cloud Function `onRoundFinished` рендерит
+HTML-инфографику (react-email) и шлёт каждому участнику с записанным
+`email` через **Resend**. Дополнительно есть callable
+`shareRoundByEmail` — её дёргает кнопка «Поделиться» в RoundResults.
+
+### Первичная настройка (5 минут)
+
+1. **Зарегистрируйтесь на [resend.com](https://resend.com)** (бесплатный
+   план: 3000 писем/месяц, 100/день).
+2. На вкладке **API Keys** создайте ключ с правом `Sending access`.
+   Скопируйте значение (`re_…`).
+3. В терминале проекта:
+   ```bash
+   source ~/.nvm/nvm.sh
+   firebase functions:secrets:set RESEND_API_KEY
+   # вставьте значение по запросу
+   ```
+4. Задеплойте функции:
+   ```bash
+   firebase deploy --only functions
+   ```
+
+### Dev-режим (без своего домена)
+
+По умолчанию `MAIL_FROM` = `Smart Golf Caddy <onboarding@resend.dev>` —
+тестовый домен Resend. **Письма доходят ТОЛЬКО на тот email, которым вы
+зарегистрировались в Resend.** Это нормально для разработки: создайте
+раунд от своего же аккаунта, завершите, проверьте письмо.
+
+### Прод: свой домен
+
+Когда захотите рассылать всем игрокам:
+
+1. В Resend → **Domains** → **Add Domain** введите ваш домен.
+2. Resend покажет DNS-записи (SPF, DKIM, иногда MX). Добавьте их у
+   своего DNS-провайдера. Подождите верификацию (5–30 мин).
+3. Установите env-переменную `MAIL_FROM` для функций (через
+   Functions environment или прямо в коде):
+   ```bash
+   firebase functions:config:set mail.from="Smart Golf Caddy <noreply@yourdomain.com>"
+   ```
+4. Redeploy: `firebase deploy --only functions`.
+
+### Локальная проверка шаблона
+
+```bash
+cd functions
+npm run build
+npm run email:dev       # react-email dev-сервер на :3000
+```
+
+### Идемпотентность
+
+После успешной рассылки в документе раунда пишется `emailedAt:
+serverTimestamp()`. Cloud Functions могут ре-триггерить апдейты при
+retries — функция проверяет `emailedAt` и скипает повтор. Если нужно
+перепослать руками — обнулите поле `emailedAt` в Firestore Console
+и сделайте любой апдейт раунда.
+
+### Troubleshooting
+
+| Проблема | Что сделать |
+|---|---|
+| Письмо не пришло, в логе `no email on player` | У игрока пустой `players.{uid}.email`. Раунды, созданные до Sprint 6, не получают рассылку. Создайте новый раунд. |
+| Письмо в спаме | Ожидаемо для dev-режима (`@resend.dev`). Подключите свой верифицированный домен. |
+| `RESEND_API_KEY is not set` в логах | Не выставлен Functions secret. Повторите шаг 3 выше. |
+| Письмо ушло, но на чужой email не дошло | В dev-режиме Resend отправляет ТОЛЬКО на email владельца аккаунта. Это by-design. |
+
+---
+
 ## What's in this repo
 
 | File | Purpose |

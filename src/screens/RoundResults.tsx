@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trophy } from 'lucide-react'
+import { Trophy, Share2 } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
 import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus } from '../services/scoring'
@@ -9,6 +9,7 @@ import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
+import { ShareDialog } from '../components/ui/ShareDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
 import { pluralRu } from '../utils/intl'
@@ -34,6 +35,7 @@ export function RoundResults() {
   const navigate = useNavigate()
   const { profile } = useProfile()
   const [round, setRound] = useState<Round | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
   // Resolve display names for clubs using the current viewer's bag.
   // Custom clubs owned by other players show as "Клюшка" — acceptable
   // until we snapshot the display name into each shot.
@@ -60,9 +62,28 @@ export function RoundResults() {
     ? computeMatchPlayStatus(round, round.playerIds[0], round.playerIds[1])
     : null
 
+  const shareUrl = `${window.location.origin}/round/${roundId}/results`
+  const shareTitle = `${round.courseName} — Smart Golf Caddy`
+  const shareText = isMatchPlay && matchStatus
+    ? `Match play: ${matchStatus.label}. ${round.courseName}.`
+    : `${round.totalHoles} лунок на ${round.courseName}. Итоги в Smart Golf Caddy.`
+
   return (
     <div className="screen pb-24">
-      <PageHeader title="Итоги раунда" showBack={false} />
+      <PageHeader
+        title="Итоги раунда"
+        showBack={false}
+        right={
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            aria-label="Поделиться"
+            className="min-h-touch min-w-touch flex items-center justify-center text-on-surface rounded-full active:bg-surface-container-high/60 transition-colors"
+          >
+            <Share2 size={22} strokeWidth={1.75} />
+          </button>
+        }
+      />
 
       {isMatchPlay && matchStatus ? (
         <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-8 text-center">
@@ -215,6 +236,15 @@ export function RoundResults() {
       </div>
 
       <BottomNav />
+
+      <ShareDialog
+        open={shareOpen}
+        roundId={roundId ?? ''}
+        shareUrl={shareUrl}
+        shareTitle={shareTitle}
+        shareText={shareText}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   )
 }

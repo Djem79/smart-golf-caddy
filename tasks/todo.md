@@ -1,142 +1,114 @@
-# Tasks — Sprint 5 (Premium visual polish)
+# Tasks — Sprint 6 (Post-round email infographic)
 
-Source: 2026-05-19 user request — "сделать на уровне лучших приложений,
-кнопки/меню — дорого и лаконично; никаких эмодзи; без наслоений и
-пропусков."
+Source: 2026-05-19 user request — "после окончания игры скидывать
+игрокам письма с инфографикой как у Golfshot", потом — «и кнопку
+поделиться результатом на вкладке итоги раунда».
+
+Референс: Golfshot scorecard email (разбор сабагентом).
+Стек (утверждено): **Resend** + **react-email**, dev-режим через
+`onboarding@resend.dev` (письма только на верифицированный
+аккаунт владельца проекта; для прод-рассылки добавим домен позже).
 
 ## Active
 
-- [x] **1. Foundation — иконки + базовые компоненты**
-  - `npm i lucide-react` (~1 KB/иконка tree-shaken).
-  - Создать `components/ui/Icon.tsx` — тонкая обёртка над lucide
-    с фиксированным `strokeWidth={1.5}` и набором размеров sm/md/lg.
-  - PageHeader: `←` → `<ChevronLeft />` (24px). Title — увеличить
-    weight, поджать height до 56 px (уже так). Right slot — 48px touch.
-  - Button: поддержка `icon` (слева) и `iconRight`, чтобы убрать
-    inline-эмодзи из подписей кнопок.
-  - Refine tokens: тиснее shadow-card (subtle elevation), добавить
-    `easing-premium` в transition.
+- [ ] **1. Foundation — Cloud Functions + email-зависимости**
+  - `firebase init functions` → TypeScript, Node 20, без линтера
+    функций (используем корневой eslint).
+  - В `functions/`: `npm i resend react @react-email/components`,
+    `npm i -D @react-email/render @types/react esbuild`.
+  - Обновить `firebase.json` — секция `functions` с предеплой-билдом.
+  - Завести Functions secret `RESEND_API_KEY` (документ в SETUP.md;
+    в коде — `defineSecret`).
+  - Завести env `MAIL_FROM` (= `Smart Golf Caddy <onboarding@resend.dev>`
+    по умолчанию).
 
-- [x] **2. BottomNav — иконки + active indicator**
-  - Заменить ⛳/📋/👤 на `<Home/>`, `<History/>` (или `<Clock/>`),
-    `<User/>` от lucide.
-  - Active state: иконка + label в primary; тонкая 2-px полоса
-    сверху активной вкладки.
-  - Bottom safe-area: padding-bottom: env(safe-area-inset-bottom).
+- [ ] **2. Data model — email в PlayerInfo**
+  - `types/index.ts`: `PlayerInfo.email?: string`.
+  - `services/rounds.ts`:
+    - `createRound`: писать `players[hostId].email = hostInfo.email`.
+    - `joinRoundByCode`: писать `players[uid].email`.
+  - `screens/RoundSetup` / `JoinGame` / `HoleTracker`: при формировании
+    `PlayerInfo` подставлять `user.email ?? ''`.
+  - Старые раунды не апгрейдим: функция просто скипнет игроков без email.
 
-- [x] **3. Auth + Home + JoinGame — entry-экраны**
-  - Auth: убрать text-6xl ⛳, поставить leading wordmark (название
-    бренда + 1 SVG-флаг 64px). Лаконичный градиент primary→primary-container.
-  - Home: убрать ⛳ из «{имя} ⛳» и 🎟️ из CTA. Кнопка "Присоединиться к
-    игре" — Button с иконкой `<Ticket/>` слева.
-  - JoinGame: 🎟️ → `<Ticket size=48/>` в hero.
+- [ ] **3. Email-шаблон `RoundSummary.tsx`** (functions/src/emails/)
+  - React-email компоненты: Html/Head/Preview/Container/Section/Row/
+    Column/Heading/Text/Hr/Button.
+  - 600 px ширина, mobile-first, dark-mode-aware (`@media`).
+  - Структура сверху вниз:
+    1. **Header** — wordmark «Smart Golf Caddy» на primary-container.
+    2. **Hero** — название поля, дата, тип раунда; **большая дельта vs par**
+       (display-lg) + total score + кол-во лунок.
+    3. **Match-play banner** (опционально) — `X UP` / `N&M` / `AS`,
+       победитель.
+    4. **Scorecard** — таблица 9 или 18 лунок:
+       - Колонки: hole #, Par, Score (pill), ±Par.
+       - Цвета pill: eagle `#7C3AED`, birdie `#42A5F5`, par `#66BB6A`,
+         bogey `#757575`, double `#EF5350`, worse `#9A1A1A`.
+       - OUT / IN / TOTAL — серые агрегатные строки.
+    5. **Insight** — «Лучшая лунка: №3, birdie на пар-4».
+    6. **Клюшки** — top-3 по использованию, числами + %.
+    7. **CTA** — кнопка «Открыть полные итоги» → smart-golf-caddy.web.app/
+       round/{id}/results.
+    8. **Footer** — отписка (пока заглушка), copyright.
+  - Шрифт: -apple-system / Segoe UI fallback (без Google Fonts — почтовики
+    режут или не подгружают).
+  - Превью: `react-email dev` в браузере на 3000.
 
-- [x] **4. CourseSearch — поиск + список**
-  - 📍 → `<MapPin/>`, ⛳ placeholder → `<Flag/>`.
-  - Кнопка геолокации — Button с иконкой.
-  - Свечение ★-рейтинга оставить (типографский символ, не эмодзи).
+- [ ] **4. Cloud Function — `onRoundFinished`**
+  - Триггер: `firestore.document('rounds/{id}').onUpdate`.
+  - Гарды:
+    - `before.status !== 'finished' && after.status === 'finished'`.
+    - `after.emailedAt == null` (идемпотентность).
+  - Для каждого `playerIds[]`:
+    - Резолвить email из `players[uid].email` (skip если пусто).
+    - Рендер шаблона с данными игрока (его scorecard, его стат).
+    - `resend.emails.send({ from, to, subject, html })`.
+    - Лог в Functions logger.
+  - После успешной рассылки: `tx.update({ emailedAt: serverTimestamp() })`.
 
-- [x] **5. RoundSetup — настройка раунда**
-  - Solo/Group: `<User/>` и `<Users/>` от lucide вместо ⛳/👥.
-  - Stroke/Match: `<BarChart3/>` и `<Swords/>` (или `<Handshake/>`) вместо 📊/🤝.
-  - Tee-цвета: оставить, это контрол.
+- [ ] **5. Local testing — Functions emulator + react-email dev**
+  - `firebase emulators:start --only functions,firestore`.
+  - Тестовый скрипт `scripts/send-test-round.ts` — пишет фейковый
+    раунд со статусом active → finished.
+  - react-email превью на 3000.
+  - Sanity: убедиться что письмо приходит на tdm.979@gmail.com.
 
-- [x] **6. HoleTracker — основной экран игры**
-  - 🏆 в PageHeader → `<Trophy/>` (24px, primary).
-  - 🏁 в кнопке завершить → `<Flag/>` через Button icon.
-  - ⛳ в player switcher avatar → инициалы в круге (без иконки).
-  - Стрелки ←/→ в Пред./След. — оставить (типографские, не эмодзи)
-    либо заменить на `<ChevronLeft/>`/`<ChevronRight/>` для консистентности.
+- [ ] **6. SETUP.md — инструкция настройки Resend**
+  - Регистрация на resend.com (1 мин).
+  - Создание API key.
+  - `firebase functions:secrets:set RESEND_API_KEY`.
+  - (Опционально) добавление и верификация custom domain.
+  - Обновить README/SETUP.md.
 
-- [x] **7. Leaderboard + RoundResults — таблицы и итоги**
-  - ⛳ в avatar fallback → круг с инициалами.
-  - 🏆 в headline → `<Trophy size=32/>`.
-  - ✓ в "Матч решён" — оставить (типографский символ).
+- [ ] **7. RoundResults: «Поделиться результатом»**
+  - На RoundResults — иконка `<Share2/>` в PageHeader right slot.
+  - При клике:
+    - `navigator.share({ title, text, url })` если доступно — нативный
+      share sheet (Telegram/WhatsApp/Mail).
+    - Fallback: dialog c полем email и кнопкой «Отправить».
+  - Новая callable-функция `sendRoundEmailToAddress(roundId, email)` —
+    использует тот же шаблон + Resend.
+  - Rate-limit: 5 запросов на пользователя в час (Firestore counter
+    или Functions runtime — оставим pragmatic-логику в коде функции).
 
-- [x] **8. GroupLobby + Profile + History + ErrorBoundary**
-  - ⛳ avatar fallbacks → инициалы.
-  - 🏁 «Начать раунд» → `<Play/>` или просто текст без иконки.
-  - ⚠️ ErrorBoundary → `<AlertTriangle/>`.
-  - Profile: `→` стрелка на «Моя сумка» → `<ChevronRight/>`.
-  - History: ⛳ empty state → `<Flag size=48 className="text-on-surface-variant"/>`.
-
-- [x] **9. Visual polish pass (overlap/gap audit)**
-  - Запустить dev-сервер, пройти каждый экран:
-    - Auth, Home, CourseSearch, RoundSetup, GroupLobby, JoinGame,
-      HoleTracker (solo + multi), Leaderboard (stroke + match),
-      RoundResults, Profile, MyBag, History, ErrorBoundary.
-  - Проверить: touch-targets ≥ 48 px, padding kit (16/20/24),
-    отсутствие наслоений (BottomNav vs контент, fixed elements vs
-    safe-areas), вертикальный ритм консистентен.
-  - Тонкая шлифовка: hover/active states, focus-ring везде primary.
+- [ ] **8. Verification + deploy**
+  - `npx tsc --noEmit` (root + functions/).
+  - `npm run lint`.
+  - `npm run test:run` — 113/113 минимум; добавить unit для
+    `pickInsight()` если будет нетривиальная логика.
+  - `npm run build` для веба.
+  - `firebase deploy --only functions,hosting`.
+  - Smoke: создать solo-раунд, завершить, дождаться письма.
 
 ## Verification gate
 
-- `npx tsc --noEmit` clean
-- `npm run test:run` — 113/113 + новые snapshot/unit (если добавим)
-- `npm run lint` clean
-- `npm run build` succeeds, bundle delta ≤ +10 KB
-- Manual smoke test в браузере: 6 ключевых пользовательских флоу.
-- Deploy: `firebase deploy --only hosting`.
+- tsc / lint / tests / build — clean.
+- Письмо приходит и читается на iOS Mail, Gmail web, Outlook web.
+- Кнопка «Поделиться» открывает share sheet на телефоне.
+- Старые завершённые раунды (`emailedAt == null` исторически) НЕ
+  получают рассылку post-factum.
 
 ## Review
 
-Sprint 5 закрыт 2026-05-19. Все 10 задач отгружены, automated-гейты
-(tsc + lint + 113 тестов + build) — чисто. Bundle +5 KB (605 → 610),
-в бюджете.
-
-**Что сделано:**
-
-- Установлен `lucide-react`; **все эмодзи удалены** из приложения
-  (audit `grep -P "[\x{1F300}-\x{1FAFF}...]"` пуст).
-- Новые компоненты: `Avatar` (инициалы вместо ⛳-плейсхолдера),
-  `Button` теперь поддерживает `icon` / `iconRight` слоты.
-- `PageHeader`: `←` → `<ChevronLeft />` 24 px с rounded-full hit area;
-  фиксированная высота 56 px (h-14).
-- `BottomNav`: `<Home/>`, `<HistoryIcon/>`, `<User/>`. Active state —
-  2-px primary-полоса сверху + жирный stroke иконки + цвет. Учёт
-  `safe-area-inset-bottom`.
-- Tokens: `shadow-card` стал двухслойным (мягче), добавлены
-  `shadow-card-hover`, `shadow-elevated`, `transitionTimingFunction.premium`.
-- Auth: убран `text-6xl ⛳`. Hero с brand-wordmark и градиентом
-  primary-container → primary.
-- Home: иконки `Plus`, `Zap`, `Users` в кнопках через `Button.icon`;
-  «Все →» в секции последних раундов с `ChevronRight`.
-- CourseSearch: search-input получил `<Search/>` (lucide), MapPin
-  для адреса, Star (заполненная) для рейтинга, Flag для пустого
-  hero, Navigation в кнопку геолокации.
-- RoundSetup: новый компонент `ChoiceCard` — outline-кнопка с
-  квадратным icon-чипом сверху-слева, заменяет emoji-в-центре макет.
-  Solo/Group: `User`/`Users`. Stroke/Match: `BarChart3`/`Swords`.
-- HoleTracker: Trophy-иконка в right slot хедера, Plus/Minus в
-  круглых +/− кнопках, ChevronLeft/Right + Flag в нижней навигации
-  лунок, Avatar с инициалами в player-switcher.
-- Leaderboard: hero-блок с Trophy-чипом + градиентом; match-status
-  карточка укрупнена, ✓ заменён на `<Check/>`.
-- RoundResults: оба headline-баннера получили Trophy-чип в круге,
-  градиент primary-container → primary. Avatar с инициалами в строках
-  игроков.
-- GroupLobby: Avatar в списке, Copy/Check лайв-индикатор,
-  `Play` в кнопке хоста.
-- Profile: Avatar 64 px, `<ChevronRight/>` на «Моя сумка».
-- History: empty state — Flag в круглом chip-контейнере.
-- MyBag: `<GripVertical/>` drag-handle вместо `⋮⋮`, `<Sparkle/>`
-  маркер кастомной клюшки вместо `✦`.
-- ErrorBoundary: `<AlertTriangle/>` в круглом error-container chip.
-
-**Чего я НЕ могу сам гарантировать (нужна визуальная проверка):**
-
-- Финальное отсутствие overlap'ов на реальных устройствах (особенно
-  на iPhone с safe-area).
-- Восприятие новых градиентов и spacing'а.
-- Корректность touch-feedback'а на тач-устройстве.
-
-Прошу смок-тест на проде после деплоя.
-
-**Запланированный Sprint 6 — post-round email-инфографика:**
-
-Идея от пользователя: после `status: finished` отправлять каждому
-игроку красивое HTML-письмо с итогами (как Golfshot). Стек, который
-имеет смысл: Firebase Cloud Function → `react-email` → Resend.
-Требует расширения `PlayerInfo` полем `email`, нового кода в
-`functions/`, нового шаблона. Подробности — в начале Sprint 6.
+_(заполнится после спринта)_
