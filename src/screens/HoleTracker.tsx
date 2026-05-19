@@ -49,6 +49,7 @@ export function HoleTracker() {
 
   // Initialize active player to self once we have user + round
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot initialisation: copy auth uid into activeUserId once it becomes available
     if (!activeUserId && user) setActiveUserId(user.uid)
   }, [activeUserId, user])
 
@@ -71,6 +72,7 @@ export function HoleTracker() {
 
   // Reset optimistic state when navigating to a new hole or switching player
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- discards stale per-hole local state when the user navigates between holes or switches the active player; safe because it only runs on those dep transitions
     setLocalClubs(null)
     lastSyncedKeyRef.current = null
     setSelectedClub(lastClubUsed)
@@ -79,6 +81,7 @@ export function HoleTracker() {
   // Snap selected club to first available if outside the picker
   useEffect(() => {
     if (!pickerClubs.some(c => c.id === selectedClub)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- recovers from an invalid selected-club id after the user's bag changes (e.g. they disabled the currently-selected club in MyBag)
       setSelectedClub(pickerClubs[0]?.id ?? 'Driver')
     }
   }, [pickerClubs, selectedClub])

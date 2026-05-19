@@ -71,28 +71,46 @@ VITE_GOOGLE_PLACES_API_KEY=  # we'll fill this in Step 4
 
 ---
 
-## Step 4 — Google Places API key
+## Step 4 — Google Places API (New)
 
-The course search uses the Places API to find golf courses near the user.
+Course search (nearby + by-name) uses **Places API (New)** — the modern CORS-friendly REST endpoint at `places.googleapis.com/v1/`. The **legacy** Places API at `maps.googleapis.com/maps/api/place/*` does NOT send CORS headers and fails from any HTTPS origin other than localhost.
 
-1. Go to https://console.cloud.google.com — make sure your **Firebase project** is selected in the top-left dropdown (it's automatically a Google Cloud project)
-2. Sidebar: **APIs & Services → Library**
-3. Search for **"Places API"** (the **legacy** one, not "Places API (New)") — click **Enable**
-4. Sidebar: **APIs & Services → Credentials**
-5. Click **+ CREATE CREDENTIALS → API key**
-6. Copy the key — paste into `.env.local`:
+### 4a. Enable Places API (New)
+
+1. Go to https://console.cloud.google.com — make sure your **Firebase project** is selected in the top-left dropdown
+2. Direct link: https://console.cloud.google.com/apis/library/places.googleapis.com?project=YOUR-PROJECT-ID
+3. Click **ENABLE**
+
+> If you already had the legacy Places API enabled — keep it, the new key works with both. Just make sure the **New** one is also on.
+
+### 4b. Create / configure the API key
+
+1. Sidebar: **APIs & Services → Credentials**
+2. If a key exists for this project (e.g. "API key 2"), click into it. Otherwise: **+ CREATE CREDENTIALS → API key**
+3. Copy the key — paste into `.env.local`:
+
    ```
    VITE_GOOGLE_PLACES_API_KEY=AIza...
    ```
-7. **Important — restrict the key** (don't skip; otherwise anyone can use it):
-   - Click the new key → **Application restrictions → HTTP referrers (web sites)**
-   - Add referrers:
-     - `http://localhost:5173/*` (dev)
-     - `https://YOUR-PROJECT.web.app/*` (production, fill in after deploy)
-   - **API restrictions → Restrict key → Select APIs → "Places API"**
-   - Save
 
-> **Billing note:** Google requires a billing account for Places API, but the free tier is generous (~$200/month credit). For development you'll use pennies.
+4. **Restrict the key** (don't skip):
+   - **Application restrictions → HTTP referrers (web sites):**
+     - `http://localhost:5173/*` (dev)
+     - `https://YOUR-PROJECT.web.app/*` (production)
+     - `https://YOUR-PROJECT.firebaseapp.com/*` (alt production)
+   - **API restrictions → Restrict key** → in the dropdown select:
+     - ✅ **Places API (New)** (required)
+     - ✅ **Places API** (optional, for legacy compat)
+     - ✅ **Maps JavaScript API** (optional, future-proofing)
+   - **Save** — changes apply in 1-5 minutes
+
+### 4c. Do NOT restrict the Firebase "Browser key"
+
+When you create the Firebase web app (Step 2c), Firebase auto-creates a second API key called **"Browser key (auto created by Firebase)"**. This one is used by Firebase Auth (Identity Toolkit API), Firestore, etc.
+
+**Leave its API restrictions either unrestricted, or include `Identity Toolkit API` + `Cloud Firestore API` + `Token Service API` in the allowlist.** Restricting it to only Places APIs will break Google Sign-In with an `auth/requests-to-this-api-identitytoolkit-...are-blocked` error.
+
+> **Billing note:** Google requires a billing account for the new Places API. The free tier covers ~$200/month of usage — for development and a small group of users you'll pay nothing.
 
 ---
 
@@ -110,21 +128,17 @@ Edit `.firebaserc` and replace the placeholder with your real project ID:
 
 ---
 
-## Step 6 — Deploy Firestore security rules
+## Step 6 — Deploy Firestore security rules + indexes
 
-The repo ships with `firestore.rules` (users can read/write own profile + rounds they host or play in).
+The repo ships with `firestore.rules` (field-aware: separate branches for join / leave / start / record-shot / finish, see `firestore.rules` for details) and `firestore.indexes.json` (two composite indexes: `playerIds + createdAt desc` for round history, and `lobbyCode + status` for the group-play join-by-code query).
 
 ```bash
 cd "/Users/dzhambulat/Documents/Smart golf caddy"
-firebase login        # opens browser, sign in with the Google account that owns the project
-firebase deploy --only firestore:rules
+firebase login        # opens browser; sign in with the Google account that owns the project
+firebase deploy --only firestore   # deploys both rules and indexes
 ```
 
-If you also want to deploy the index for `getUserRounds`:
-
-```bash
-firebase deploy --only firestore:indexes
-```
+If indexes are missing, the first time the app queries Firestore it will throw an error in the console with a one-click "Create index" link. Either click that link or re-run `firebase deploy --only firestore`.
 
 ---
 
@@ -141,7 +155,7 @@ Open http://localhost:5173 — you should see the Auth screen. Click **"Войт
 
 ---
 
-## Step 8 — Deploy to Firebase Hosting (optional, for testing on phone)
+## Step 8 — Deploy to Firebase Hosting
 
 ```bash
 npm run build
@@ -150,17 +164,44 @@ firebase deploy --only hosting
 
 You'll get a URL like `https://smart-golf-caddy-xxxxx.web.app` — open it on your phone, "Add to Home Screen" in Safari/Chrome → installs as a PWA.
 
+### 8a. Add the deployed domain to Firebase Auth's Authorized domains
+
+Firebase Auth rejects sign-in popups from any domain not in its allow-list.
+
+1. Firebase Console → **Authentication → Settings → Authorized domains**
+2. Add `smart-golf-caddy.web.app` (or your actual hosting domain)
+
+`localhost` and `*.firebaseapp.com` are usually pre-added, but `.web.app` is **not** automatic.
+
+---
+
+## Group play — deep links
+
+The lobby code can be shared as a 6-character string or via a QR code that encodes:
+
+```
+https://YOUR-PROJECT.web.app/join/<LOBBY_CODE>
+```
+
+The receiving device opens that URL → the app navigates to `/join/<CODE>` → if the user is signed in, it auto-attempts to join the lobby. If not signed in, it goes through auth first and you have to retype the code.
+
+For this deep-link to work, make sure your deployed domain is in **Firebase Auth → Authorized domains** (Step 8a) so the popup-based sign-in flow works from a fresh visit.
+
 ---
 
 ## Troubleshooting
 
 | Problem | Likely cause |
 |---|---|
-| Auth popup closes silently | Pop-up blocker; or `localhost` is not in Firebase Auth's "Authorized domains" (Console → Auth → Settings) |
-| "Places API error: REQUEST_DENIED" | Places API not enabled, or key restricted to the wrong domain |
-| "Missing or insufficient permissions" on Firestore reads | Rules not deployed; run `firebase deploy --only firestore:rules` |
-| Recent rounds empty after finishing a round | Firestore index not created — Firebase console will print a one-click link to create it the first time the query runs |
-| Geolocation not working | HTTPS or `localhost` required; check site permissions in browser settings |
+| `auth/requests-to-this-api-identitytoolkit-...are-blocked` | The Firebase "Browser key" has API restrictions that exclude Identity Toolkit API. Either unrestrict it, or add `Identity Toolkit API` to its allow-list. |
+| `auth/unauthorized-domain` | The deployed domain isn't in Firebase Auth → Settings → Authorized domains. Add `smart-golf-caddy.web.app`. |
+| Auth popup closes silently | Pop-up blocker; or the user closed it (we silently ignore `auth/popup-closed-by-user`). |
+| `TypeError: Load failed` on course search | You're calling the legacy Places endpoint (`maps.googleapis.com`) which has no CORS. We migrated to Places API (New) — make sure the new API is **enabled** in Cloud Console and the key allows it. |
+| "Доступ к Places API (New) запрещён" (403) | Either Places API (New) is not enabled, or your current host isn't in the API key's HTTP referrers. |
+| "Missing or insufficient permissions" on Firestore reads/writes | Rules not deployed; run `firebase deploy --only firestore`. |
+| Recent rounds empty after finishing a round | Composite index not built yet — Firestore console will print a one-click "Create index" link, or run `firebase deploy --only firestore`. |
+| Geolocation prompt doesn't appear (iOS Safari) | We added a manual "📍 Определить местоположение" button on the CourseSearch screen; tap that to trigger the prompt from a user gesture. |
+| Custom clubs appear at the end of the picker instead of inside their category | Should be fixed in current builds. Re-add the custom club; it inserts at the end of its category. |
 
 ---
 
@@ -172,8 +213,10 @@ You'll get a URL like `https://smart-golf-caddy-xxxxx.web.app` — open it on yo
 | `.env.local` | **Your actual secrets** (gitignored — never commit) |
 | `firebase.json` | Hosting + Firestore deploy config |
 | `.firebaserc` | Firebase project ID |
-| `firestore.rules` | Security rules (deploy via `firebase deploy --only firestore:rules`) |
-| `firestore.indexes.json` | Composite indexes for queries |
+| `firestore.rules` | Security rules (field-aware per-action); deploy via `firebase deploy --only firestore` |
+| `firestore.indexes.json` | Composite indexes: `playerIds + createdAt desc` (round history) and `lobbyCode + status` (group play join lookup) |
 | `public/manifest.json` | PWA manifest |
 | `public/icon.svg`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | App icons |
-| `scripts/generate-icons.mjs` | Regenerate icons from `public/icon.svg` if you change it |
+| `scripts/generate-icons.mjs` | Regenerate PNG icons from `public/icon.svg` if you redesign it |
+| `CLAUDE.md` | Architecture + workflow guide for Claude Code / agents |
+| `tasks/todo.md`, `tasks/lessons.md` | Sprint plan + accumulated lessons |

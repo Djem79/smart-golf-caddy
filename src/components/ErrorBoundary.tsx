@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
+import { captureError } from '../sentry'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -18,8 +19,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Until Sentry lands (Sprint 3), at least preserve the stack in dev tools.
-    console.error('[ErrorBoundary] render error:', error, info.componentStack)
+    // Forward to Sentry when DSN is configured; falls back to console in dev.
+    captureError(error, { componentStack: info.componentStack })
   }
 
   handleReload = (): void => {

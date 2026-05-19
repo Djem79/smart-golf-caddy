@@ -35,6 +35,7 @@ export function MyBag() {
 
   useEffect(() => {
     if (loading) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local optimistic state with the latest Firestore profile snapshot; the alternative (useSyncExternalStore) is a larger refactor than warranted here
     setBag(getBagFromUser(profile))
     setUnits(profile?.units ?? 'm')
   }, [profile, loading])

@@ -22,6 +22,7 @@ export function CourseSearch() {
   useEffect(() => {
     if (lat == null || lng == null) return
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial loading state for an async fetch kicked off by this effect; the result-handling setState calls below are inside .then/.catch/.finally and therefore safe
     setNearbyLoading(true)
     setError(null)
     findNearbyCourses(lat, lng)
@@ -44,6 +45,7 @@ export function CourseSearch() {
   useEffect(() => {
     const q = search.trim()
     if (q.length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale text-search results when the query becomes too short; the only place this transitions back to null
       setTextResults(null)
       return
     }

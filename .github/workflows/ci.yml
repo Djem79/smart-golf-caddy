@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Only run the latest commit on a branch — cancel any in-progress run for the
+# same ref. Saves Actions minutes when pushing rapidly.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # Lockfile-driven cache: only rebuilds when package-lock.json changes
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Build needs every VITE_ env var to be present at compile time, otherwise
+      # Vite hard-fails the static replacement step. We inject placeholder
+      # values so the build can complete — the real keys are injected only at
+      # production deploy time (manual `firebase deploy --only hosting` from a
+      # developer machine).
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Build (with placeholder env)
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ci-placeholder
+          VITE_FIREBASE_AUTH_DOMAIN: ci.placeholder.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder
+          VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          VITE_FIREBASE_APP_ID: '1:000000000000:web:ci-placeholder'
+          VITE_GOOGLE_PLACES_API_KEY: ci-placeholder

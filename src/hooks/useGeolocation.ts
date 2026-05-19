@@ -52,6 +52,10 @@ export function useGeolocation(): GeoState {
   }, [])
 
   useEffect(() => {
+    // `start` synchronously calls setState in the "geolocation not supported" branch;
+    // the watch callbacks are async and outside this concern. The lint rule can't
+    // distinguish those cases — adding an explicit disable here is the simplest fix.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     start()
     return () => {
       if (watchIdRef.current != null && navigator.geolocation) {
