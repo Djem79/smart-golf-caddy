@@ -243,7 +243,7 @@ interface RecordShotInput {
 }
 
 export const recordShot = onCall(
-  { region: 'us-central1', enforceAppCheck: false },
+  { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
     const { roundId, holeIndex, clubs, targetUid } = (request.data ?? {}) as RecordShotInput
@@ -332,7 +332,7 @@ interface UpdateHoleConfigInput {
 }
 
 export const updateHoleConfig = onCall(
-  { region: 'us-central1', enforceAppCheck: false },
+  { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
     const { roundId, holeIndex, par, distanceMeters } =
@@ -401,7 +401,7 @@ interface JoinLobbyInput {
 }
 
 export const joinLobbyByCode = onCall(
-  { region: 'us-central1', enforceAppCheck: false },
+  { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
     const { code, playerInfo } = (request.data ?? {}) as JoinLobbyInput
@@ -507,7 +507,7 @@ export const shareRoundByEmail = onCall(
   {
     region: 'us-central1',
     secrets: [RESEND_API_KEY],
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async request => {
     const { roundId, toEmail } = (request.data ?? {}) as ShareInput
