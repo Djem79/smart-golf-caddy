@@ -352,6 +352,7 @@ function ClubRow({
         <p className="font-semibold text-label-lg text-on-surface truncate">{displayLabel}</p>
         <input
           type="text"
+          aria-label={`${club.custom ? 'Название' : 'Модель'} клюшки ${displayLabel}`}
           placeholder={club.custom ? 'Название' : 'Модель'}
           defaultValue={club.customName ?? ''}
           onBlur={e => onSetName(e.target.value)}
@@ -364,6 +365,7 @@ function ClubRow({
             key={`${club.id}-${units}-${club.distanceMeters}`}
             type="number"
             inputMode="numeric"
+            aria-label={`Дистанция ${displayLabel}, ${units === 'yd' ? 'ярды' : 'метры'}`}
             min={0}
             max={400}
             defaultValue={distanceValue}
@@ -420,6 +422,7 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
       <div className="flex items-center gap-2">
         <input
           type="text"
+          aria-label="Название новой клюшки"
           placeholder="Например: Hybrid 3"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -430,6 +433,7 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
           <input
             type="number"
             inputMode="numeric"
+            aria-label="Дистанция новой клюшки"
             min={0}
             max={400}
             placeholder="0"

@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Trophy, Share2, Plus } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
-import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus } from '../services/scoring'
-import { scoreColor, scoreLabel, getBagFromUser, getClubLabel } from '../types'
+import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus, computeLeaderboard } from '../services/scoring'
+import { scoreColor, scoreOnColor, scoreLabel, getBagFromUser, getClubLabel } from '../types'
 import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -14,20 +14,13 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
 import { pluralRu } from '../utils/intl'
 
+// Headline winner = top of the same leaderboard rendered below, so the two
+// never disagree. computeLeaderboard sinks players with no recorded shots and
+// has a deterministic name tiebreak; if nobody played there is no winner yet.
 function findWinner(round: Round): string {
-  let best = Infinity
-  let bestScore = Infinity
-  let winnerId = ''
-  for (const uid of Object.keys(round.players)) {
-    const { totalScore, scoreDiff } = computePlayerTotals(round, uid)
-    if (totalScore === 0) continue // skip players who didn't record any shots
-    if (scoreDiff < best || (scoreDiff === best && totalScore < bestScore)) {
-      best = scoreDiff
-      bestScore = totalScore
-      winnerId = uid
-    }
-  }
-  return round.players[winnerId]?.name ?? 'Неизвестно'
+  const [top] = computeLeaderboard(round)
+  if (!top || top.thru === 0) return 'Неизвестно'
+  return top.name
 }
 
 export function RoundResults() {
@@ -35,6 +28,7 @@ export function RoundResults() {
   const navigate = useNavigate()
   const { profile } = useProfile()
   const [round, setRound] = useState<Round | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   // Resolve display names for clubs using the current viewer's bag.
   // Custom clubs owned by other players show as "Клюшка" — acceptable
@@ -43,13 +37,24 @@ export function RoundResults() {
 
   useEffect(() => {
     if (!roundId) return
-    return subscribeToRound(roundId, setRound)
+    return subscribeToRound(roundId, setRound, () => {
+      setLoadError('Не удалось загрузить итоги. Проверьте связь.')
+    })
   }, [roundId])
 
   if (!round) {
     return (
-      <div className="screen items-center justify-center">
-        <p className="text-on-surface-variant text-body-md">Загрузка результатов...</p>
+      <div className="screen items-center justify-center px-8 text-center gap-4">
+        {loadError ? (
+          <>
+            <p className="text-error text-body-md">{loadError}</p>
+            <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
+              На главную
+            </Button>
+          </>
+        ) : (
+          <p className="text-on-surface-variant text-body-md">Загрузка результатов...</p>
+        )}
       </div>
     )
   }
@@ -112,34 +117,31 @@ export function RoundResults() {
       )}
 
       <div className="px-5 pt-5 space-y-3">
-        {players
-          .map(([uid, player]) => ({ uid, player, ...computePlayerTotals(round, uid) }))
-          .sort((a, b) =>
-            a.scoreDiff !== b.scoreDiff
-              ? a.scoreDiff - b.scoreDiff
-              : a.totalScore - b.totalScore || a.player.name.localeCompare(b.player.name)
-          )
-          .map(({ uid, player, totalScore, scoreDiff }) => (
-            <Card key={uid}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar src={player.avatar} name={player.name} size={40} />
-                  <span className="font-semibold text-body-md text-on-surface truncate">{player.name}</span>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="font-headline font-bold text-title-lg text-on-surface tabular-nums">{totalScore}</p>
-                  <p
-                    className="text-label-lg tabular-nums"
-                    style={{
-                      color: scoreColor(scoreDiff) === '#FFFFFF' ? '#717A6D' : scoreColor(scoreDiff),
-                    }}
-                  >
-                    {scoreDiff >= 0 ? '+' : ''}{scoreDiff} ({scoreLabel(scoreDiff)})
-                  </p>
-                </div>
+        {computeLeaderboard(round).map(({ uid, name, avatar, totalScore, scoreDiff }) => (
+          <Card key={uid}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar src={avatar} name={name} size={40} />
+                <span className="font-semibold text-body-md text-on-surface truncate">{name}</span>
               </div>
-            </Card>
-          ))}
+              <div className="text-right shrink-0">
+                <p className="font-headline font-bold text-title-lg text-on-surface tabular-nums">{totalScore}</p>
+                {/* Filled pill with luminance-correct text (scoreOnColor) so it
+                    meets WCAG AA; par (E) renders as a neutral bordered chip. */}
+                <span
+                  className="inline-flex items-center justify-center rounded-md px-1.5 py-0.5 mt-0.5 text-label-lg font-semibold tabular-nums"
+                  style={
+                    scoreDiff === 0
+                      ? { border: '1px solid #C0C9BB', color: '#1A1C1C' }
+                      : { backgroundColor: scoreColor(scoreDiff), color: scoreOnColor(scoreDiff) }
+                  }
+                >
+                  {scoreDiff >= 0 ? '+' : ''}{scoreDiff} ({scoreLabel(scoreDiff)})
+                </span>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
       <div className="px-5 pt-6">
@@ -195,7 +197,10 @@ export function RoundResults() {
                         <td
                           key={hole.holeNumber}
                           className="py-2 px-2 font-semibold text-on-surface"
-                          style={{ backgroundColor: delta != null ? scoreColor(delta) : undefined }}
+                          style={{
+                            backgroundColor: delta != null ? scoreColor(delta) : undefined,
+                            color: delta != null ? scoreOnColor(delta) : undefined,
+                          }}
                         >
                           {shots ?? '—'}
                         </td>

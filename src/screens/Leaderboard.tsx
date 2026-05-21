@@ -5,7 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 import { subscribeToRound } from '../services/rounds'
 import { computeLeaderboard, computeMatchPlayStatus } from '../services/scoring'
 import type { Round } from '../types'
-import { scoreColor, scoreDirection } from '../types'
+import { scoreColor, scoreOnColor, scoreDirection } from '../types'
+import { pluralRu } from '../utils/intl'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -15,16 +16,28 @@ export function Leaderboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [round, setRound] = useState<Round | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!roundId) return
-    return subscribeToRound(roundId, setRound)
+    return subscribeToRound(roundId, setRound, () => {
+      setLoadError('Не удалось загрузить таблицу. Проверьте связь.')
+    })
   }, [roundId])
 
   if (!round || !roundId) {
     return (
-      <div className="screen items-center justify-center">
-        <p className="text-on-surface-variant text-body-md">Загрузка...</p>
+      <div className="screen items-center justify-center px-8 text-center gap-4">
+        {loadError ? (
+          <>
+            <p className="text-error text-body-md">{loadError}</p>
+            <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
+              На главную
+            </Button>
+          </>
+        ) : (
+          <p className="text-on-surface-variant text-body-md">Загрузка...</p>
+        )}
       </div>
     )
   }
@@ -59,7 +72,7 @@ export function Leaderboard() {
           <p className="text-on-primary font-headline font-bold text-title-lg tracking-tight">
             {round.status === 'lobby' ? 'Лобби (ещё не начали)'
             : round.status === 'finished' ? 'Раунд завершён'
-            : `${round.totalHoles} лунок`}
+            : `${round.totalHoles} ${pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}`}
             {isMatchPlay && <span className="text-on-primary/80 font-normal"> · Match 1 v 1</span>}
           </p>
         </div>
@@ -105,10 +118,11 @@ export function Leaderboard() {
           const isMe = entry.uid === user?.uid
           const direction = scoreDirection(entry.scoreDiff)
           const color = entry.thru > 0 ? scoreColor(entry.scoreDiff) : 'transparent'
-          // White text on filled bogey/double/worse pills; dark text on
-          // birdie/eagle/par (gold + dark green + white — all light enough).
+          // Foreground chosen by background luminance (scoreOnColor) so every
+          // filled pill meets WCAG AA. Par/empty render on transparent bg with
+          // a border, so they use dark text regardless.
           const pillText =
-            entry.thru === 0 || entry.scoreDiff <= 0 ? '#1A1C1C' : '#FFFFFF'
+            entry.thru === 0 || entry.scoreDiff === 0 ? '#1A1C1C' : scoreOnColor(entry.scoreDiff)
           const DirIcon = direction === 'under' ? TrendingDown : direction === 'over' ? TrendingUp : Minus
           return (
             <div

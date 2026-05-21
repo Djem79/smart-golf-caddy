@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ticket } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
@@ -14,10 +14,16 @@ export function JoinGame() {
   const [code, setCode] = useState((paramCode ?? '').toUpperCase().slice(0, 6))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Latch so the deep-link auto-join fires exactly once per code, even if the
+  // auth `user` object identity changes (token refresh re-emits onAuthStateChanged).
+  // The `!loading` guard alone can't prevent re-entry — `loading` isn't in the
+  // effect deps, so the closure reads a stale value.
+  const attemptedCodeRef = useRef<string | null>(null)
 
   // If a deep-link param is present, attempt auto-join once the user is known.
   useEffect(() => {
-    if (paramCode && user && !loading) {
+    if (paramCode && user && attemptedCodeRef.current !== paramCode) {
+      attemptedCodeRef.current = paramCode
       handleJoin(paramCode)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,6 +88,7 @@ export function JoinGame() {
             inputMode="text"
             autoComplete="off"
             autoCapitalize="characters"
+            aria-label="Код лобби"
             placeholder="ABCDEF"
             value={code}
             onChange={e => onCodeChange(e.target.value)}

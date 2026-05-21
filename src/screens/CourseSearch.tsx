@@ -104,6 +104,7 @@ export function CourseSearch() {
           />
           <input
             type="text"
+            aria-label="Поиск полей или городов"
             placeholder="Поиск полей или городов"
             value={search}
             onChange={e => setSearch(e.target.value)}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Trophy, Flag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
+import { trapTab, useDialogA11y } from '../hooks/useDialogA11y'
 
 export function HoleTracker() {
   const { roundId, holeNumber } = useParams<{ roundId: string; holeNumber: string }>()
@@ -42,8 +43,16 @@ export function HoleTracker() {
   // Active player whose shots we're editing — defaults to self
   const [activeUserId, setActiveUserId] = useState<string>('')
 
-  const [localClubs, setLocalClubs] = useState<string[] | null>(null)
-  const lastSyncedKeyRef = useRef<string | null>(null)
+  // Optimistic overlay, tagged with the slot (hole + player) it belongs to and
+  // the server value we're waiting to see echoed back. Slot-tagging stops an
+  // in-flight save for one player bleeding into another when the host switches
+  // players mid-save; `awaitingKey` stops an intermediate snapshot from rolling
+  // the counter backwards when several taps overlap.
+  const [optimistic, setOptimistic] = useState<{
+    slot: string
+    clubs: string[]
+    awaitingKey: string
+  } | null>(null)
 
   const [selectedClub, setSelectedClub] = useState<string>(lastClubUsed)
 
@@ -77,12 +86,13 @@ export function HoleTracker() {
 
   const serverClubs = (hole && activeUserId) ? getHoleClubs(hole.shots[activeUserId]) : []
   const serverKey = serverClubs.join('|')
+  const slotKey = `${holeIndex}:${activeUserId}`
 
-  // Reset optimistic state when navigating to a new hole or switching player
+  // Reset the club picker default when navigating to a new hole or switching
+  // player. The optimistic overlay is slot-tagged so it needs no reset here —
+  // it only renders for its own slot and is cleared by the reconcile effect.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- discards stale per-hole local state when the user navigates between holes or switches the active player; safe because it only runs on those dep transitions
-    setLocalClubs(null)
-    lastSyncedKeyRef.current = null
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the picker default on hole/player change
     setSelectedClub(lastClubUsed)
   }, [holeIndex, activeUserId, lastClubUsed])
 
@@ -94,36 +104,38 @@ export function HoleTracker() {
     }
   }, [pickerClubs, selectedClub])
 
-  // Reconcile local state when the server catches up to our last write
-  useEffect(() => {
-    if (localClubs !== null && lastSyncedKeyRef.current === serverKey) return
-    if (serverKey !== lastSyncedKeyRef.current) {
-      lastSyncedKeyRef.current = serverKey
-      setLocalClubs(null)
-    }
-  }, [serverKey, localClubs])
-
-  const myClubs = localClubs ?? serverClubs
+  // Show the optimistic overlay only while it's "ahead" of the server: same
+  // slot, and the server hasn't yet echoed the value we wrote (awaitingKey).
+  // Derived during render (not cleared via an effect) so an intermediate
+  // snapshot from overlapping taps can't roll the counter back — the overlay
+  // simply stops showing once the server matches our latest write. A leftover
+  // overlay object is harmless: the next save overwrites it.
+  const myClubs =
+    optimistic && optimistic.slot === slotKey && serverKey !== optimistic.awaitingKey
+      ? optimistic.clubs
+      : serverClubs
   const myShots = myClubs.length
   const isSelf = activeUserId === user?.uid
 
   const save = useCallback(async (clubs: string[]) => {
     if (!roundId || !activeUserId || !hole) return
+    const slot = `${holeIndex}:${activeUserId}`
+    const targetUid = activeUserId
     setSaving(true)
     setError(null)
-    setLocalClubs(clubs)
+    setOptimistic({ slot, clubs, awaitingKey: clubs.join('|') })
     try {
-      await recordShot(roundId, holeIndex, activeUserId, clubs)
-      lastSyncedKeyRef.current = clubs.join('|')
-      // Only update lastClubUsed if I'm recording my own shot — don't track others' clubs in my preferences
-      if (isSelf && clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
+      await recordShot(roundId, holeIndex, targetUid, clubs)
+      // Only update lastClubUsed for my own shots — don't track clubs I log for others.
+      if (targetUid === user?.uid && clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
     } catch {
       setError('Не удалось сохранить удар. Проверьте связь.')
-      setLocalClubs(null)
+      // Roll back only this slot's overlay; a newer save for another slot stays.
+      setOptimistic(prev => (prev && prev.slot === slot ? null : prev))
     } finally {
       setSaving(false)
     }
-  }, [roundId, activeUserId, hole, holeIndex, isSelf, setLastClubUsed])
+  }, [roundId, activeUserId, hole, holeIndex, user, setLastClubUsed])
 
   function addShot() {
     save([...myClubs, selectedClub])
@@ -467,6 +479,17 @@ function HoleEditorDialog({
   const [par, setPar] = useState<3 | 4 | 5>(currentPar)
   const [distance, setDistance] = useState<string>(String(currentDistance))
   const [validationError, setValidationError] = useState<string | null>(null)
+  const dialogRef = useDialogA11y(true)
+
+  // Escape closes the dialog (unless a save is in flight) — matches
+  // ConfirmDialog/ShareDialog behaviour.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !saving) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [saving, onClose])
 
   function handleSave() {
     const parsed = Number(distance)
@@ -494,8 +517,10 @@ function HoleEditorDialog({
       onClick={onClose}
     >
       <div
-        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-5 shadow-elevated"
+        ref={dialogRef}
+        className="bg-surface-container-lowest rounded-t-xl sm:rounded-xl max-w-sm w-full p-5 space-y-5 shadow-elevated focus:outline-none"
         onClick={e => e.stopPropagation()}
+        onKeyDown={trapTab}
       >
         <div>
           <h2
@@ -570,6 +595,7 @@ function HoleEditorDialog({
             onClick={onClose}
             disabled={saving}
             className="flex-1 uppercase tracking-wider"
+            data-autofocus
           >
             Отмена
           </Button>

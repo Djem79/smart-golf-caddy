@@ -1,9 +1,35 @@
 /// <reference types="vitest" />
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Build-time release identifier for Sentry. Prefer an explicit env override
+// (set by CI), else `<pkgVersion>+<gitShortSha>`, else just the package
+// version. Without this, Sentry tags every event `unversioned`, defeating
+// release-based regression tracking.
+function resolveAppVersion(): string {
+  if (process.env.VITE_APP_VERSION) return process.env.VITE_APP_VERSION
+  const { version } = JSON.parse(
+    readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
+  ) as { version: string }
+  try {
+    const sha = execSync('git rev-parse --short HEAD', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+    return `${version}+${sha}`
+  } catch {
+    return version
+  }
+}
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(resolveAppVersion()),
+  },
   plugins: [
     react(),
     VitePWA({

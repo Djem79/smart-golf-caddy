@@ -92,6 +92,7 @@ export function RoundSetup() {
             </p>
             <input
               type="text"
+              aria-label="Название поля"
               placeholder="Например: Гольф клуб Москва"
               value={customName}
               onChange={e => setCustomName(e.target.value)}

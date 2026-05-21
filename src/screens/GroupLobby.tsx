@@ -102,7 +102,7 @@ export function GroupLobby() {
       <div className="flex-1 px-5 pt-5 space-y-5 overflow-y-auto">
         <div className="text-center space-y-1">
           <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{round.courseName}</p>
-          <p className="text-label-md text-on-surface-variant">{round.totalHoles} лунок</p>
+          <p className="text-label-md text-on-surface-variant">{round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
         </div>
 
         {/* Lobby code */}

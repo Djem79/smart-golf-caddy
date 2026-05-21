@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { onAuthStateChanged } from 'firebase/auth'
-import type { User } from 'firebase/auth'
-import { auth } from '../firebase'
+import { subscribeToAuth, type AuthUser } from '../services/auth'
 
 export interface AuthState {
-  user: User | null
+  user: AuthUser | null
   loading: boolean
 }
 
@@ -12,7 +10,7 @@ export function useAuth(): AuthState {
   const [state, setState] = useState<AuthState>({ user: null, loading: true })
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
+    return subscribeToAuth((user) => {
       setState({ user, loading: false })
     })
   }, [])

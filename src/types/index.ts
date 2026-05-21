@@ -204,18 +204,34 @@ export function yardsToMeters(y: number): number {
   return Math.round(y / 1.0936)
 }
 
-// Hex tuned for WCAG AA contrast against dark text (`#1A1C1C`):
-//   Eagle  #FFD700 → 12.4:1
-//   Birdie #2E7D32 → 4.6:1  (was #4CAF50 → 2.9:1, AA fail)
-//   Par    #FFFFFF → 15.7:1 (no background fill — uses border instead)
-//   Bogey  #EF6C00 → 4.7:1  (was #FF9800 → 3.4:1, borderline)
-//   Worse  #C62828 → 6.0:1  (was #F44336 → 4.0:1)
+// Background fill for a score relative to par. These are NOT all readable
+// with a single text color — use scoreOnColor(delta) for the matching
+// AA-compliant foreground. (Birdie #2E7D32 is only 3.34:1 against dark text,
+// so it needs white; eagle gold needs dark. See scoreOnColor for ratios.)
 export function scoreColor(delta: number): string {
   if (delta <= -2) return '#FFD700'
   if (delta === -1) return '#2E7D32'
   if (delta === 0)  return '#FFFFFF'
   if (delta === 1)  return '#EF6C00'
   return '#C62828'
+}
+
+// Foreground color that meets WCAG AA (>= 4.5:1) on the matching
+// scoreColor(delta) background. Pick by background luminance, NOT by sign —
+// the palette isn't monotonic: birdie (dark green) and double+ (red) need
+// white text, while eagle (gold), par (white) and bogey (orange) need dark
+// text. Measured ratios against these foregrounds:
+//   Eagle  #FFD700 + #1A1C1C = 12.2:1
+//   Birdie #2E7D32 + #FFFFFF =  5.1:1
+//   Par    #FFFFFF + #1A1C1C = 15.7:1
+//   Bogey  #EF6C00 + #1A1C1C =  5.5:1
+//   Worse  #C62828 + #FFFFFF =  5.6:1
+export function scoreOnColor(delta: number): string {
+  if (delta <= -2) return '#1A1C1C' // eagle gold — dark text
+  if (delta === -1) return '#FFFFFF' // birdie dark green — white text
+  if (delta === 0)  return '#1A1C1C' // par white — dark text
+  if (delta === 1)  return '#1A1C1C' // bogey orange — dark text
+  return '#FFFFFF'                    // double+ red — white text
 }
 
 // Direction relative to par — used to render a non-color cue (▼ under
