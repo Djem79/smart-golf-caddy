@@ -227,13 +227,18 @@ interface RecordShotInput {
   roundId?: string
   holeIndex?: number
   clubs?: string[]
+  // Whose slot to write. Optional — defaults to the caller. The host may
+  // pass another participant's uid to keep score for the whole group
+  // (single-device play / filling in for a player who couldn't join). Any
+  // non-host caller may only write their own slot.
+  targetUid?: string
 }
 
 export const recordShot = onCall(
   { region: 'us-central1', enforceAppCheck: false },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    const { roundId, holeIndex, clubs } = (request.data ?? {}) as RecordShotInput
+    const { roundId, holeIndex, clubs, targetUid } = (request.data ?? {}) as RecordShotInput
     if (!roundId) throw new HttpsError('invalid-argument', 'roundId обязателен')
     if (typeof holeIndex !== 'number' || holeIndex < 0 || holeIndex > 17) {
       throw new HttpsError('invalid-argument', 'Некорректный holeIndex')
@@ -246,27 +251,41 @@ export const recordShot = onCall(
         throw new HttpsError('invalid-argument', 'Некорректный id клюшки')
       }
     }
+    if (targetUid != null && (typeof targetUid !== 'string' || targetUid.length === 0 || targetUid.length > 128)) {
+      throw new HttpsError('invalid-argument', 'Некорректный targetUid')
+    }
 
-    const uid = request.auth.uid
+    const callerUid = request.auth.uid
+    // Default to writing the caller's own slot when no explicit target given.
+    const target = targetUid && targetUid.length > 0 ? targetUid : callerUid
     const ref = getFirestore().doc(`rounds/${roundId}`)
     await getFirestore().runTransaction(async tx => {
       const snap = await tx.get(ref)
       if (!snap.exists) throw new HttpsError('not-found', 'Раунд не найден')
       const data = snap.data() as Omit<RoundLike, 'id'> & {
         status: string
+        hostId: string
         playerIds: string[]
         holes: { holeNumber: number; par: number; shots: Record<string, unknown> }[]
       }
       if (data.status !== 'active') {
         throw new HttpsError('failed-precondition', 'Раунд неактивен')
       }
-      if (!data.playerIds?.includes(uid)) {
+      if (!data.playerIds?.includes(callerUid)) {
         throw new HttpsError('permission-denied', 'Только участники могут записывать удары')
+      }
+      // Writing for another player is host-only — closes the cross-player
+      // griefing vector while still letting the host keep score for everyone.
+      if (target !== callerUid && data.hostId !== callerUid) {
+        throw new HttpsError('permission-denied', 'Только хост может записывать удары за других игроков')
+      }
+      if (!data.playerIds?.includes(target)) {
+        throw new HttpsError('invalid-argument', 'Игрок не участвует в раунде')
       }
       if (holeIndex >= data.holes.length) {
         throw new HttpsError('invalid-argument', 'Лунка вне диапазона')
       }
-      // Rewrite only the targeted hole's `shots[uid]` slot; everything else
+      // Rewrite only the targeted hole's `shots[target]` slot; everything else
       // in the holes array is preserved untouched. We can't use a true dot-path
       // because Firestore doesn't support `holes.${i}` syntax on array fields,
       // but we explicitly read-then-write the same array shape so the diff is
@@ -277,7 +296,7 @@ export const recordShot = onCall(
               ...h,
               shots: {
                 ...(h.shots ?? {}),
-                [uid]: {
+                [target]: {
                   count: clubs.length,
                   clubs,
                   club: clubs[clubs.length - 1] ?? '',

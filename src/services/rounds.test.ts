@@ -145,12 +145,17 @@ describe('joinRoundByCode', () => {
 })
 
 describe('recordShot', () => {
-  it('dispatches a recordShot callable with the right payload', async () => {
-    await recordShot('rid-1', 4, 'host-uid', ['Driver', '7i', 'Putter'])
+  it('dispatches a recordShot callable forwarding the target uid', async () => {
+    await recordShot('rid-1', 4, 'player-2-uid', ['Driver', '7i', 'Putter'])
     expect(callableCalls).toHaveLength(1)
     expect(callableCalls[0]).toEqual({
       name: 'recordShot',
-      payload: { roundId: 'rid-1', holeIndex: 4, clubs: ['Driver', '7i', 'Putter'] },
+      payload: {
+        roundId: 'rid-1',
+        holeIndex: 4,
+        clubs: ['Driver', '7i', 'Putter'],
+        targetUid: 'player-2-uid',
+      },
     })
   })
 

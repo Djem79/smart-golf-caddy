@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { signInWithGoogle } from '../services/auth'
 
 // Official 4-colour Google "G" mark — drop-in SVG, no external font.
@@ -21,15 +21,21 @@ function GoogleGLogo({ className = '' }: { className?: string }) {
 
 export function Auth() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Where ProtectedRoute bounced the user from (e.g. a /join/:code deep link).
+  // Return them there after sign-in; fall back to /home for direct visits.
+  const from = (location.state as { from?: string } | null)?.from
+  const redirectTo = from && from.startsWith('/') && !from.startsWith('/auth') ? from : '/home'
 
   async function handleGoogleSignIn() {
     setLoading(true)
     setError(null)
     try {
       await signInWithGoogle()
-      navigate('/home')
+      navigate(redirectTo, { replace: true })
     } catch (e: unknown) {
       // Firebase Auth errors have a `code` field with a stable identifier.
       // Map the ones users can actually act on to clear Russian copy.

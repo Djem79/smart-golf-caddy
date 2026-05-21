@@ -19,12 +19,15 @@ export function GroupLobby() {
   const [round, setRound] = useState<Round | null>(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
   useEffect(() => {
     if (!roundId) return
-    return subscribeToRound(roundId, setRound)
+    return subscribeToRound(roundId, setRound, () => {
+      setLoadError('Не удалось загрузить лобби. Возможно, вы не участник этого раунда или пропала связь.')
+    })
   }, [roundId])
 
   // Auto-navigate to hole 1 once host starts the round
@@ -39,8 +42,17 @@ export function GroupLobby() {
 
   if (!round || !roundId) {
     return (
-      <div className="screen items-center justify-center">
-        <p className="text-on-surface-variant text-body-md">Загрузка лобби...</p>
+      <div className="screen items-center justify-center px-8 text-center gap-4">
+        {loadError ? (
+          <>
+            <p className="text-error text-body-md">{loadError}</p>
+            <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
+              На главную
+            </Button>
+          </>
+        ) : (
+          <p className="text-on-surface-variant text-body-md">Загрузка лобби...</p>
+        )}
       </div>
     )
   }

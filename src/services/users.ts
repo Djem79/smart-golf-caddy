@@ -13,12 +13,17 @@ export async function updateUnits(uid: string, units: DistanceUnit): Promise<voi
 export function subscribeToProfile(
   uid: string,
   callback: (profile: AppUser | null) => void,
+  onError?: (err: Error) => void,
 ): () => void {
-  return onSnapshot(doc(db, 'users', uid), (snap) => {
-    if (!snap.exists()) {
-      callback(null)
-      return
-    }
-    callback({ uid, ...snap.data() } as AppUser)
-  })
+  return onSnapshot(
+    doc(db, 'users', uid),
+    (snap) => {
+      if (!snap.exists()) {
+        callback(null)
+        return
+      }
+      callback({ uid, ...snap.data() } as AppUser)
+    },
+    (err) => onError?.(err),
+  )
 }

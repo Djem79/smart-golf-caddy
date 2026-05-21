@@ -33,6 +33,7 @@ export function HoleTracker() {
   const [round, setRound] = useState<Round | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [showFinishConfirm, setShowFinishConfirm] = useState(false)
   const [showHoleEditor, setShowHoleEditor] = useState(false)
@@ -48,7 +49,9 @@ export function HoleTracker() {
 
   useEffect(() => {
     if (!roundId) return
-    return subscribeToRound(roundId, setRound)
+    return subscribeToRound(roundId, setRound, () => {
+      setLoadError('Не удалось загрузить раунд. Проверьте связь.')
+    })
   }, [roundId])
 
   // Initialize active player to self once we have user + round
@@ -154,8 +157,17 @@ export function HoleTracker() {
 
   if (!round || !hole) {
     return (
-      <div className="screen items-center justify-center">
-        <p className="text-on-surface-variant text-body-md">Загрузка...</p>
+      <div className="screen items-center justify-center px-8 text-center gap-4">
+        {loadError ? (
+          <>
+            <p className="text-error text-body-md">{loadError}</p>
+            <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
+              На главную
+            </Button>
+          </>
+        ) : (
+          <p className="text-on-surface-variant text-body-md">Загрузка...</p>
+        )}
       </div>
     )
   }

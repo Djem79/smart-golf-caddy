@@ -10,7 +10,7 @@ import { DEFAULT_HOLE_PARS, TEE_MULTIPLIERS } from '../types'
 
 const fns = getFunctions(app, 'us-central1')
 const recordShotCallable = httpsCallable<
-  { roundId: string; holeIndex: number; clubs: string[] },
+  { roundId: string; holeIndex: number; clubs: string[]; targetUid?: string },
   { ok: boolean }
 >(fns, 'recordShot')
 const joinLobbyCallable = httpsCallable<
@@ -133,19 +133,19 @@ export async function startRound(roundId: string): Promise<void> {
   })
 }
 
-// Records the player's shots through a server-authoritative callable.
+// Records a player's shots through a server-authoritative callable.
 // Clients are no longer permitted to write `holes` directly (rules block it)
-// because client transactions could rewrite ANY player's shots. The callable
-// enforces uid match server-side. The `userId` arg is kept in the signature
-// for callsite stability — it must equal the calling user's auth uid or the
-// function rejects with permission-denied.
+// because client transactions could rewrite ANY player's shots. `userId` is
+// the slot being scored: it must equal the caller's auth uid, OR the caller
+// must be the round host (host keeps score for the whole group). The callable
+// enforces this server-side and rejects otherwise with permission-denied.
 export async function recordShot(
   roundId: string,
   holeIndex: number,
-  _userId: string,
+  userId: string,
   clubs: string[],
 ): Promise<void> {
-  await recordShotCallable({ roundId, holeIndex, clubs })
+  await recordShotCallable({ roundId, holeIndex, clubs, targetUid: userId })
 }
 
 export async function finishRound(roundId: string): Promise<void> {
@@ -158,10 +158,18 @@ export async function finishRound(roundId: string): Promise<void> {
 export function subscribeToRound(
   roundId: string,
   callback: (round: Round) => void,
+  onError?: (err: Error) => void,
 ): () => void {
-  return onSnapshot(doc(db, 'rounds', roundId), (snap) => {
-    if (snap.exists()) callback(normalizeRound(snap.id, snap.data()))
-  })
+  // The error callback is essential: without it a permission/network failure
+  // on the listener is swallowed and the screen spins forever. Surfacing it
+  // lets the UI show a retry instead of an endless "Загрузка...".
+  return onSnapshot(
+    doc(db, 'rounds', roundId),
+    (snap) => {
+      if (snap.exists()) callback(normalizeRound(snap.id, snap.data()))
+    },
+    (err) => onError?.(err),
+  )
 }
 
 // Host-only: change the par and/or distance for a single hole. At least

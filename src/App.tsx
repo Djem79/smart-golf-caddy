@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { Auth } from './screens/Auth'
 import { Home } from './screens/Home'
@@ -27,8 +27,20 @@ function LoadingScreen({ label = 'Загрузка...' }: { label?: string }) {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) return <LoadingScreen />
-  if (!user) return <Navigate to="/auth" replace />
+  // Remember where the user was headed (e.g. a /join/:code deep link from a
+  // QR scan) so Auth can return them there after sign-in instead of dropping
+  // them on /home and losing the lobby code.
+  if (!user) {
+    return (
+      <Navigate
+        to="/auth"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    )
+  }
   return <>{children}</>
 }
 
