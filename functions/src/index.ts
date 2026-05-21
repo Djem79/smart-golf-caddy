@@ -196,6 +196,14 @@ export const onRoundFinished = onDocumentUpdated(
         emailedTo[uid] = true
         continue
       }
+      // Cap auto-emails per recipient/day. If exceeded, skip without marking
+      // emailedTo so a later re-trigger can still deliver (and allOk stays
+      // false, so emailedAt isn't stamped).
+      const withinAutoQuota = await bumpDailyQuota(uid, 'auto', AUTO_EMAIL_DAILY_LIMIT)
+      if (!withinAutoQuota) {
+        results.push({ uid, email: '', ok: false, reason: 'daily auto-email cap reached' })
+        continue
+      }
       const r = await sendOneRoundEmail(resend, round, uid)
       results.push({ ...r, email: r.email ? redactEmail(r.email) : '' })
       if (r.ok) emailedTo[uid] = true
@@ -411,6 +419,18 @@ export const joinLobbyByCode = onCall(
     }
 
     const uid = request.auth.uid
+
+    // Rate-limit join attempts (hits AND misses) per user/day so an attacker
+    // can't enumerate lobby codes — each guessed hit would otherwise auto-join
+    // them into a stranger's round.
+    const withinJoinQuota = await bumpDailyQuota(uid, 'join', JOIN_DAILY_LIMIT)
+    if (!withinJoinQuota) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Слишком много попыток подключения. Попробуйте позже.',
+      )
+    }
+
     const db = getFirestore()
     const matches = await db
       .collection('rounds')
@@ -449,30 +469,37 @@ interface ShareInput {
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
 const SHARE_DAILY_LIMIT = 10
+// Cap join-by-code attempts per user/day — bounds lobby-code enumeration via
+// the (auto-joining) joinLobbyByCode callable. A real user joins few lobbies.
+const JOIN_DAILY_LIMIT = 30
+// Cap auto-summary emails a single user can receive per day — bounds Resend
+// volume if rounds are finished/re-finished in bulk. Manual share has its own
+// SHARE_DAILY_LIMIT.
+const AUTO_EMAIL_DAILY_LIMIT = 30
 
 function today(): string {
   return new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
 }
 
-// Per-user share quota lives in `userQuota/{uid}` so the rules-engine never
-// touches it (Admin SDK only) and a malicious client cannot reset their own
-// counter by writing to the doc.
-async function bumpShareQuota(uid: string): Promise<void> {
+type QuotaKind = 'share' | 'join' | 'auto'
+
+// Per-user, per-kind daily quota in `userQuota/{uid}`. The doc is Admin-SDK
+// only (rules block ALL client access), so a malicious client can't reset its
+// own counter. Each kind is a `{ day, count }` sub-map so share/join/auto
+// don't share a budget. Returns false when today's limit for `kind` is hit.
+async function bumpDailyQuota(uid: string, kind: QuotaKind, limit: number): Promise<boolean> {
   const ref = getFirestore().doc(`userQuota/${uid}`)
-  await getFirestore().runTransaction(async tx => {
+  return getFirestore().runTransaction(async tx => {
     const snap = await tx.get(ref)
     const data = (snap.exists ? snap.data() : null) as
-      | { day?: string; count?: number }
+      | Record<string, { day?: string; count?: number } | undefined>
       | null
+    const entry = data?.[kind]
     const day = today()
-    const count = data?.day === day ? data.count ?? 0 : 0
-    if (count >= SHARE_DAILY_LIMIT) {
-      throw new HttpsError(
-        'resource-exhausted',
-        `Дневной лимит на отправку (${SHARE_DAILY_LIMIT}) исчерпан. Попробуйте завтра.`,
-      )
-    }
-    tx.set(ref, { day, count: count + 1 }, { merge: true })
+    const count = entry?.day === day ? entry.count ?? 0 : 0
+    if (count >= limit) return false
+    tx.set(ref, { [kind]: { day, count: count + 1 } }, { merge: true })
+    return true
   })
 }
 
@@ -520,7 +547,13 @@ export const shareRoundByEmail = onCall(
 
     // Daily per-user quota — transactional, runs before send so a 429 from
     // Resend doesn't burn quota.
-    await bumpShareQuota(request.auth.uid)
+    const withinShareQuota = await bumpDailyQuota(request.auth.uid, 'share', SHARE_DAILY_LIMIT)
+    if (!withinShareQuota) {
+      throw new HttpsError(
+        'resource-exhausted',
+        `Дневной лимит на отправку (${SHARE_DAILY_LIMIT}) исчерпан. Попробуйте завтра.`,
+      )
+    }
 
     const round: RoundLike = { ...data, id: roundId }
     const resend = new Resend(RESEND_API_KEY.value())

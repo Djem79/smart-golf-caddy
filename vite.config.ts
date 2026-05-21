@@ -80,5 +80,9 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
+    // The Firestore rules test is a standalone emulator script (run via
+    // `npm run test:rules`), not a jsdom unit test — keep vitest from picking
+    // it up by its .test.mjs name.
+    exclude: ['**/node_modules/**', '**/dist/**', 'firestore.rules.test.mjs'],
   },
 })

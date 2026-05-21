@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc",
@@ -27,7 +27,7 @@
     "resend": "^6.12.3"
   },
   "devDependencies": {
-    "@types/node": "^20.17.6",
+    "@types/node": "^22.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "react-email": "^6.1.5",
