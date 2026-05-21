@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trophy, Flag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react'
+import { Trophy, Flag, ChevronLeft, ChevronRight, Minus, Plus, WifiOff } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { useAppStore } from '../store/useAppStore'
-import { subscribeToRound, recordShot, finishRound, updateHoleConfig } from '../services/rounds'
+import { subscribeToRound, finishRound, updateHoleConfig } from '../services/rounds'
+import { recordShotQueued, getPendingShot, pendingCountForRound } from '../services/shotQueue'
 import type { Round } from '../types'
 import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_LABELS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
@@ -110,12 +111,18 @@ export function HoleTracker() {
   // snapshot from overlapping taps can't roll the counter back — the overlay
   // simply stops showing once the server matches our latest write. A leftover
   // overlay object is harmless: the next save overwrites it.
+  // A shot recorded offline lives in the local queue until it syncs. Surface
+  // it so it survives a reload (the server snapshot won't have it yet) and so
+  // the user sees their count instead of a "reset".
+  const pendingClubs =
+    roundId && activeUserId ? getPendingShot(roundId, holeIndex, activeUserId)?.clubs : undefined
   const myClubs =
     optimistic && optimistic.slot === slotKey && serverKey !== optimistic.awaitingKey
       ? optimistic.clubs
-      : serverClubs
+      : pendingClubs ?? serverClubs
   const myShots = myClubs.length
   const isSelf = activeUserId === user?.uid
+  const hasQueued = !!roundId && pendingCountForRound(roundId) > 0
 
   const save = useCallback(async (clubs: string[]) => {
     if (!roundId || !activeUserId || !hole) return
@@ -125,12 +132,13 @@ export function HoleTracker() {
     setError(null)
     setOptimistic({ slot, clubs, awaitingKey: clubs.join('|') })
     try {
-      await recordShot(roundId, holeIndex, targetUid, clubs)
-      // Only update lastClubUsed for my own shots — don't track clubs I log for others.
+      // Durable: queues locally then tries to sync. Offline / transient
+      // failures stay queued (no rollback) and flush when connectivity returns.
+      await recordShotQueued(roundId, holeIndex, targetUid, clubs)
       if (targetUid === user?.uid && clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
     } catch {
-      setError('Не удалось сохранить удар. Проверьте связь.')
-      // Roll back only this slot's overlay; a newer save for another slot stays.
+      // Permanent rejection (e.g. round not active) — roll back this slot.
+      setError('Не удалось сохранить удар.')
       setOptimistic(prev => (prev && prev.slot === slot ? null : prev))
     } finally {
       setSaving(false)
@@ -359,6 +367,13 @@ export function HoleTracker() {
 
         {error && (
           <p className="text-center text-label-lg text-error">{error}</p>
+        )}
+
+        {hasQueued && (
+          <p className="text-center text-label-md text-on-surface-variant inline-flex items-center justify-center gap-1.5 w-full">
+            <WifiOff size={14} strokeWidth={1.75} />
+            Нет сети — удары сохранятся автоматически
+          </p>
         )}
       </div>
 
