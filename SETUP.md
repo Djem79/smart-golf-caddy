@@ -227,6 +227,33 @@ you want function alerting today, set up a Cloud Logging alert on
 
 ---
 
+## App Check (reCAPTCHA v3) — attest callable requests
+
+App Check verifies a request came from the real web app before the Cloud
+Functions callables accept it. The client wiring is already in
+`src/firebase.ts` (no-op until `VITE_APP_CHECK_SITE_KEY` is set). Roll it
+out in this **exact order** — flipping enforcement too early rejects every
+callable call:
+
+1. **Register the provider.** Firebase console → **App Check** → your Web
+   app → register with **reCAPTCHA v3**. Firebase creates a reCAPTCHA v3
+   site key. (Make sure `smart-golf-caddy.web.app` is on the reCAPTCHA
+   allowed-domains list.)
+2. **Add the key** to `.env.local`: `VITE_APP_CHECK_SITE_KEY=6Lc...`
+3. **Deploy hosting** (`firebase deploy --only hosting`). The app now
+   sends App Check tokens, but enforcement is still off.
+4. **Verify tokens** in Firebase console → App Check → Requests: confirm
+   the app shows *verified* requests (not "unverified") for the callables.
+5. **Enable enforcement.** Set `enforceAppCheck: true` on the callables in
+   `functions/src/index.ts` and `firebase deploy --only functions`. (App
+   Check enforcement for Firestore is a separate console toggle.)
+
+For local dev: Firebase console → App Check → **Manage debug tokens**,
+create one, and put it in `.env.local` as `VITE_APP_CHECK_DEBUG_TOKEN` so
+`npm run dev` passes App Check without real reCAPTCHA.
+
+---
+
 ## Post-round email (Resend + Cloud Functions)
 
 После завершения раунда Cloud Function `onRoundFinished` рендерит
