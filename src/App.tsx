@@ -1,21 +1,49 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { Auth } from './screens/Auth'
 import { Home } from './screens/Home'
 
+// A failed dynamic import almost always means this tab is running an older
+// build whose chunk hashes were replaced by a fresh deploy (the old .js 404s).
+// Reload ONCE to fetch the new index + chunks; a sessionStorage guard stops a
+// genuinely-broken chunk from looping forever, and a successful load clears it
+// so the recovery is armed again for the next deploy.
+const RELOAD_KEY = 'chunk-reload-attempted'
+function lazyWithReload<T extends ComponentType<object>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(() =>
+    factory().then(
+      mod => {
+        sessionStorage.removeItem(RELOAD_KEY)
+        return mod
+      },
+      (err: unknown) => {
+        if (!sessionStorage.getItem(RELOAD_KEY)) {
+          sessionStorage.setItem(RELOAD_KEY, '1')
+          window.location.reload()
+          // Keep Suspense showing the fallback while the page reloads.
+          return new Promise<{ default: T }>(() => {})
+        }
+        throw err
+      },
+    ),
+  )
+}
+
 // Lazy-load heavier / less-immediate screens. Each becomes its own chunk;
 // the initial bundle only ships Auth + Home + shared infra.
-const CourseSearch = lazy(() => import('./screens/CourseSearch').then(m => ({ default: m.CourseSearch })))
-const RoundSetup   = lazy(() => import('./screens/RoundSetup').then(m => ({ default: m.RoundSetup })))
-const HoleTracker  = lazy(() => import('./screens/HoleTracker').then(m => ({ default: m.HoleTracker })))
-const RoundResults = lazy(() => import('./screens/RoundResults').then(m => ({ default: m.RoundResults })))
-const History      = lazy(() => import('./screens/History').then(m => ({ default: m.History })))
-const Profile      = lazy(() => import('./screens/Profile').then(m => ({ default: m.Profile })))
-const MyBag        = lazy(() => import('./screens/MyBag').then(m => ({ default: m.MyBag })))
-const JoinGame     = lazy(() => import('./screens/JoinGame').then(m => ({ default: m.JoinGame })))
-const GroupLobby   = lazy(() => import('./screens/GroupLobby').then(m => ({ default: m.GroupLobby })))
-const Leaderboard  = lazy(() => import('./screens/Leaderboard').then(m => ({ default: m.Leaderboard })))
+const CourseSearch = lazyWithReload(() => import('./screens/CourseSearch').then(m => ({ default: m.CourseSearch })))
+const RoundSetup   = lazyWithReload(() => import('./screens/RoundSetup').then(m => ({ default: m.RoundSetup })))
+const HoleTracker  = lazyWithReload(() => import('./screens/HoleTracker').then(m => ({ default: m.HoleTracker })))
+const RoundResults = lazyWithReload(() => import('./screens/RoundResults').then(m => ({ default: m.RoundResults })))
+const History      = lazyWithReload(() => import('./screens/History').then(m => ({ default: m.History })))
+const Profile      = lazyWithReload(() => import('./screens/Profile').then(m => ({ default: m.Profile })))
+const MyBag        = lazyWithReload(() => import('./screens/MyBag').then(m => ({ default: m.MyBag })))
+const JoinGame     = lazyWithReload(() => import('./screens/JoinGame').then(m => ({ default: m.JoinGame })))
+const GroupLobby   = lazyWithReload(() => import('./screens/GroupLobby').then(m => ({ default: m.GroupLobby })))
+const Leaderboard  = lazyWithReload(() => import('./screens/Leaderboard').then(m => ({ default: m.Leaderboard })))
 
 function LoadingScreen({ label = 'Загрузка...' }: { label?: string }) {
   return (
