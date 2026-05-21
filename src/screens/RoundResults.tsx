@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trophy, Share2, Plus } from 'lucide-react'
+import { Trophy, Flag, Share2, Plus } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
 import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus, computeLeaderboard } from '../services/scoring'
@@ -67,6 +67,13 @@ export function RoundResults() {
     ? computeMatchPlayStatus(round, round.playerIds[0], round.playerIds[1])
     : null
 
+  // Solo round: a single "Победитель" makes no sense (you're the only player),
+  // so show the player's own result (strokes + vs-par) instead.
+  const isSolo = round.playerIds.length === 1
+  const soloTotals = isSolo
+    ? computePlayerTotals(round, round.playerIds[0])
+    : { totalScore: 0, scoreDiff: 0 }
+
   const shareUrl = `${window.location.origin}/round/${roundId}/results`
   const shareTitle = `${round.courseName} — Smart Golf Caddy`
   const shareText = isMatchPlay && matchStatus
@@ -92,6 +99,26 @@ export function RoundResults() {
             {matchStatus.leaderUid
               ? round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'
               : 'Игроки на равных'}
+          </p>
+          <p className="text-on-primary/70 text-label-md mt-2">
+            {round.courseName} · {round.totalHoles}{' '}
+            {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+          </p>
+        </div>
+      ) : isSolo ? (
+        <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-on-primary/10 mx-auto flex items-center justify-center text-on-primary mb-3">
+            <Flag size={24} strokeWidth={1.5} />
+          </div>
+          <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
+            Ваш результат
+          </p>
+          <p className="font-headline font-bold text-display-lg text-on-primary mt-2 tracking-tight tabular-nums">
+            {soloTotals.totalScore}
+            <span className="text-title-lg font-normal text-on-primary/80"> уд.</span>
+          </p>
+          <p className="text-on-primary text-body-md mt-1 font-medium">
+            {soloTotals.scoreDiff >= 0 ? '+' : ''}{soloTotals.scoreDiff} ({scoreLabel(soloTotals.scoreDiff)})
           </p>
           <p className="text-on-primary/70 text-label-md mt-2">
             {round.courseName} · {round.totalHoles}{' '}
