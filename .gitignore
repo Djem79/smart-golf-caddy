@@ -32,6 +32,12 @@ dist-ssr
 # Firebase
 .firebase/
 
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # RuVector local cache (used by other tooling)
 ruvector.db
 ruvector.db-*

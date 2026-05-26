@@ -82,7 +82,8 @@ export default defineConfig({
     setupFiles: ['./src/test-setup.ts'],
     // The Firestore rules test is a standalone emulator script (run via
     // `npm run test:rules`), not a jsdom unit test — keep vitest from picking
-    // it up by its .test.mjs name.
-    exclude: ['**/node_modules/**', '**/dist/**', 'firestore.rules.test.mjs'],
+    // it up by its .test.mjs name. Playwright owns `e2e/**` and uses its own
+    // runner, so vitest must skip that tree too.
+    exclude: ['**/node_modules/**', '**/dist/**', 'firestore.rules.test.mjs', 'e2e/**'],
   },
 })
