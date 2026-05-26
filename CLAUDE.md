@@ -34,14 +34,17 @@ npm run build            # tsc -b && vite build
 npm run test             # vitest watch
 npm run test:run         # vitest run (CI mode)
 npm run test:run -- src/services/scoring.test.ts   # одиночный файл
-npm run test:rules       # firestore.rules.test.mjs в эмуляторе (нужна Java!)
+npm run test:rules       # firestore.rules.test.mjs в эмуляторе (нужна JDK 21+!)
+npm run test:e2e         # Playwright smoke (нужен предварительный npm run build)
+npm run test:e2e:ui      # Playwright UI mode для дебага
 npm run lint             # eslint .
 npx tsc --noEmit         # type-check (без emit)
 ```
 
 `npm run test:rules` гоняет `firestore.rules.test.mjs` через `firebase
-emulators:exec --only firestore` — нужен **Java в PATH** (openjdk через
-brew; keg-only — `export PATH="/usr/local/opt/openjdk/bin:$PATH"`).
+emulators:exec --only firestore` — нужен **JDK 21+ в PATH** (firebase-tools
+дропнул JDK <21 в late-2025; на macOS — openjdk через brew, keg-only:
+`export PATH="/usr/local/opt/openjdk/bin:$PATH"`).
 
 Functions (отдельный TypeScript-проект в `functions/`):
 
@@ -164,6 +167,22 @@ Per-user/per-kind квоты в `userQuota/{uid}` через generic
 
 Secrets через `defineSecret('RESEND_API_KEY')`. Ротация: `firebase
 functions:secrets:set RESEND_API_KEY` + redeploy.
+
+### Callable contracts (Zod)
+
+Server-side payload-валидация всех 4 callable централизована в Zod-схемах
+в `functions/src/contracts.ts` (`RecordShotInput`, `UpdateHoleConfigInput`,
+`JoinLobbyInput`, `ShareInput`). Каждый callable начинается со строчки
+`const x = parseInput(SchemaName, request.data)` — это бросает
+`HttpsError('invalid-argument', ...)` с первым issue.message, поэтому
+руками `if (typeof x !== 'number')` уже **не пишем**.
+
+Клиент **зеркалит** эти схемы как plain TypeScript-интерфейсы в
+`src/types/callable.ts` (без zod-рантайма в браузерном бандле — экономит
+~50 KB). Файлы синхронизируются вручную; в обоих стоит маркер `SYNC:`
+указывающий на парный файл. При правке схемы на одной стороне —
+**обязательно** обновить вторую, иначе клиент пошлёт payload, который
+сервер отклонит.
 
 ### Data model — central source of truth
 
@@ -321,6 +340,21 @@ vi.mock('firebase/functions', () => ({
 Стандартный паттерн — в `src/services/rounds.test.ts`. Strict TS
 требует, чтобы тестовые фикстуры включали `playerIds` и все
 required-поля `Round` типа.
+
+**E2E (Playwright)** живут в `e2e/` (исключены из vitest через
+`vite.config.ts:test.exclude`). Сейчас — unauth-smoke (`/`,`/auth`,
+ProtectedRoute redirects, console-error guard) на Pixel-7 viewport,
+гоняется через `vite preview` на :4173. Полный solo-round flow
+(login → удары → finish) требует Firebase Emulator Suite — отложен.
+Локально: `npm run build` (с placeholder env-ом, см. ci.yml), потом
+`npm run test:e2e`. Vitest и Playwright не конфликтуют — у них разные
+расширения (`*.test.ts` vs `*.spec.ts`) и разные runner'ы.
+
+**CI** (`.github/workflows/ci.yml`) — 4 джоба, все обязательны:
+`verify` (lint + tsc + vitest + build с placeholder env),
+`functions · type check`, `firestore rules` (нужен JDK 21+),
+`e2e · playwright smoke` (с кэшем браузеров по hash'у package-lock.json).
+При падении e2e — `playwright-report/` загружается артефактом на 7 дней.
 
 ## Conventions
 

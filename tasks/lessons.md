@@ -38,3 +38,15 @@
   _Source: Sprint 1 audit follow-up — the audit recommended dot-path for
   `recordShot`, but `holes` is an array, so the optimization was deferred
   in favor of in-transaction safety checks._
+
+- **When wiring CI for a CLI, pin the runtime to what the CLI requires
+  TODAY, not what its docs said last year.** Picked Java 17 for the
+  Firestore emulator (`npm run test:rules`) based on the Firebase docs
+  page — but `firebase-tools` dropped support for JDKs below 21 in late
+  2025, so the rules job failed instantly with
+  `firebase-tools no longer supports Java version before 21`. Rule:
+  when adding a CI step for any external CLI (firebase, gh, docker,
+  etc.), check the package's latest release notes / its current runtime
+  matrix before choosing a setup-action version. Don't trust stale
+  conventions from the project's CLAUDE.md or older docs.
+  _Source: first CI run after enabling `firestore rules` job (2026-05-26)._
