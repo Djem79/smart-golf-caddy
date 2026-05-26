@@ -7,20 +7,22 @@ import { getFunctions, httpsCallable } from 'firebase/functions'
 import { app, db } from '../firebase'
 import type { Round, HoleConfig, PlayerInfo, TeeColor, PlayMode } from '../types'
 import { DEFAULT_HOLE_PARS, TEE_MULTIPLIERS } from '../types'
+import type {
+  RecordShotInput,
+  RecordShotResult,
+  JoinLobbyInput,
+  JoinLobbyResult,
+  UpdateHoleConfigInput,
+  UpdateHoleConfigResult,
+} from '../types/callable'
 
 const fns = getFunctions(app, 'us-central1')
-const recordShotCallable = httpsCallable<
-  { roundId: string; holeIndex: number; clubs: string[]; targetUid?: string },
-  { ok: boolean }
->(fns, 'recordShot')
-const joinLobbyCallable = httpsCallable<
-  { code: string; playerInfo: PlayerInfo },
-  { roundId: string | null }
->(fns, 'joinLobbyByCode')
-const updateHoleConfigCallable = httpsCallable<
-  { roundId: string; holeIndex: number; par?: 3 | 4 | 5; distanceMeters?: number },
-  { ok: boolean }
->(fns, 'updateHoleConfig')
+const recordShotCallable = httpsCallable<RecordShotInput, RecordShotResult>(fns, 'recordShot')
+const joinLobbyCallable = httpsCallable<JoinLobbyInput, JoinLobbyResult>(fns, 'joinLobbyByCode')
+const updateHoleConfigCallable = httpsCallable<UpdateHoleConfigInput, UpdateHoleConfigResult>(
+  fns,
+  'updateHoleConfig',
+)
 
 const LOBBY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I for readability
 

@@ -11,6 +11,25 @@ import * as React from 'react'
 
 import { RoundSummary } from './emails/RoundSummary'
 import { buildPayload, type BagClubLite, type RoundLike } from './emails/buildPayload'
+import type { ZodType } from 'zod'
+import {
+  RecordShotInput,
+  UpdateHoleConfigInput,
+  JoinLobbyInput,
+  ShareInput,
+} from './contracts'
+
+// Run a Zod schema against an unknown callable payload. On failure we throw
+// a Firebase `invalid-argument` with the first issue's message — keeps the
+// existing client UX (single Russian error string) while replacing the
+// hand-rolled `if (typeof x !== 'number')` ladders.
+function parseInput<T>(schema: ZodType<T>, data: unknown): T {
+  const r = schema.safeParse(data)
+  if (!r.success) {
+    throw new HttpsError('invalid-argument', r.error.issues[0]?.message ?? 'Некорректные данные')
+  }
+  return r.data
+}
 
 initializeApp()
 
@@ -231,37 +250,12 @@ export const onRoundFinished = onDocumentUpdated(
 //    griefing vector (a participant could previously rewrite another
 //    player's shots via the holes-array rewrite path). Also uses dot-path
 //    updates which scale better than rewriting the full holes array.
-interface RecordShotInput {
-  roundId?: string
-  holeIndex?: number
-  clubs?: string[]
-  // Whose slot to write. Optional — defaults to the caller. The host may
-  // pass another participant's uid to keep score for the whole group
-  // (single-device play / filling in for a player who couldn't join). Any
-  // non-host caller may only write their own slot.
-  targetUid?: string
-}
 
 export const recordShot = onCall(
   { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    const { roundId, holeIndex, clubs, targetUid } = (request.data ?? {}) as RecordShotInput
-    if (!roundId) throw new HttpsError('invalid-argument', 'roundId обязателен')
-    if (typeof holeIndex !== 'number' || holeIndex < 0 || holeIndex > 17) {
-      throw new HttpsError('invalid-argument', 'Некорректный holeIndex')
-    }
-    if (!Array.isArray(clubs) || clubs.length > 30) {
-      throw new HttpsError('invalid-argument', 'Некорректный список клюшек')
-    }
-    for (const c of clubs) {
-      if (typeof c !== 'string' || c.length === 0 || c.length > 50) {
-        throw new HttpsError('invalid-argument', 'Некорректный id клюшки')
-      }
-    }
-    if (targetUid != null && (typeof targetUid !== 'string' || targetUid.length === 0 || targetUid.length > 128)) {
-      throw new HttpsError('invalid-argument', 'Некорректный targetUid')
-    }
+    const { roundId, holeIndex, clubs, targetUid } = parseInput(RecordShotInput, request.data)
 
     const callerUid = request.auth.uid
     // Default to writing the caller's own slot when no explicit target given.
@@ -324,39 +318,14 @@ export const recordShot = onCall(
 // Update hole config (par and/or distance) — host-only. Used to correct
 // the hardcoded DEFAULT_HOLE_PARS template + distance multipliers against
 // the real course layout. At least one field must be present.
-interface UpdateHoleConfigInput {
-  roundId?: string
-  holeIndex?: number
-  par?: number
-  distanceMeters?: number
-}
-
 export const updateHoleConfig = onCall(
   { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    const { roundId, holeIndex, par, distanceMeters } =
-      (request.data ?? {}) as UpdateHoleConfigInput
-    if (!roundId) throw new HttpsError('invalid-argument', 'roundId обязателен')
-    if (typeof holeIndex !== 'number' || holeIndex < 0 || holeIndex > 17) {
-      throw new HttpsError('invalid-argument', 'Некорректный holeIndex')
-    }
-    if (par != null && par !== 3 && par !== 4 && par !== 5) {
-      throw new HttpsError('invalid-argument', 'Par должен быть 3, 4 или 5')
-    }
-    if (distanceMeters != null) {
-      if (
-        typeof distanceMeters !== 'number' ||
-        !Number.isFinite(distanceMeters) ||
-        distanceMeters < 50 ||
-        distanceMeters > 700
-      ) {
-        throw new HttpsError('invalid-argument', 'Дистанция должна быть 50–700 метров')
-      }
-    }
-    if (par == null && distanceMeters == null) {
-      throw new HttpsError('invalid-argument', 'Нечего обновлять')
-    }
+    const { roundId, holeIndex, par, distanceMeters } = parseInput(
+      UpdateHoleConfigInput,
+      request.data,
+    )
 
     const uid = request.auth.uid
     const ref = getFirestore().doc(`rounds/${roundId}`)
@@ -389,31 +358,20 @@ export const updateHoleConfig = onCall(
 //    rounds/{id} reads strictly participant-only. Client passes the 6-char
 //    lobby code + their own PlayerInfo; function finds the round and adds
 //    them to playerIds + players[uid].
-interface JoinLobbyInput {
-  code?: string
-  playerInfo?: {
-    name?: string
-    avatar?: string
-    email?: string
-    totalScore?: number
-    scoreDiff?: number
-  }
-}
-
 export const joinLobbyByCode = onCall(
   { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    const { code, playerInfo } = (request.data ?? {}) as JoinLobbyInput
-    const trimmed = (code ?? '').trim().toUpperCase()
+    const { code, playerInfo } = parseInput(JoinLobbyInput, request.data)
+    const trimmed = code.trim().toUpperCase()
     if (trimmed.length !== 6) {
       throw new HttpsError('invalid-argument', 'Код должен содержать 6 символов')
     }
     const info = playerInfo ?? {}
     const cleanInfo = {
-      name: typeof info.name === 'string' ? info.name.slice(0, 64) : 'Голфер',
-      avatar: typeof info.avatar === 'string' ? info.avatar.slice(0, 512) : '',
-      email: typeof info.email === 'string' ? info.email.slice(0, 254) : '',
+      name: info.name ?? 'Голфер',
+      avatar: info.avatar ?? '',
+      email: info.email ?? '',
       totalScore: 0,
       scoreDiff: 0,
     }
@@ -457,17 +415,6 @@ export const joinLobbyByCode = onCall(
 )
 
 // 4. Manual share: callable function used by RoundResults' Share dialog.
-interface ShareInput {
-  roundId?: string
-  toEmail?: string
-}
-
-// Strict email format: single addr-spec, no header-injection chars, no
-// whitespace, requires one '@' and a dot in the domain. Deliberately tighter
-// than RFC — Resend itself does extra validation, but we reject obvious
-// junk early so spammers get a fast 400 instead of a queued send.
-const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
-
 const SHARE_DAILY_LIMIT = 10
 // Cap join-by-code attempts per user/day — bounds lobby-code enumeration via
 // the (auto-joining) joinLobbyByCode callable. A real user joins few lobbies.
@@ -510,14 +457,11 @@ export const shareRoundByEmail = onCall(
     enforceAppCheck: true,
   },
   async request => {
-    const { roundId, toEmail } = (request.data ?? {}) as ShareInput
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    if (!roundId) throw new HttpsError('invalid-argument', 'roundId обязателен')
-
-    const cleanEmail = (toEmail ?? '').trim().toLowerCase()
-    if (!EMAIL_RE.test(cleanEmail) || cleanEmail.length > 254) {
-      throw new HttpsError('invalid-argument', 'Некорректный email')
-    }
+    // Zod schema lowercases + trims toEmail and validates the addr-spec
+    // shape — keeps the strict regex (no header-injection chars, requires
+    // '@' + a dot in the domain) Resend itself doesn't enforce as tightly.
+    const { roundId, toEmail: cleanEmail } = parseInput(ShareInput, request.data)
 
     const snap = await getFirestore().doc(`rounds/${roundId}`).get()
     if (!snap.exists) throw new HttpsError('not-found', 'Раунд не найден')

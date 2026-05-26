@@ -1,17 +1,9 @@
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { app } from '../firebase'
+import type { ShareInput, ShareResult } from '../types/callable'
 
 // Cloud Functions are deployed to us-central1 (see functions/src/index.ts).
 const functions = getFunctions(app, 'us-central1')
-
-interface ShareInput {
-  roundId: string
-  toEmail: string
-}
-
-interface ShareResult {
-  ok: boolean
-}
 
 const shareRoundCallable = httpsCallable<ShareInput, ShareResult>(
   functions,
