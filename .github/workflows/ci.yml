@@ -96,13 +96,14 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Firebase emulator (Firestore) runs on the JVM; openjdk@17 matches what
-      # the Firebase docs recommend.
-      - name: Set up Java 17
+      # Firebase emulator (Firestore) runs on the JVM. firebase-tools dropped
+      # support for JDKs below 21 in late 2025, so anything older fails fast
+      # with "no longer supports Java version before 21".
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Install dependencies
         run: npm ci
