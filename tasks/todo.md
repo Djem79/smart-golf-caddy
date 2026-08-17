@@ -86,3 +86,28 @@ shipped the 4 P0 fixes; this sprint closes 9 of the highest-impact P1s.
 ## Review
 
 _(filled after sprint)_
+
+## iOS — статус и заметки для Фазы 2 (2026-08-18)
+
+Фаза 1 (фундамент) завершена и принята: приложение на iPhone 14 Pro,
+вход Google, профиль из Firestore, callable через App Check (debug).
+Спека: docs/superpowers/specs/2026-08-17-ios-app-design.md.
+
+Учесть в плане Фазы 2 (из финального ревью фазы 1):
+- [ ] subscribeToRound: onError-контракт + экраны РЕНДЕРЯТ ошибку
+      (HomePlaceholder сейчас не показывает errorMessage) + отписка в
+      deinit per-screen VM (образец SessionViewModel).
+- [ ] Конвенция конкурентности колбэков сервисов (@MainActor/@Sendable)
+      — решить ДО написания новых сервисов (Swift 6 strict concurrency).
+- [ ] Создание раунда: обратная сериализация Round → Firestore,
+      per-action rules (LEAVE/START/FINISH), startedAt: null в лобби.
+- [ ] Офлайн-очередь: порт transient/permanent семантики shotQueue.ts
+      дословно; recordShot идемпотентна; callableDict уже опускает nil.
+- [ ] Решение по Dynamic Type (DSFont relativeTo:) — принять до
+      первого экрана (ретрофит дорожает).
+- [ ] Иконка приложения + Assets.xcassets.
+- [ ] CourseSearch: отдельный Places API ключ с iOS bundle-restriction.
+- [ ] UpdateHoleConfigInput.par: UI должен ограничивать 3|4|5.
+- [ ] Release-сборка без App Check провайдера (#if DEBUG) — для
+      TestFlight/App Store нужен App Attest (фаза App Store).
+- [ ] Диагностика жжёт join-квоту (30/день/uid) — не злоупотреблять.
