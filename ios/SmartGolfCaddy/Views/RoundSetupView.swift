@@ -1,9 +1,135 @@
 // ios/SmartGolfCaddy/Views/RoundSetupView.swift
-// Временная заглушка — содержимое заменит Task 5.
 import SwiftUI
 
 struct RoundSetupView: View {
+    @Environment(SessionViewModel.self) private var session
+    @Environment(AppRouter.self) private var router
+    @State private var model = RoundSetupViewModel()
+    @FocusState private var nameFocused: Bool
+
     var body: some View {
-        Text("В разработке").font(DSFont.bodyMD)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                nameSection
+                holesSection
+                teeSection
+                if let message = model.errorMessage {
+                    Text(message)
+                        .font(DSFont.labelLG)
+                        .foregroundStyle(DSColor.error)
+                        .frame(maxWidth: .infinity)
+                }
+                DSButton(title: model.creating ? "Создаём..." : "Начать раунд",
+                         icon: "flag.fill",
+                         disabled: model.creating) {
+                    Task {
+                        if let roundId = await model.createRound(profile: session.profile) {
+                            router.replaceLast(.hole(roundId: roundId, number: 1))
+                        }
+                    }
+                }
+            }
+            .padding(DS.screenPadding)
+        }
+        .background(DSColor.surface)
+        .navigationTitle("Настройка раунда")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var sectionHeader: (String) -> Text {
+        { title in
+            Text(title)
+                .font(DSFont.labelLG)
+                .tracking(1.2)
+        }
+    }
+
+    private var nameSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("НАЗВАНИЕ ПОЛЯ")
+                .foregroundStyle(DSColor.onSurfaceVariant)
+            TextField("Например: Гольф клуб Москва", text: $model.courseName)
+                .font(DSFont.bodyMD)
+                .padding(14)
+                .background(DSColor.surfaceContainerLowest)
+                .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.cornerRadius)
+                        .stroke(nameFocused ? DSColor.primary : DSColor.outlineVariant)
+                )
+                .focused($nameFocused)
+        }
+    }
+
+    private var holesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("КОЛИЧЕСТВО ЛУНОК")
+                .foregroundStyle(DSColor.onSurfaceVariant)
+            HStack(spacing: 12) {
+                ForEach([9, 18], id: \.self) { n in
+                    Button {
+                        model.totalHoles = n
+                    } label: {
+                        Text("\(n)")
+                            .font(DSFont.titleLG)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: DS.touchTarget)
+                    }
+                    .background(model.totalHoles == n ? DSColor.primary : .clear)
+                    .foregroundStyle(model.totalHoles == n ? DSColor.onPrimary : DSColor.onSurfaceVariant)
+                    .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.cornerRadius)
+                            .stroke(model.totalHoles == n ? DSColor.primary : DSColor.outlineVariant, lineWidth: 2)
+                    )
+                }
+            }
+        }
+    }
+
+    private var teeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("ТИИ (ОТКУДА ИГРАЕМ)")
+                .foregroundStyle(DSColor.onSurfaceVariant)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(TeeColor.allCases, id: \.self) { tee in
+                    teeCard(tee)
+                }
+            }
+        }
+    }
+
+    private func teeCard(_ tee: TeeColor) -> some View {
+        let selected = model.tee == tee
+        return Button {
+            model.tee = tee
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("T")
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(Color(hex: tee.textHex))
+                    .frame(width: 28, height: 28)
+                    .background(Color(hex: tee.bgHex))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(DSColor.outlineVariant.opacity(0.4)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tee.label)
+                        .font(DSFont.labelLG)
+                        .foregroundStyle(DSColor.onSurface)
+                    Text(tee.teeDescription)
+                        .font(DSFont.labelMD)
+                        .foregroundStyle(DSColor.onSurfaceVariant)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            .padding(12)
+            .background(selected ? DSColor.primaryContainer.opacity(0.1) : DSColor.surfaceContainerLowest)
+            .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.cornerRadius)
+                    .stroke(selected ? DSColor.primary : DSColor.outlineVariant.opacity(0.6), lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
