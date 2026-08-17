@@ -10,6 +10,8 @@ struct HomeView: View {
         return name.split(separator: " ").first.map(String.init) ?? name
     }
 
+    private var currentUserId: String? { AuthService.currentUserId }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -43,13 +45,19 @@ struct HomeView: View {
         }
         .background(DSColor.surface)
         .task {
-            if let uid = AuthService.currentUserId {
+            if let uid = currentUserId {
                 await model.load(userId: uid)
             }
         }
         .refreshable {
-            if let uid = AuthService.currentUserId {
+            if let uid = currentUserId {
                 await model.load(userId: uid)
+            }
+        }
+        .onChange(of: router.path) { _, path in
+            // Возврат в корень стека (финиш/выход из раунда) → обновить список.
+            if path.isEmpty, let uid = currentUserId {
+                Task { await model.load(userId: uid) }
             }
         }
     }
@@ -90,7 +98,7 @@ struct HomeView: View {
 
     private func resumeCard(_ round: Round) -> some View {
         Button {
-            guard let uid = AuthService.currentUserId else { return }
+            guard let uid = currentUserId else { return }
             router.push(.hole(roundId: round.id,
                               number: HomeViewModel.resumeHoleNumber(round: round, userId: uid)))
         } label: {
@@ -109,7 +117,7 @@ struct HomeView: View {
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.onSurface)
                         .lineLimit(1)
-                    if let uid = AuthService.currentUserId {
+                    if let uid = currentUserId {
                         Text(HomeViewModel.resumeSubtitle(round: round, userId: uid))
                             .font(DSFont.labelMD)
                             .foregroundStyle(DSColor.onSurfaceVariant)
@@ -138,13 +146,14 @@ struct HomeView: View {
             Spacer()
             Button("Повторить") {
                 Task {
-                    if let uid = AuthService.currentUserId {
+                    if let uid = currentUserId {
                         await model.load(userId: uid)
                     }
                 }
             }
             .font(DSFont.labelLG)
             .foregroundStyle(DSColor.primary)
+            .frame(minHeight: DS.touchTarget)
         }
         .padding(14)
         .background(DSColor.errorContainer.opacity(0.4))
@@ -171,7 +180,7 @@ struct HomeView: View {
                                 .foregroundStyle(DSColor.onSurfaceVariant)
                         }
                         Spacer()
-                        if let uid = AuthService.currentUserId {
+                        if let uid = currentUserId {
                             Text(scoreSummary(round, uid: uid))
                                 .font(DSFont.titleLG)
                                 .foregroundStyle(DSColor.primary)
