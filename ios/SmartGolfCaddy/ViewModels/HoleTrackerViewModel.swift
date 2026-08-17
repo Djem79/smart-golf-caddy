@@ -78,7 +78,10 @@ final class HoleTrackerViewModel {
         return displayedClubs(serverClubs: server, pendingClubs: pending)
     }
 
-    func save(_ clubs: [String]) async {
+    /// Возвращает true при .synced/.queued (веб ставит lastClubUsed только на
+    /// успешной мутации), false при .rejected (rollback-ветка).
+    @discardableResult
+    func save(_ clubs: [String]) async -> Bool {
         saving = true
         saveError = nil
         optimistic = Optimistic(slot: slotKey, clubs: clubs,
@@ -90,8 +93,11 @@ final class HoleTrackerViewModel {
         if case .rejected = outcome {
             saveError = "Не удалось сохранить удар."
             if optimistic?.slot == slotKey { optimistic = nil }  // rollback слота
+            refreshQueueBadge()
+            return false
         }
         refreshQueueBadge()
+        return true
     }
 
     func finish() async -> Bool {

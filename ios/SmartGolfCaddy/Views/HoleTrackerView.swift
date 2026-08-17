@@ -150,7 +150,7 @@ struct HoleTrackerView: View {
                 if model.isHost { showHoleEditor = true }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("ПАР")
+                    Text("Пар")
                         .font(DSFont.labelLG)
                         .foregroundStyle(DSColor.onPrimary.opacity(0.7))
                     Text("\(hole.par)")
@@ -160,6 +160,7 @@ struct HoleTrackerView: View {
                 }
             }
             .disabled(!model.isHost)
+            .accessibilityLabel("Изменить пар лунки (сейчас \(hole.par))")
             Spacer()
             Text("\(holeNumber)")
                 .font(DSFont.displayLG)
@@ -169,7 +170,7 @@ struct HoleTrackerView: View {
                 if model.isHost { showHoleEditor = true }
             } label: {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("ДИСТ.")
+                    Text("Дист.")
                         .font(DSFont.labelLG)
                         .foregroundStyle(DSColor.onPrimary.opacity(0.7))
                     HStack(spacing: 6) {
@@ -186,6 +187,7 @@ struct HoleTrackerView: View {
                 }
             }
             .disabled(!model.isHost)
+            .accessibilityLabel("Изменить дистанцию лунки (сейчас \(hole.distanceMeters) метров)")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
@@ -203,7 +205,12 @@ struct HoleTrackerView: View {
                     haptics.impactOccurred()
                     let clubs = model.currentClubs
                     guard !clubs.isEmpty else { return }
-                    Task { await model.save(Array(clubs.dropLast())) }
+                    let newClubs = Array(clubs.dropLast())
+                    Task {
+                        if await model.save(newClubs), let last = newClubs.last {
+                            store.lastClubUsed = last
+                        }
+                    }
                 } label: {
                     Image(systemName: "minus")
                         .font(.system(size: 28, weight: .bold))
@@ -224,9 +231,11 @@ struct HoleTrackerView: View {
 
                 Button {
                     haptics.impactOccurred()
+                    let newClubs = model.currentClubs + [selectedClub]
                     Task {
-                        await model.save(model.currentClubs + [selectedClub])
-                        store.lastClubUsed = selectedClub
+                        if await model.save(newClubs), let last = newClubs.last {
+                            store.lastClubUsed = last
+                        }
                     }
                 } label: {
                     Image(systemName: "plus")
