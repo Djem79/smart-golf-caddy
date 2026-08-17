@@ -20,6 +20,12 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(shots.resolvedClubs, ["Неизвестно", "Неизвестно"])
     }
 
+    func testResolvedClubsEmptyLegacy() {
+        // Empty string legacy club should be falsy (web parity: JS if (shots.club) with "" → false)
+        let shots = HoleShots(count: 2, clubs: [], legacyClub: "", updatedAt: nil)
+        XCTAssertEqual(shots.resolvedClubs, ["Неизвестно", "Неизвестно"])
+    }
+
     // MARK: Clubs — паритет getBagFromUser / getClubLabel
 
     func testResolveBagPrefersCanonical() {
@@ -51,6 +57,55 @@ final class ModelsTests: XCTestCase {
     func testDefaultBagShape() {
         XCTAssertEqual(Clubs.defaultBag.count, 20)
         XCTAssertEqual(Clubs.defaultBag.filter { $0.enabled }.count, 10)
+    }
+
+    // MARK: BagClub — serialization/deserialization parity
+
+    func testBagClubRoundTrip() {
+        // Create BagClub with all fields, serialize to dict, deserialize, verify equality
+        let original = BagClub(id: "7i", customName: "Mighty 7", distanceMeters: 140, enabled: true, category: .iron, custom: false)
+        let dict = original.firestoreData
+        let restored = BagClub(dict: dict)
+        XCTAssertEqual(restored, original)
+    }
+
+    func testBagClubFirestoreDataOmitsNil() {
+        // firestoreData must not include keys for nil fields
+        let club = BagClub(id: "Driver", customName: nil, distanceMeters: 230, enabled: true, category: nil, custom: nil)
+        let dict = club.firestoreData
+        XCTAssertFalse(dict.keys.contains("customName"))
+        XCTAssertFalse(dict.keys.contains("category"))
+        XCTAssertFalse(dict.keys.contains("custom"))
+        XCTAssertTrue(dict.keys.contains("id"))
+        XCTAssertTrue(dict.keys.contains("distanceMeters"))
+        XCTAssertTrue(dict.keys.contains("enabled"))
+    }
+
+    func testBagClubDictMissingId() {
+        // Missing "id" key should return nil
+        let dict: [String: Any] = ["distanceMeters": 140, "enabled": true]
+        XCTAssertNil(BagClub(dict: dict))
+    }
+
+    func testBagClubDictMinimal() {
+        // Just id with defaults for missing fields
+        let dict: [String: Any] = ["id": "7i"]
+        let club = BagClub(dict: dict)
+        XCTAssertNotNil(club)
+        XCTAssertEqual(club?.id, "7i")
+        XCTAssertNil(club?.customName)
+        XCTAssertEqual(club?.distanceMeters, 0)
+        XCTAssertEqual(club?.enabled, false)
+        XCTAssertNil(club?.category)
+        XCTAssertNil(club?.custom)
+    }
+
+    func testBagClubDictUnknownCategory() {
+        // Unknown category string should become nil
+        let dict: [String: Any] = ["id": "7i", "distanceMeters": 140, "enabled": true, "category": "banana"]
+        let club = BagClub(dict: dict)
+        XCTAssertNotNil(club)
+        XCTAssertNil(club?.category)
     }
 
     // MARK: AppUser

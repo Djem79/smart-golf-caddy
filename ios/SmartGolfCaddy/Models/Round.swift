@@ -30,7 +30,7 @@ struct HoleShots: Equatable {
     // Паритет getHoleClubs из src/types/index.ts
     var resolvedClubs: [String] {
         if !clubs.isEmpty { return clubs }
-        if let legacyClub { return Array(repeating: legacyClub, count: count) }
+        if let legacyClub, !legacyClub.isEmpty { return Array(repeating: legacyClub, count: count) }
         return Array(repeating: "Неизвестно", count: count)
     }
 
