@@ -125,3 +125,42 @@ struct Round: Equatable, Identifiable {
         createdAt = data["createdAt"] as? Date ?? Date()
     }
 }
+
+// Порт TEE_LABELS из src/types/index.ts — метки и цвета тии.
+extension TeeColor {
+    var label: String {
+        switch self {
+        case .pro: return "Pro"
+        case .men: return "Мужские"
+        case .senior: return "Сеньорские"
+        case .ladies: return "Женские"
+        }
+    }
+
+    var teeDescription: String {
+        switch self {
+        case .pro: return "Чемпионские · +10%"
+        case .men: return "Стандартные"
+        case .senior: return "Чуть ближе · −10%"
+        case .ladies: return "Ближе всего · −20%"
+        }
+    }
+
+    var bgHex: String {
+        switch self {
+        case .pro: return "#0A3010"
+        case .men: return "#FFFFFF"
+        case .senior: return "#FFC107"
+        case .ladies: return "#F44336"
+        }
+    }
+
+    var textHex: String {
+        switch self {
+        case .pro: return "#FFFFFF"
+        case .men: return "#1A1C1C"
+        case .senior: return "#1A1C1C"
+        case .ladies: return "#FFFFFF"
+        }
+    }
+}
