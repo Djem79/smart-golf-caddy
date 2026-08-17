@@ -18,7 +18,7 @@ struct HomePlaceholderView: View {
                 .font(DSFont.bodyMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             #if DEBUG
-            EmptyView() // Task 7 заменит на DiagnosticsView()
+            DiagnosticsView()
             #endif
             Spacer()
             Button {

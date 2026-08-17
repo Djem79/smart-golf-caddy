@@ -2,8 +2,9 @@
 // validation of every onCall function in this file's sibling `index.ts`.
 //
 // SYNC: client mirrors these as plain TypeScript types in
-// `src/types/callable.ts`. When you change a schema here, update the
-// matching type on the client.
+// `src/types/callable.ts` and as Swift structs in
+// `ios/SmartGolfCaddy/Services/CallableContracts.swift`. When you change a
+// schema here, update both mirrors.
 
 import { z } from 'zod'
 

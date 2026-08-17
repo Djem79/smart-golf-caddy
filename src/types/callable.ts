@@ -1,7 +1,8 @@
 // Callable input/output types — client-side mirror of the Zod schemas
 // defined server-side in `functions/src/contracts.ts`.
 //
-// SYNC: keep these in lockstep with the server schemas. The server is
+// SYNC: keep these in lockstep with the server schemas AND the iOS
+// mirror in ios/SmartGolfCaddy/Services/CallableContracts.swift. The server is
 // authoritative — these types just give the client compile-time safety so
 // services/* can't accidentally send a payload shape that gets rejected as
 // `invalid-argument`. We hand-mirror instead of importing zod into the web
