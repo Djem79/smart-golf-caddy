@@ -479,7 +479,7 @@ final class ModelsTests: XCTestCase {
 
     func testDefaultBagShape() {
         XCTAssertEqual(Clubs.defaultBag.count, 20)
-        XCTAssertEqual(Clubs.defaultBag.filter { $0.enabled }.count, 11)
+        XCTAssertEqual(Clubs.defaultBag.filter { $0.enabled }.count, 10)
     }
 
     // MARK: AppUser
@@ -1454,7 +1454,7 @@ cd ios && xcodegen && xcodebuild -project SmartGolfCaddy.xcodeproj -scheme Smart
 xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/SmartGolfCaddy.app
 xcrun simctl launch booted com.dzhambulat.smartgolfcaddy
 ```
-Expected: экран входа в стиле Fairway Elite. Тап «ВОЙТИ ЧЕРЕЗ GOOGLE» → web-форма Google → после входа экран «Привет, <имя>!» с числом клюшек (для нового uid — 11: дефолтная сумка). Проверить в Firebase console → Firestore → `users/<uid>`, что документ создан с `bag` (20 элементов) и `createdAt`.
+Expected: экран входа в стиле Fairway Elite. Тап «ВОЙТИ ЧЕРЕЗ GOOGLE» → web-форма Google → после входа экран «Привет, <имя>!» с числом клюшек (для нового uid — 10: дефолтная сумка). Проверить в Firebase console → Firestore → `users/<uid>`, что документ создан с `bag` (20 элементов) и `createdAt`.
 
 - [ ] **Step 6: Прогнать все тесты**
 
