@@ -341,3 +341,44 @@ retries — функция проверяет `emailedAt` и скипает по
 | `scripts/generate-icons.mjs` | Regenerate PNG icons from `public/icon.svg` if you redesign it |
 | `CLAUDE.md` | Architecture + workflow guide for Claude Code / agents |
 | `tasks/todo.md`, `tasks/lessons.md` | Sprint plan + accumulated lessons |
+
+---
+
+## iOS-приложение (ios/)
+
+Требования: полный Xcode (App Store), `brew install xcodegen`.
+
+1. `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
+2. `cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig`
+3. GoogleService-Info.plist (не в git): Firebase console → Project
+   settings → Your apps → iOS «Smart Golf Caddy iOS» → скачать в
+   `ios/SmartGolfCaddy/Resources/`. REVERSED_CLIENT_ID из него → в
+   Local.xcconfig (GOOGLE_REVERSED_CLIENT_ID).
+4. `cd ios && xcodegen` — сгенерировать .xcodeproj (после каждой
+   правки project.yml; scripts/test.sh и build.sh делают это сами).
+5. App Check: приложение в Debug печатает "App Check debug token" в
+   консоль — это UUID. Зарегистрировать через CLI (проверенный путь):
+
+   ```bash
+   firebase appcheck:debugtokens:create "<TOKEN>" \
+     --app "<IOS_APP_ID>" --display-name "<имя>" --project smart-golf-caddy
+   ```
+
+   где `<TOKEN>` — UUID из строки «App Check debug token» в логах
+   Debug-запуска, `<IOS_APP_ID>` — App ID iOS-приложения из `firebase
+   apps:list` (вида `1:…:ios:…`). Токен уникален per-инсталляция — при
+   смене симулятора/устройства нужен новый. Без регистрации callable
+   отвечают unauthenticated. Запасной путь (консоль): Firebase console
+   → App Check → Apps → iOS-app → Manage debug tokens.
+6. Запуск на iPhone: Apple ID в Xcode → Accounts, Team ID → в
+   Local.xcconfig (DEV_TEAM), устройство в Developer Mode, Run из
+   Xcode. Бесплатная подпись живёт 7 дней, потом Run заново.
+7. Сборка/тесты — **только** через `./ios/scripts/build.sh` и
+   `./ios/scripts/test.sh`. Они экспортируют
+   `FIREBASE_SOURCE_FIRESTORE=1` (firebase-ios-sdk#14464 — бинарный
+   Firestore не линкуется в два таргета, поэтому собираем из
+   исходников) и держат DerivedData в
+   `~/Library/Developer/Xcode/DerivedData/SmartGolfCaddy-local` — ВНЕ
+   iCloud-синхронизируемой папки Documents (File Provider вешает xattr
+   на артефакты сборки → codesign падает с «resource fork … detritus
+   not allowed»).

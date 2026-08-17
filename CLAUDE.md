@@ -71,6 +71,30 @@ firebase functions:list                    # список развёрнутых
 Setup-инструкции для `.env.local`, Auth provider, Places API и Resend —
 в `SETUP.md`. Бэкап / recovery — в `BACKUP.md`.
 
+iOS (нативное приложение, `ios/`):
+
+```bash
+./ios/scripts/test.sh            # каноничные тесты iOS (xcodegen + xcodebuild + все env)
+./ios/scripts/build.sh           # каноничная сборка
+# SIM_NAME и DD можно переопределить env-переменными; дефолты: iPhone 17, DerivedData вне iCloud
+```
+
+iOS-архитектура зеркалит веб: Views → ViewModels (@Observable) →
+Services → Firebase SDK; Models — чистые структуры. `import Firebase*`
+в прод-коде — только в `Services/` (+ AppDelegate,
+RootView.onOpenURL, DEBUG-only DiagnosticsView); тест-таргету импорт
+Firebase разрешён. Контракты callable: зеркалятся в трёх местах —
+`ios/SmartGolfCaddy/Services/CallableContracts.swift` ↔
+`functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
+во всех трёх — при правке схемы на одной стороне обновлять остальные
+две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
+`project.yml`, но трекается в git (в отличие от `.xcodeproj`). ВАЖНО:
+сборка/тесты только через `ios/scripts/*` — они инкапсулируют
+`FIREBASE_SOURCE_FIRESTORE=1` (firebase-ios-sdk#14464 — бинарный
+Firestore не линкуется в два таргета) и DerivedData вне iCloud
+(артефакты в `~/Documents` портит File Provider → codesign
+detritus-fail).
+
 ## Workflow orchestration
 
 ### 1. Plan-first by default
