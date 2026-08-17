@@ -1,13 +1,22 @@
-// ios/SmartGolfCaddy/App/RootView.swift
+import GoogleSignIn
 import SwiftUI
 
 struct RootView: View {
+    @State private var session = SessionViewModel()
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "figure.golf")
-                .font(.system(size: 56))
-            Text("Smart Golf Caddy")
-                .font(.title)
+        Group {
+            switch session.state {
+            case .loading:
+                ProgressView()
+            case .signedOut:
+                AuthView()
+            case .signedIn:
+                HomePlaceholderView()
+            }
         }
+        .environment(session)
+        .task { session.start() }
+        .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
     }
 }
