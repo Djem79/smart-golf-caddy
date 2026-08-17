@@ -11,11 +11,13 @@ import UIKit
 enum AuthServiceError: LocalizedError {
     case noPresenter
     case missingToken
+    case cancelled   // пользователь закрыл окно входа — не показывается как ошибка
 
     var errorDescription: String? {
         switch self {
         case .noPresenter: return "Не найден корневой экран для входа"
         case .missingToken: return "Google не вернул токен — попробуйте ещё раз"
+        case .cancelled: return nil
         }
     }
 }
@@ -41,7 +43,14 @@ enum AuthService {
             throw AuthServiceError.noPresenter
         }
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
-        let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter)
+        let result: GIDSignInResult
+        do {
+            result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter)
+        } catch let error as NSError
+            where error.domain == kGIDSignInErrorDomain
+                && error.code == GIDSignInError.canceled.rawValue {
+            throw AuthServiceError.cancelled
+        }
         guard let idToken = result.user.idToken?.tokenString else {
             throw AuthServiceError.missingToken
         }

@@ -26,12 +26,20 @@ struct AuthView: View {
             Button {
                 Task { await session.signIn() }
             } label: {
-                Text("ВОЙТИ ЧЕРЕЗ GOOGLE")
-                    .font(DSFont.labelLG)
-                    .tracking(1.5)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: DS.touchTarget)
+                if session.isSigningIn {
+                    ProgressView()
+                        .tint(DSColor.onPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: DS.touchTarget)
+                } else {
+                    Text("ВОЙТИ ЧЕРЕЗ GOOGLE")
+                        .font(DSFont.labelLG)
+                        .tracking(1.5)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: DS.touchTarget)
+                }
             }
+            .disabled(session.isSigningIn)
             .background(DSColor.primary)
             .foregroundStyle(DSColor.onPrimary)
             .clipShape(Capsule())

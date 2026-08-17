@@ -12,6 +12,7 @@ final class SessionViewModel {
     var state: State = .loading
     var profile: AppUser?
     var errorMessage: String?
+    var isSigningIn = false
 
     private var unsubscribeAuth: (() -> Void)?
     private var unsubscribeProfile: (() -> Void)?
@@ -38,10 +39,13 @@ final class SessionViewModel {
     }
 
     func signIn() async {
+        guard !isSigningIn else { return }
+        isSigningIn = true
+        defer { isSigningIn = false }
         errorMessage = nil
         do {
             try await AuthService.signInWithGoogle()
-        } catch is CancellationError {
+        } catch AuthServiceError.cancelled {
             // пользователь закрыл окно входа — не ошибка
         } catch {
             errorMessage = error.localizedDescription
