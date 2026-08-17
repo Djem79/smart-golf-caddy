@@ -28,6 +28,7 @@ targets:
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIAppFonts: ["PlayfairDisplay-Regular.ttf", "PlayfairDisplay-Medium.ttf", "PlayfairDisplay-SemiBold.ttf", "PlayfairDisplay-Bold.ttf"]
   SmartGolfCaddyTests:
     type: bundle.unit-test
     platform: iOS
