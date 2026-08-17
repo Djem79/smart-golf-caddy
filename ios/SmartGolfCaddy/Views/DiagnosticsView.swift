@@ -2,6 +2,7 @@
 // DEBUG-only: проверяет канал app → App Check → callable. Ожидаемый
 // успех: joinLobbyByCode с несуществующим кодом возвращает roundId: null.
 // Ошибка unauthenticated = App Check не пропустил (проверить debug token).
+// Не подключён к UI с Фазы 2a; для проверки канала подключить временно в HomeView (#if DEBUG)
 import FirebaseFunctions
 import SwiftUI
 
