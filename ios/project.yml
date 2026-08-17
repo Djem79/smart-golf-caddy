@@ -1,5 +1,15 @@
 # ios/project.yml — единственный источник правды для .xcodeproj.
 # После правок: cd ios && xcodegen
+#
+# ВАЖНО: перед ЛЮБЫМ xcodebuild (resolvePackageDependencies/build/test) в
+# окружении должен быть выставлен `export FIREBASE_SOURCE_FIRESTORE=1` —
+# иначе SPM тянет precompiled abseil/grpc-binary xcframeworks, и линковка
+# FirebaseFirestore падает с "Undefined symbol: absl::...LogMessage..." в
+# момент, когда И app-таргет, И test-таргет линкуют FirebaseFirestore
+# (известный баг firebase-ios-sdk, см. issue #14464 — Firestore не
+# поддерживает линковку в несколько таргетов как precompiled binary).
+# С этим флагом Firestore/gRPC/abseil собираются из исходников — первая
+# сборка после смены флага ощутимо дольше.
 name: SmartGolfCaddy
 options:
   bundleIdPrefix: com.dzhambulat
@@ -9,6 +19,13 @@ options:
 configFiles:
   Debug: Config/Local.xcconfig
   Release: Config/Local.xcconfig
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 12.0.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 8.0.0
 targets:
   SmartGolfCaddy:
     type: application
@@ -29,6 +46,19 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIAppFonts: ["PlayfairDisplay-Regular.ttf", "PlayfairDisplay-Medium.ttf", "PlayfairDisplay-SemiBold.ttf", "PlayfairDisplay-Bold.ttf"]
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: ["$(GOOGLE_REVERSED_CLIENT_ID)"]
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseFunctions
+      - package: Firebase
+        product: FirebaseAppCheck
+      - package: GoogleSignIn
+        product: GoogleSignIn
   SmartGolfCaddyTests:
     type: bundle.unit-test
     platform: iOS
@@ -38,6 +68,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SmartGolfCaddy
+      - package: Firebase
+        product: FirebaseFirestore
 schemes:
   SmartGolfCaddy:
     build:
