@@ -17,7 +17,9 @@ final class HomeViewModel {
             // Окно 10: Home показывает 3 последних finished + ищет незавершённый.
             let rounds = try await RoundsService.getUserRounds(userId: userId, limitTo: 10)
             recentFinished = Array(rounds.filter { $0.status == .finished }.prefix(3))
-            activeRound = rounds.first { $0.status == .active || $0.status == .lobby }
+            // 2a: только active — экрана лобби ещё нет (вернётся в Фазе 2б
+            // вместе с групповой игрой); lobby-раунды в resume не попадают.
+            activeRound = rounds.first { $0.status == .active }
         } catch {
             loadError = true
         }

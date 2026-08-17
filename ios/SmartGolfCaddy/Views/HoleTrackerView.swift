@@ -70,6 +70,8 @@ struct HoleTrackerView: View {
         }
         .task {
             selectedClub = store.lastClubUsed
+            let ids = pickerClubs.map(\.id)
+            if !ids.contains(selectedClub) { selectedClub = ids.first ?? "Driver" }
             model.start()
         }
         .onChange(of: model.round?.status) { _, status in
