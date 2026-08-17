@@ -81,9 +81,10 @@ iOS (нативное приложение, `ios/`):
 
 iOS-архитектура зеркалит веб: Views → ViewModels (@Observable) →
 Services → Firebase SDK; Models — чистые структуры. `import Firebase*`
-в прод-коде — только в `Services/` (+ AppDelegate,
-RootView.onOpenURL, DEBUG-only DiagnosticsView); тест-таргету импорт
-Firebase разрешён. Контракты callable: зеркалятся в трёх местах —
+в прод-коде — только в `Services/` (+ `AppDelegate`, DEBUG-only
+`DiagnosticsView`); `import GoogleSignIn` — только в `Services/` (+
+`RootView.onOpenURL`). Тест-таргету импорт Firebase разрешён.
+Контракты callable: зеркалятся в трёх местах —
 `ios/SmartGolfCaddy/Services/CallableContracts.swift` ↔
 `functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
 во всех трёх — при правке схемы на одной стороне обновлять остальные
@@ -203,10 +204,12 @@ Server-side payload-валидация всех 4 callable централизо�
 
 Клиент **зеркалит** эти схемы как plain TypeScript-интерфейсы в
 `src/types/callable.ts` (без zod-рантайма в браузерном бандле — экономит
-~50 KB). Файлы синхронизируются вручную; в обоих стоит маркер `SYNC:`
-указывающий на парный файл. При правке схемы на одной стороне —
-**обязательно** обновить вторую, иначе клиент пошлёт payload, который
-сервер отклонит.
+~50 KB), а iOS — как Swift-структуры в
+`ios/SmartGolfCaddy/Services/CallableContracts.swift`. Файлы
+синхронизируются вручную; во всех трёх стоит маркер `SYNC:`
+указывающий на парные файлы. При правке схемы на одной стороне —
+**обязательно** обновить обе остальные, иначе клиент пошлёт payload,
+который сервер отклонит.
 
 ### Data model — central source of truth
 
