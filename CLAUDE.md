@@ -89,7 +89,17 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 `functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
 во всех трёх — при правке схемы на одной стороне обновлять остальные
 две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
-`project.yml`, но трекается в git (в отличие от `.xcodeproj`). ВАЖНО:
+`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 2a: роутер `App/AppRouter.swift` (NavigationStack, enum Route);
+экраны Home/RoundSetup/HoleTracker/RoundResults + вью-модели;
+`Services/RoundsService.swift` (создание соло-раунда клиентом, finish,
+подписка, запрос истории; удары/пар — через callable);
+`Services/ShotQueue.swift` — офлайн-очередь ударов (файл в Application
+Support, last-write-wins на слот `round:hole:uid`, флаш по
+NWPathMonitor; юнит-тесты — спецификация поведения). Скоринг —
+`Models/Scoring.swift` (чистый порт scoring.ts, сортировки через
+localizedStandardCompare для паритета с localeCompare).
+
+ВАЖНО:
 сборка/тесты только через `ios/scripts/*` — они держат DerivedData вне
 iCloud (артефакты в `~/Documents` портит File Provider → codesign
 detritus-fail). FirebaseFirestore линкуется ТОЛЬКО в app-таргет
