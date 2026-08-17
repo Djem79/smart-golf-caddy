@@ -41,3 +41,9 @@ dist-ssr
 # RuVector local cache (used by other tooling)
 ruvector.db
 ruvector.db-*
+
+# iOS
+ios/SmartGolfCaddy.xcodeproj/
+ios/build/
+ios/Config/Local.xcconfig
+ios/SmartGolfCaddy/Resources/GoogleService-Info.plist

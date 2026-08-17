@@ -1,0 +1,6 @@
+// ios/Config/Local.xcconfig.example
+// Скопировать в Local.xcconfig (gitignored) и заполнить:
+//   DEV_TEAM — Team ID личной команды (Xcode → Settings → Accounts), пусто для симулятора
+//   GOOGLE_REVERSED_CLIENT_ID — из GoogleService-Info.plist (Task 5)
+DEV_TEAM =
+GOOGLE_REVERSED_CLIENT_ID = placeholder.invalid

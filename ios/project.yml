@@ -1,0 +1,47 @@
+# ios/project.yml — единственный источник правды для .xcodeproj.
+# После правок: cd ios && xcodegen
+name: SmartGolfCaddy
+options:
+  bundleIdPrefix: com.dzhambulat
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Config/Local.xcconfig
+  Release: Config/Local.xcconfig
+targets:
+  SmartGolfCaddy:
+    type: application
+    platform: iOS
+    sources: [SmartGolfCaddy]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dzhambulat.smartgolfcaddy
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: $(DEV_TEAM)
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: SmartGolfCaddy/Info.plist
+      properties:
+        CFBundleDisplayName: Smart Golf Caddy
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+  SmartGolfCaddyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SmartGolfCaddyTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: SmartGolfCaddy
+schemes:
+  SmartGolfCaddy:
+    build:
+      targets:
+        SmartGolfCaddy: all
+        SmartGolfCaddyTests: [test]
+    test:
+      targets: [SmartGolfCaddyTests]
