@@ -101,4 +101,16 @@ final class ShotQueueTests: XCTestCase {
         let remaining = await queue.flush()
         XCTAssertEqual(remaining, 0)  // permanent дропнут, очередь не заклинена
     }
+
+    func testConcurrentEnqueuesDoNotLoseEntries() async {
+        let queue = makeQueue(online: { false })
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<20 {
+                group.addTask {
+                    _ = await queue.recordShotQueued(roundId: "r", holeIndex: i, targetUid: "u", clubs: ["7i"])
+                }
+            }
+        }
+        XCTAssertEqual(queue.pendingCount(roundId: "r"), 20)
+    }
 }

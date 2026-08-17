@@ -65,39 +65,57 @@ final class ShotQueue: @unchecked Sendable {
         "\(roundId):\(holeIndex):\(targetUid)"
     }
 
-    private func load() -> [String: PendingShot] {
-        ioQueue.sync {
-            guard let data = try? Data(contentsOf: storeURL) else { return [:] }
-            return (try? JSONDecoder().decode([String: PendingShot].self, from: data)) ?? [:]
+    /// Тела load/persist БЕЗ синхронизации — вызывать только изнутри
+    /// ioQueue.sync (напрямую или через withMap).
+    private func loadLocked() -> [String: PendingShot] {
+        guard let data = try? Data(contentsOf: storeURL) else { return [:] }
+        return (try? JSONDecoder().decode([String: PendingShot].self, from: data)) ?? [:]
+    }
+
+    private func persistLocked(_ map: [String: PendingShot]) {
+        if let data = try? JSONEncoder().encode(map) {
+            try? data.write(to: storeURL, options: .atomic)
         }
     }
 
-    private func persist(_ map: [String: PendingShot]) {
-        ioQueue.sync {
-            if let data = try? JSONEncoder().encode(map) {
-                try? data.write(to: storeURL, options: .atomic)
+    /// Атомарно: load → мутация → persist (одна ioQueue.sync — read-modify-write
+    /// без гонки между конкурентными вызовами). Возвращает флаг «мапа
+    /// изменилась» — нотификация постится ВНЕ sync-блока (deadlock-гигиена).
+    @discardableResult
+    private func withMap<T>(_ mutate: (inout [String: PendingShot]) -> T) -> T {
+        var changed = false
+        let result: T = ioQueue.sync {
+            var map = loadLocked()
+            let before = map
+            let value = mutate(&map)
+            if map != before {
+                persistLocked(map)
+                changed = true
             }
+            return value
         }
-        NotificationCenter.default.post(name: .shotQueueDidChange, object: nil)
+        if changed {
+            NotificationCenter.default.post(name: .shotQueueDidChange, object: nil)
+        }
+        return result
     }
 
     // MARK: публичный интерфейс
 
     func pendingShot(roundId: String, holeIndex: Int, targetUid: String) -> PendingShot? {
-        load()[slotKey(roundId, holeIndex, targetUid)]
+        ioQueue.sync { loadLocked() }[slotKey(roundId, holeIndex, targetUid)]
     }
 
     func pendingCount(roundId: String) -> Int {
-        load().values.filter { $0.roundId == roundId }.count
+        ioQueue.sync { loadLocked() }.values.filter { $0.roundId == roundId }.count
     }
 
     func recordShotQueued(roundId: String, holeIndex: Int, targetUid: String, clubs: [String]) async -> RecordOutcome {
         let entry = PendingShot(roundId: roundId, holeIndex: holeIndex,
                                 targetUid: targetUid, clubs: clubs,
                                 updatedAt: Date().timeIntervalSince1970)
-        var map = load()
-        map[slotKey(roundId, holeIndex, targetUid)] = entry
-        persist(map)
+        let key = slotKey(roundId, holeIndex, targetUid)
+        withMap { map in map[key] = entry }
 
         guard isOnline() else { return .queued }
 
@@ -115,43 +133,58 @@ final class ShotQueue: @unchecked Sendable {
     }
 
     /// Снять слот, только если в очереди всё ещё ровно то, что мы отправили —
-    /// не затирает более новый удар, записанный пока шла отправка.
+    /// не затирает более новый удар, записанный пока шла отправка. Сверка
+    /// clubs и удаление — внутри одной атомарной мутации.
     private func dequeueIfMatches(_ entry: PendingShot) {
-        var map = load()
         let key = slotKey(entry.roundId, entry.holeIndex, entry.targetUid)
-        if let current = map[key], current.clubs == entry.clubs {
-            map.removeValue(forKey: key)
-            persist(map)
+        withMap { map in
+            if let current = map[key], current.clubs == entry.clubs {
+                map.removeValue(forKey: key)
+            }
         }
+    }
+
+    private func tryBeginFlush() -> Bool {
+        ioQueue.sync {
+            if flushing { return false }
+            flushing = true
+            return true
+        }
+    }
+
+    private func endFlush() {
+        ioQueue.sync { flushing = false }
     }
 
     @discardableResult
     func flush() async -> Int {
-        if flushing { return load().count }
-        flushing = true
-        defer { flushing = false }
+        guard tryBeginFlush() else { return ioQueue.sync { loadLocked() }.count }
+        defer { endFlush() }
 
-        for (key, entry) in load() {
+        // Снапшот берём один раз под lock; отправка идёт БЕЗ lock — нельзя
+        // держать ioQueue во время await.
+        let snapshot = ioQueue.sync { loadLocked() }
+        for (key, entry) in snapshot {
             do {
                 try await sender(entry)
-                var current = load()
-                if let live = current[key], live.updatedAt == entry.updatedAt {
-                    current.removeValue(forKey: key)
-                    persist(current)
+                withMap { map in
+                    if let live = map[key], live.updatedAt == entry.updatedAt {
+                        map.removeValue(forKey: key)
+                    }
                 }
             } catch {
                 if Self.isPermanent(error) {
-                    var current = load()
-                    if let live = current[key], live.updatedAt == entry.updatedAt {
-                        current.removeValue(forKey: key)
-                        persist(current)
+                    withMap { map in
+                        if let live = map[key], live.updatedAt == entry.updatedAt {
+                            map.removeValue(forKey: key)
+                        }
                     }
                     continue  // дроп и дальше
                 }
                 break  // transient — стоп до следующего online-события
             }
         }
-        return load().count
+        return ioQueue.sync { loadLocked() }.count
     }
 
     // MARK: сеть и автозапуск
