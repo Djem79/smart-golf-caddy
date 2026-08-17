@@ -50,3 +50,12 @@
   matrix before choosing a setup-action version. Don't trust stale
   conventions from the project's CLAUDE.md or older docs.
   _Source: first CI run after enabling `firestore rules` job (2026-05-26)._
+
+## 2026-08-17 — уроки iOS-фазы 1
+
+- **U+00A0 в пути ломает Apple-тулчейн**: swift-driver экранирует ASCII-пробелы, но не NBSP → список файлов рвётся посередине пути. Симлинки не спасают (build system разворачивает в физический путь). Лечится только чистым физическим путём (папку переименовали, симлинк со старым именем оставлен для совместимости).
+- **Артефакты сборки нельзя держать в iCloud-синхронизируемых папках**: File Provider вешает xattr (com.apple.fileprovider.fpfs#P) на файлы прямо между линковкой и codesign → «resource fork, Finder information, or similar detritus not allowed». DerivedData — только вне ~/Documents (см. ios/scripts/*).
+- **firebase-ios-sdk#14464**: бинарный FirebaseFirestore из SPM не линкуется в два таргета (app + tests) одного проекта → FIREBASE_SOURCE_FIRESTORE=1 (сборка из исходников). Инкапсулировано в ios/scripts/{build,test}.sh — вызывать только их.
+- **App Check debug-токены регистрируются через CLI**: `firebase appcheck:debugtokens:create <UUID> --app <iosAppId> --project smart-golf-caddy` — консоль не нужна. Токен per-инсталляция приложения.
+- **GoogleSignIn 8.x при отмене бросает GIDSignInError.canceled (NSError), а не CancellationError** — ловить Swift-овский CancellationError бесполезно; маппить в доменную ошибку на границе сервиса.
+- **План с дословным кодом — сила и слабость**: 6 из 7 Important-финдингов ревью были дефектами кода в самом плане (plan-mandated), а не ошибками исполнителей. Ревью после каждой задачи окупилось полностью.
