@@ -59,4 +59,9 @@ final class SessionViewModel {
             errorMessage = "Не удалось выйти — попробуйте ещё раз"
         }
     }
+
+    @MainActor deinit {
+        unsubscribeAuth?()
+        unsubscribeProfile?()
+    }
 }

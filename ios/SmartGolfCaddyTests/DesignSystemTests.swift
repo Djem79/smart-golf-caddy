@@ -8,6 +8,7 @@ final class DesignSystemTests: XCTestCase {
         XCTAssertNotNil(UIFont(name: "PlayfairDisplay-Regular", size: 16))
         XCTAssertNotNil(UIFont(name: "PlayfairDisplay-SemiBold", size: 16))
         XCTAssertNotNil(UIFont(name: "PlayfairDisplay-Bold", size: 16))
+        XCTAssertNotNil(UIFont(name: "PlayfairDisplay-Medium", size: 16))
     }
 
     func testHexColorParsing() {
