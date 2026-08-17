@@ -1,11 +1,239 @@
 // ios/SmartGolfCaddy/Views/RoundResultsView.swift
-// Временная заглушка — содержимое заменит Task 7.
 import SwiftUI
 
 struct RoundResultsView: View {
     let roundId: String
 
+    @Environment(SessionViewModel.self) private var session
+    @Environment(AppRouter.self) private var router
+    @State private var model = RoundResultsViewModel()
+
+    private var viewerBag: [BagClub] { session.profile?.resolvedBag ?? Clubs.defaultBag }
+
     var body: some View {
-        Text("В разработке").font(DSFont.bodyMD)
+        Group {
+            if let round = model.round {
+                content(round)
+            } else if let loadError = model.loadError {
+                VStack(spacing: 16) {
+                    Text(loadError)
+                        .font(DSFont.bodyMD)
+                        .foregroundStyle(DSColor.error)
+                        .multilineTextAlignment(.center)
+                    DSButton(title: "На главную", style: .secondary) { router.popToRoot() }
+                        .padding(.horizontal, 48)
+                }
+                .padding(DS.screenPadding)
+            } else {
+                ProgressView("Загрузка результатов...")
+            }
+        }
+        .background(DSColor.surface)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Итоги раунда").font(DSFont.titleLG)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                Button { router.popToRoot() } label: { Image(systemName: "house") }
+                    .accessibilityLabel("На главную")
+            }
+        }
+        .task { model.start(roundId: roundId) }
+    }
+
+    @ViewBuilder
+    private func content(_ round: Round) -> some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                hero(round)
+                if round.playerIds.count > 1 { leaderboardSection(round) }
+                clubUsageSection(round)
+                scorecardSection(round)
+                VStack(spacing: 10) {
+                    DSButton(title: "Новый раунд", icon: "plus") {
+                        router.popToRoot()
+                        router.push(.roundSetup)
+                    }
+                    DSButton(title: "На главную", style: .secondary) { router.popToRoot() }
+                }
+                .padding(.horizontal, DS.screenPadding)
+            }
+            .padding(.bottom, 32)
+        }
+    }
+
+    // Соло: свой результат; матч (2 игрока, match): статус; иначе — победитель.
+    @ViewBuilder
+    private func hero(_ round: Round) -> some View {
+        let isSolo = round.playerIds.count == 1
+        let isMatch = round.playMode == .match && round.playerIds.count == 2
+        VStack(spacing: 8) {
+            Image(systemName: isSolo ? "flag.fill" : "trophy.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(DSColor.onPrimary)
+                .frame(width: 48, height: 48)
+                .background(DSColor.onPrimary.opacity(0.1))
+                .clipShape(Circle())
+            if isMatch {
+                let status = Scoring.matchPlayStatus(round: round,
+                                                     uidA: round.playerIds[0],
+                                                     uidB: round.playerIds[1])
+                Text("MATCH PLAY")
+                    .font(DSFont.labelLG).tracking(2.5)
+                    .foregroundStyle(DSColor.onPrimary.opacity(0.7))
+                Text(status.label)
+                    .font(DSFont.displayLG)
+                    .foregroundStyle(DSColor.onPrimary)
+                    .monospacedDigit()
+                Text(status.leaderUid.flatMap { round.players[$0]?.name } ?? "Игроки на равных")
+                    .font(DSFont.bodyMD)
+                    .foregroundStyle(DSColor.onPrimary)
+            } else if isSolo {
+                let totals = Scoring.playerTotals(round: round, userId: round.playerIds[0])
+                Text("ВАШ РЕЗУЛЬТАТ")
+                    .font(DSFont.labelLG).tracking(2.5)
+                    .foregroundStyle(DSColor.onPrimary.opacity(0.7))
+                Text("\(totals.totalScore) уд.")
+                    .font(DSFont.displayLG)
+                    .foregroundStyle(DSColor.onPrimary)
+                    .monospacedDigit()
+                Text("\(totals.scoreDiff >= 0 ? "+" : "")\(totals.scoreDiff) (\(Score.label(totals.scoreDiff)))")
+                    .font(DSFont.bodyMD)
+                    .foregroundStyle(DSColor.onPrimary)
+            } else {
+                let winner = Scoring.leaderboard(round: round).first
+                Text("ПОБЕДИТЕЛЬ")
+                    .font(DSFont.labelLG).tracking(2.5)
+                    .foregroundStyle(DSColor.onPrimary.opacity(0.7))
+                Text((winner?.thru ?? 0) > 0 ? (winner?.name ?? "Неизвестно") : "Неизвестно")
+                    .font(DSFont.headlineLG)
+                    .foregroundStyle(DSColor.onPrimary)
+            }
+            Text("\(round.courseName) · \(round.totalHoles) \(pluralRu(round.totalHoles, "лунка", "лунки", "лунок"))")
+                .font(DSFont.labelMD)
+                .foregroundStyle(DSColor.onPrimary.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .background(
+            LinearGradient(colors: [DSColor.primaryContainer, DSColor.primary],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+    }
+
+    private func leaderboardSection(_ round: Round) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Таблица")
+            ForEach(Scoring.leaderboard(round: round)) { entry in
+                HStack {
+                    Text(entry.name)
+                        .font(DSFont.bodyMD)
+                        .foregroundStyle(DSColor.onSurface)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(entry.totalScore)")
+                        .font(DSFont.titleLG)
+                        .foregroundStyle(DSColor.onSurface)
+                        .monospacedDigit()
+                    scorePill(delta: entry.scoreDiff)
+                }
+                .padding(.vertical, 6)
+            }
+        }
+        .padding(.horizontal, DS.screenPadding)
+    }
+
+    private func clubUsageSection(_ round: Round) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(round.playerIds, id: \.self) { uid in
+                let usage = Scoring.clubUsage(round: round, userId: uid)
+                if !usage.isEmpty {
+                    sectionTitle(round.playerIds.count == 1
+                                 ? "Клюшки"
+                                 : "Клюшки · \(round.players[uid]?.name ?? "")")
+                    FlowLayoutCompat(items: Array(usage.enumerated()), spacing: 6) { _, stat in
+                        Text("\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%)")
+                            .font(DSFont.labelMD)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(DSColor.surfaceContainer)
+                            .foregroundStyle(DSColor.onSurfaceVariant)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, DS.screenPadding)
+    }
+
+    // Скоркарта: горизонтальный скролл, ячейка лунки закрашена scoreColor.
+    private func scorecardSection(_ round: Round) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Скоркарта")
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        cell("Лунка", width: 72, header: true)
+                        ForEach(round.holes, id: \.holeNumber) { hole in
+                            cell("\(hole.holeNumber)", header: true)
+                        }
+                    }
+                    HStack(spacing: 4) {
+                        cell("Пар", width: 72, header: true)
+                        ForEach(round.holes, id: \.holeNumber) { hole in
+                            cell("\(hole.par)")
+                        }
+                    }
+                    ForEach(round.playerIds, id: \.self) { uid in
+                        HStack(spacing: 4) {
+                            cell(round.playerIds.count == 1 ? "Удары" : (round.players[uid]?.name ?? ""), width: 72, header: true)
+                            ForEach(round.holes, id: \.holeNumber) { hole in
+                                let shots = hole.shots[uid]?.count ?? 0
+                                if shots > 0 {
+                                    cell("\(shots)",
+                                         background: Color(hex: Score.color(shots - hole.par)),
+                                         foreground: Color(hex: Score.onColor(shots - hole.par)))
+                                } else {
+                                    cell("—")
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, DS.screenPadding)
+            }
+        }
+    }
+
+    private func cell(_ text: String, width: CGFloat = 36,
+                      header: Bool = false,
+                      background: Color = .clear,
+                      foreground: Color? = nil) -> some View {
+        Text(text)
+            .font(header ? DSFont.labelMD : DSFont.labelLG)
+            .monospacedDigit()
+            .lineLimit(1)
+            .frame(width: width, height: 32)
+            .background(background)
+            .foregroundStyle(foreground ?? (header ? DSColor.onSurfaceVariant : DSColor.onSurface))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func scorePill(delta: Int) -> some View {
+        Text("\(delta >= 0 ? "+" : "")\(delta) (\(Score.label(delta)))")
+            .font(DSFont.labelMD)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(delta == 0 ? Color.clear : Color(hex: Score.color(delta)))
+            .foregroundStyle(delta == 0 ? DSColor.onSurface : Color(hex: Score.onColor(delta)))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(delta == 0 ? DSColor.outlineVariant : .clear))
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(DSFont.titleLG)
+            .foregroundStyle(DSColor.onSurface)
     }
 }
