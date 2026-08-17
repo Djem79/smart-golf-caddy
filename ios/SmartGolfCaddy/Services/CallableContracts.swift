@@ -18,8 +18,17 @@ struct UpdateHoleConfigInput: Encodable {
     let distanceMeters: Int?
 }
 
+struct JoinLobbyPlayerInfo: Encodable {
+    let name: String?
+    let avatar: String?
+    let email: String?
+    let totalScore: Int?
+    let scoreDiff: Int?
+}
+
 struct JoinLobbyInput: Encodable {
     let code: String
+    let playerInfo: JoinLobbyPlayerInfo?
 }
 
 struct ShareInput: Encodable {

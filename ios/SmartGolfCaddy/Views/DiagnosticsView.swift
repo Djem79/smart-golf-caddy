@@ -31,11 +31,14 @@ struct DiagnosticsView: View {
         running = true
         defer { running = false }
         do {
-            let payload = try callableDict(JoinLobbyInput(code: "ZZZZZZ"))
+            let payload = try callableDict(JoinLobbyInput(code: "ZZZZZZ", playerInfo: nil))
             let result = try await FirebaseService.functions
                 .httpsCallable("joinLobbyByCode").call(payload)
-            let data = result.data as? [String: Any]
-            if data?["roundId"] is NSNull || data?["roundId"] == nil {
+            guard let data = result.data as? [String: Any] else {
+                status = "Неожиданный ответ: \(String(describing: result.data))"
+                return
+            }
+            if data["roundId"] is NSNull || data["roundId"] == nil {
                 status = "Сервер отвечает, App Check пропускает. Канал работает."
             } else {
                 status = "Неожиданный ответ: \(String(describing: result.data))"
