@@ -90,11 +90,13 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 во всех трёх — при правке схемы на одной стороне обновлять остальные
 две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
 `project.yml`, но трекается в git (в отличие от `.xcodeproj`). ВАЖНО:
-сборка/тесты только через `ios/scripts/*` — они инкапсулируют
-`FIREBASE_SOURCE_FIRESTORE=1` (firebase-ios-sdk#14464 — бинарный
-Firestore не линкуется в два таргета) и DerivedData вне iCloud
-(артефакты в `~/Documents` портит File Provider → codesign
-detritus-fail).
+сборка/тесты только через `ios/scripts/*` — они держат DerivedData вне
+iCloud (артефакты в `~/Documents` портит File Provider → codesign
+detritus-fail). FirebaseFirestore линкуется ТОЛЬКО в app-таргет
+(#14464): его source-сборка (`FIREBASE_SOURCE_FIRESTORE`) создавала
+вторую копию FirebaseCore и роняла приложение
+(FIRIllegalStateException) — не возвращать, тестам классы Firebase
+доступны из рантайма хоста.
 
 ## Workflow orchestration
 

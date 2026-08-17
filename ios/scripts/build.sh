@@ -1,10 +1,11 @@
 #!/bin/bash
 # Каноничный запуск сборки iOS-приложения. Инкапсулирует обязательные
-# env-переменные: FIREBASE_SOURCE_FIRESTORE (firebase-ios-sdk#14464) и
-# DerivedData вне iCloud (артефакты в ~/Documents портит File Provider).
+# env-переменные: DerivedData вне iCloud (артефакты в ~/Documents портит
+# File Provider). Firestore линкуется ТОЛЬКО в app-таргет: source-сборка
+# (FIREBASE_SOURCE_FIRESTORE) создавала вторую копию FirebaseCore и роняла
+# приложение (FIRIllegalStateException на Firestore.firestore()).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export FIREBASE_SOURCE_FIRESTORE=1
 DD="${DD:-$HOME/Library/Developer/Xcode/DerivedData/SmartGolfCaddy-local}"
 SIM_NAME="${SIM_NAME:-iPhone 17}"
 xcodegen

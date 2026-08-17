@@ -374,11 +374,10 @@ retries — функция проверяет `emailedAt` и скипает по
    Local.xcconfig (DEV_TEAM), устройство в Developer Mode, Run из
    Xcode. Бесплатная подпись живёт 7 дней, потом Run заново.
 7. Сборка/тесты — **только** через `./ios/scripts/build.sh` и
-   `./ios/scripts/test.sh`. Они экспортируют
-   `FIREBASE_SOURCE_FIRESTORE=1` (firebase-ios-sdk#14464 — бинарный
-   Firestore не линкуется в два таргета, поэтому собираем из
-   исходников) и держат DerivedData в
+   `./ios/scripts/test.sh`. Они держат DerivedData в
    `~/Library/Developer/Xcode/DerivedData/SmartGolfCaddy-local` — ВНЕ
    iCloud-синхронизируемой папки Documents (File Provider вешает xattr
    на артефакты сборки → codesign падает с «resource fork … detritus
-   not allowed»).
+   not allowed»). FirebaseFirestore линкуется только в app-таргет
+   (#14464); source-сборку Firestore (`FIREBASE_SOURCE_FIRESTORE`) не
+   включать — вторая копия FirebaseCore роняет приложение.

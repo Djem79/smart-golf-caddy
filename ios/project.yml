@@ -1,15 +1,14 @@
 # ios/project.yml — единственный источник правды для .xcodeproj.
 # После правок: cd ios && xcodegen
 #
-# ВАЖНО: перед ЛЮБЫМ xcodebuild (resolvePackageDependencies/build/test) в
-# окружении должен быть выставлен `export FIREBASE_SOURCE_FIRESTORE=1` —
-# иначе SPM тянет precompiled abseil/grpc-binary xcframeworks, и линковка
-# FirebaseFirestore падает с "Undefined symbol: absl::...LogMessage..." в
-# момент, когда И app-таргет, И test-таргет линкуют FirebaseFirestore
-# (известный баг firebase-ios-sdk, см. issue #14464 — Firestore не
-# поддерживает линковку в несколько таргетов как precompiled binary).
-# С этим флагом Firestore/gRPC/abseil собираются из исходников — первая
-# сборка после смены флага ощутимо дольше.
+# ВАЖНО (#14464): FirebaseFirestore линкуется ТОЛЬКО в app-таргет.
+# Не добавлять Firebase-продукты в тест-таргет: precompiled Firestore не
+# линкуется в два таргета, а обход через сборку из исходников
+# (FIREBASE_SOURCE_FIRESTORE=1) создаёт ВТОРУЮ копию FirebaseCore в
+# отдельном framework — Firestore видит пустой реестр приложений и роняет
+# процесс (FIRIllegalStateException) при первом же Firestore.firestore().
+# Тесты app-hosted: классы Firebase доступны из рантайма хоста
+# (NSClassFromString), линковка им не нужна.
 name: SmartGolfCaddy
 options:
   bundleIdPrefix: com.dzhambulat
@@ -68,8 +67,6 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SmartGolfCaddy
-      - package: Firebase
-        product: FirebaseFirestore
 schemes:
   SmartGolfCaddy:
     build:
