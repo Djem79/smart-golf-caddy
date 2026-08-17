@@ -94,7 +94,7 @@ enum Scoring {
             }
             .sorted { a, b in
                 if a.count != b.count { return a.count > b.count }
-                return a.club < b.club
+                return a.club.localizedStandardCompare(b.club) == .orderedAscending
             }
     }
 
@@ -114,7 +114,7 @@ enum Scoring {
             if b.thru == 0 && a.thru > 0 { return true }
             if a.scoreDiff != b.scoreDiff { return a.scoreDiff < b.scoreDiff }
             if a.totalScore != b.totalScore { return a.totalScore < b.totalScore }
-            return a.name < b.name
+            return a.name.localizedStandardCompare(b.name) == .orderedAscending
         }
     }
 

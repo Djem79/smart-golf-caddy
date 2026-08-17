@@ -90,6 +90,25 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(lb[2].thru, 0)
     }
 
+    func testLeaderboardTieBreakLocaleAware() {
+        // Паритет с localeCompare веба: «андрей» сортируется раньше «Борис»,
+        // хотя по код-пойнтам заглавная «Б» меньше строчной «а».
+        let round = makeRound(
+            holes: [
+                hole(1, par: 4, shots: [
+                    "x": ["count": 4, "clubs": ["7i", "7i", "PW", "Putter"]],
+                    "y": ["count": 4, "clubs": ["7i", "7i", "PW", "Putter"]],
+                ]),
+            ],
+            players: [
+                "x": ["name": "андрей", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+                "y": ["name": "Борис", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+            ],
+            playerIds: ["x", "y"]
+        )
+        XCTAssertEqual(Scoring.leaderboard(round: round).map(\.name), ["андрей", "Борис"])
+    }
+
     // MARK: playerStats
 
     func testPlayerStats() {
