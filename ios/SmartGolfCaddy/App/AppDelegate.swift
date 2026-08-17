@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
         #endif
         FirebaseApp.configure()
+        ShotQueue.shared.initSync()
         return true
     }
 }
