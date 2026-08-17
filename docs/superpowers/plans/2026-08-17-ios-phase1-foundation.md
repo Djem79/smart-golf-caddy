@@ -12,7 +12,8 @@
 
 ## Global Constraints
 
-- **Путь репозитория содержит U+00A0** (неразрывный пробел в «…Pro — Джамбулат»). Инструменты Read/Write/Edit с набранным вручную абсолютным путём ПРОМАХИВАЮТСЯ. Все файловые операции в этом репо — через Bash с относительными путями или `"$(pwd)/…"` (cat/heredoc для записи, `cat -n` для чтения).
+- **Путь репозитория чистый** (2026-08-17 родительская папка переименована: U+00A0 → обычный пробел; симлинк со старым именем оставлен). Штатные Read/Write/Edit работают.
+- **Сборка ТОЛЬКО с DerivedData вне iCloud**: `export DD="$HOME/Library/Developer/Xcode/DerivedData/SmartGolfCaddy-local"`. Артефакты внутри ~/Documents портятся iCloud File Provider (xattr `com.apple.fileprovider.fpfs#P` → codesign «resource fork … detritus not allowed»). Никогда не собирать в `ios/build/`.
 - Русский UI во всех user-facing строках. Плюрализация — только через `pluralRu`.
 - Никаких эмодзи в UI и коде — только SF Symbols.
 - Touch targets ≥ 48 pt (`DS.touchTarget`).
@@ -21,7 +22,7 @@
 - `import Firebase*` / `import GoogleSignIn` разрешены ТОЛЬКО в `ios/SmartGolfCaddy/Services/*.swift` и `App/AppDelegate.swift`.
 - `ios/SmartGolfCaddy.xcodeproj` — генерируется (`cd ios && xcodegen`), руками не редактируется, в git не попадает.
 - Не коммитить: `GoogleService-Info.plist`, `ios/Config/Local.xcconfig`, `ios/build/`.
-- Все xcodebuild-команды выполняются из `ios/`. Перед ними в свежей сессии: `export SIM_NAME="iPhone 17"` — либо имя из `xcrun simctl list devices available | grep iPhone` (взять первое доступное).
+- Все xcodebuild-команды выполняются из `ios/`. Перед ними в свежей сессии: `export DD="$HOME/Library/Developer/Xcode/DerivedData/SmartGolfCaddy-local"` и `export SIM_NAME="iPhone 17"` — либо имя из `xcrun simctl list devices available | grep iPhone` (взять первое доступное).
 - Cloud Functions регион: `us-central1`.
 - Коммиты после каждой задачи (memory: standing OK без вопросов).
 
@@ -209,7 +210,7 @@ ios/SmartGolfCaddy/Resources/GoogleService-Info.plist
 cd ios && xcodegen
 xcodebuild -project SmartGolfCaddy.xcodeproj -scheme SmartGolfCaddy \
   -destination "platform=iOS Simulator,name=$SIM_NAME" \
-  -derivedDataPath build build 2>&1 | tail -5
+  -derivedDataPath "$DD" build 2>&1 | tail -5
 ```
 Expected: `** BUILD SUCCEEDED **`
 
@@ -218,7 +219,7 @@ Expected: `** BUILD SUCCEEDED **`
 ```bash
 cd ios && xcodebuild -project SmartGolfCaddy.xcodeproj -scheme SmartGolfCaddy \
   -destination "platform=iOS Simulator,name=$SIM_NAME" \
-  -derivedDataPath build test 2>&1 | tail -5
+  -derivedDataPath "$DD" test 2>&1 | tail -5
 ```
 Expected: `** TEST SUCCEEDED **`
 
@@ -226,7 +227,7 @@ Expected: `** TEST SUCCEEDED **`
 
 ```bash
 xcrun simctl boot "$SIM_NAME" 2>/dev/null; open -a Simulator
-xcrun simctl install booted ios/build/Build/Products/Debug-iphonesimulator/SmartGolfCaddy.app
+xcrun simctl install booted "$DD/Build/Products/Debug-iphonesimulator/SmartGolfCaddy.app"
 xcrun simctl launch booted com.dzhambulat.smartgolfcaddy
 ```
 Expected: приложение открывается, виден гольфист и заголовок.
@@ -301,7 +302,7 @@ final class DesignSystemTests: XCTestCase {
 
 ```bash
 cd ios && xcodegen && xcodebuild -project SmartGolfCaddy.xcodeproj -scheme SmartGolfCaddy \
-  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath build test 2>&1 | tail -5
+  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath "$DD" test 2>&1 | tail -5
 ```
 Expected: FAIL — `cannot find 'DSColor' in scope`.
 
@@ -1112,7 +1113,7 @@ final class FirebaseServiceTests: XCTestCase {
 cd ios && xcodegen
 xcodebuild -project SmartGolfCaddy.xcodeproj -resolvePackageDependencies 2>&1 | tail -3
 xcodebuild -project SmartGolfCaddy.xcodeproj -scheme SmartGolfCaddy \
-  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath build test 2>&1 | tail -5
+  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath "$DD" test 2>&1 | tail -5
 ```
 Expected: `** TEST SUCCEEDED **`. Запустить app на симуляторе (команды из Task 2 Step 7) — в логах Xcode-консоли (`xcrun simctl launch --console-pty booted com.dzhambulat.smartgolfcaddy | head -40`) появляется строка `Firebase App Check debug token: '<UUID>'`. Сохранить токен — нужен в Task 7.
 
@@ -1450,8 +1451,8 @@ struct RootView: View {
 
 ```bash
 cd ios && xcodegen && xcodebuild -project SmartGolfCaddy.xcodeproj -scheme SmartGolfCaddy \
-  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath build build 2>&1 | tail -3
-xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/SmartGolfCaddy.app
+  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath "$DD" build 2>&1 | tail -3
+xcrun simctl install booted "$DD/Build/Products/Debug-iphonesimulator/SmartGolfCaddy.app"
 xcrun simctl launch booted com.dzhambulat.smartgolfcaddy
 ```
 Expected: экран входа в стиле Fairway Elite. Тап «ВОЙТИ ЧЕРЕЗ GOOGLE» → web-форма Google → после входа экран «Привет, <имя>!» с числом клюшек (для нового uid — 10: дефолтная сумка). Проверить в Firebase console → Firestore → `users/<uid>`, что документ создан с `bag` (20 элементов) и `createdAt`.
@@ -1682,7 +1683,7 @@ iOS (нативное приложение, `ios/`):
 export SIM_NAME="iPhone 17"        # или из: xcrun simctl list devices available
 cd ios && xcodegen                 # регенерация .xcodeproj после правки project.yml
 xcodebuild -project SmartGolfCaddy.xcodeproj -scheme SmartGolfCaddy \
-  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath build test
+  -destination "platform=iOS Simulator,name=$SIM_NAME" -derivedDataPath "$DD" test
 ```
 
 iOS-архитектура зеркалит веб: Views → ViewModels (@Observable) →
@@ -1690,8 +1691,8 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 только в `Services/` (+ AppDelegate, RootView.onOpenURL, DEBUG-only
 DiagnosticsView). Контракты callable: `Services/CallableContracts.swift`
 синхронизируется с `functions/src/contracts.ts` (SYNC-маркеры).
-ВАЖНО: путь репо содержит U+00A0 — файловые операции через Bash
-с относительными путями, не через Read/Write с ручным абсолютным путём.
+ВАЖНО: DerivedData — только вне iCloud (`$DD` выше): артефакты в
+~/Documents портит iCloud File Provider → codesign «detritus» fail.
 ```
 
 - [ ] **Step 3: Commit**
