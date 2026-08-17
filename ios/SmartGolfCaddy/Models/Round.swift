@@ -47,6 +47,13 @@ struct HoleShots: Equatable {
         legacyClub = data["club"] as? String
         updatedAt = data["updatedAt"] as? Date
     }
+
+    var firestoreData: [String: Any] {
+        var d: [String: Any] = ["count": count, "clubs": clubs]
+        if let legacyClub { d["club"] = legacyClub }
+        if let updatedAt { d["updatedAt"] = updatedAt }
+        return d
+    }
 }
 
 struct PlayerInfo: Equatable {
@@ -62,6 +69,21 @@ struct PlayerInfo: Equatable {
         totalScore = (data["totalScore"] as? NSNumber)?.intValue ?? 0
         scoreDiff = (data["scoreDiff"] as? NSNumber)?.intValue ?? 0
         email = data["email"] as? String
+    }
+
+    init(name: String, avatar: String, totalScore: Int, scoreDiff: Int, email: String?) {
+        self.name = name
+        self.avatar = avatar
+        self.totalScore = totalScore
+        self.scoreDiff = scoreDiff
+        self.email = email
+    }
+
+    var firestoreData: [String: Any] {
+        var d: [String: Any] = ["name": name, "avatar": avatar,
+                                "totalScore": totalScore, "scoreDiff": scoreDiff]
+        if let email { d["email"] = email }
+        return d
     }
 }
 
@@ -80,6 +102,15 @@ struct HoleConfig: Equatable {
             parsed[uid] = HoleShots(data: raw)
         }
         shots = parsed
+    }
+
+    var firestoreData: [String: Any] {
+        [
+            "holeNumber": holeNumber,
+            "par": par,
+            "distanceMeters": distanceMeters,
+            "shots": shots.mapValues { $0.firestoreData },
+        ]
     }
 }
 
