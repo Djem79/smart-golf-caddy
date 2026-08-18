@@ -7,16 +7,22 @@ final class MyBagViewModelTests: XCTestCase {
     @MainActor
     private func makeModel() -> MyBagViewModel {
         let model = MyBagViewModel(persistBag: { _ in }, persistUnits: { _ in })
-        model.syncFromProfile(nil)  // nil → defaultBag, метры
+        // минимальный реальный профиль (bag nil → resolvedBag = дефолт, units .m),
+        // но синхронизированный → мутации разрешены
+        model.syncFromProfile(AppUser(uid: "u", data: ["name": "Тест"]))
         return model
     }
 
     @MainActor
-    func testSyncFromNilProfileGivesDefaultBag() {
-        let model = makeModel()
+    func testNilProfileShowsDefaultsButBlocksMutations() async {
+        var persisted = 0
+        let model = MyBagViewModel(persistBag: { _ in persisted += 1 }, persistUnits: { _ in })
+        model.syncFromProfile(nil)
         XCTAssertEqual(model.bag, Clubs.defaultBag)
         XCTAssertEqual(model.units, .m)
-        XCTAssertEqual(model.enabledCount, 10)
+        await model.toggle(id: "5W")
+        XCTAssertEqual(persisted, 0)  // мутации до реального профиля не персистятся
+        XCTAssertFalse(model.bag.first { $0.id == "5W" }!.enabled)  // и не применяются
     }
 
     @MainActor
@@ -80,7 +86,7 @@ final class MyBagViewModelTests: XCTestCase {
     func testPersistFailureShowsErrorAndKeepsOptimism() async {
         struct Boom: Error {}
         let model = MyBagViewModel(persistBag: { _ in throw Boom() }, persistUnits: { _ in })
-        model.syncFromProfile(nil)
+        model.syncFromProfile(AppUser(uid: "u", data: ["name": "Тест"]))
         await model.toggle(id: "5W")
         XCTAssertEqual(model.errorMessage, "Не удалось сохранить изменения")
         XCTAssertTrue(model.bag.first { $0.id == "5W" }!.enabled)  // оптимизм не откатываем (веб-паритет)

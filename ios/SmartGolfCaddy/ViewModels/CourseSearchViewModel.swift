@@ -33,8 +33,11 @@ final class CourseSearchViewModel {
                 self.lng = lng
                 Task { await self.loadNearby() }
             },
-            onError: { [weak self] message in
+            onDenied: { [weak self] message in
                 self?.geoDenied = true
+                self?.errorMessage = message
+            },
+            onError: { [weak self] message in
                 self?.errorMessage = message
             }
         )

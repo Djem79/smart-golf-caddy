@@ -8,6 +8,7 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
 
     private let manager = CLLocationManager()
     private var onUpdate: ((Double, Double) -> Void)?
+    private var onDenied: ((String) -> Void)?
     private var onError: ((String) -> Void)?
 
     override private init() {
@@ -17,15 +18,17 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
     }
 
     func request(onUpdate: @escaping (Double, Double) -> Void,
+                 onDenied: @escaping (String) -> Void,
                  onError: @escaping (String) -> Void) {
         self.onUpdate = onUpdate
+        self.onDenied = onDenied
         self.onError = onError
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
         case .denied, .restricted:
             DispatchQueue.main.async {
-                onError("Доступ к геолокации запрещён. Разрешите его в Настройках.")
+                onDenied("Доступ к геолокации запрещён. Разрешите его в Настройках.")
             }
         default:
             manager.requestLocation()
@@ -38,7 +41,7 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
             manager.requestLocation()
         case .denied, .restricted:
             DispatchQueue.main.async { [weak self] in
-                self?.onError?("Доступ к геолокации запрещён. Разрешите его в Настройках.")
+                self?.onDenied?("Доступ к геолокации запрещён. Разрешите его в Настройках.")
             }
         default:
             break

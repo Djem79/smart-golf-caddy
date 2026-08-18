@@ -45,6 +45,7 @@ final class HoleTrackerViewModel {
     var isHost: Bool { round?.hostId == userId }
 
     func start() {
+        guard unsubscribe == nil else { return }
         refreshQueueBadge()
         queueObserver = NotificationCenter.default.addObserver(
             forName: .shotQueueDidChange, object: nil, queue: .main

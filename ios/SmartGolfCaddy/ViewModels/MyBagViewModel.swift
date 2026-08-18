@@ -4,6 +4,7 @@
 // сообщение, оптимизм не откатываем (следующий снапшот профиля выправит).
 import Foundation
 import Observation
+import SwiftUI  // Array.move(fromOffsets:toOffset:)
 
 @Observable
 @MainActor
@@ -46,7 +47,7 @@ final class MyBagViewModel {
         guard !saving || !synced else { return }
         bag = Clubs.resolveBag(bag: profile?.bag, legacyClubs: profile?.legacyClubs)
         units = profile?.units ?? .m
-        synced = true
+        synced = profile != nil
     }
 
     var enabledCount: Int { bag.filter(\.enabled).count }
@@ -61,6 +62,8 @@ final class MyBagViewModel {
     }
 
     private func persist(_ next: [BagClub]) async {
+        // до первого снапшота профиля не персистим — иначе можно затереть реальную сумку дефолтом
+        guard synced else { return }
         bag = next
         saving = true
         errorMessage = nil

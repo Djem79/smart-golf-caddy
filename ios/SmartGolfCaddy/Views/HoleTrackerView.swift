@@ -61,7 +61,7 @@ struct HoleTrackerView: View {
             }
             ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    router.popToRoot()
+                    router.goHome()
                 } label: {
                     Image(systemName: "house")
                 }
