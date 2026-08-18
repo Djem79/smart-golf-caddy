@@ -8,4 +8,9 @@ import Observation
 @MainActor
 final class AppStore {
     var lastClubUsed: String = "Driver"
+
+    /// Поле, выбранное в поиске — потребляется RoundSetup и очищается им.
+    var selectedCourse: CourseResult?
+    /// Префилл названия при «Использовать „текст“» из поиска.
+    var prefillCourseName: String?
 }

@@ -2,5 +2,9 @@
 // Скопировать в Local.xcconfig (gitignored) и заполнить:
 //   DEV_TEAM — Team ID личной команды (Xcode → Settings → Accounts), пусто для симулятора
 //   GOOGLE_REVERSED_CLIENT_ID — из GoogleService-Info.plist (Task 5)
+//   GOOGLE_PLACES_IOS_KEY — iOS-ключ Google Places API (New) из Google Cloud
+//     Console, restricted к bundle id (Task 5). Без ключа/с плейсхолдером
+//     экран поиска полей показывает «API ключ Google Places не настроен».
 DEV_TEAM =
 GOOGLE_REVERSED_CLIENT_ID = placeholder.invalid
+GOOGLE_PLACES_IOS_KEY = placeholder

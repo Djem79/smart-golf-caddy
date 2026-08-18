@@ -4,6 +4,7 @@ import SwiftUI
 struct RoundSetupView: View {
     @Environment(SessionViewModel.self) private var session
     @Environment(AppRouter.self) private var router
+    @Environment(AppStore.self) private var store
     @State private var model = RoundSetupViewModel()
     @FocusState private var nameFocused: Bool
 
@@ -34,6 +35,7 @@ struct RoundSetupView: View {
         .background(DSColor.surface)
         .navigationTitle("Настройка раунда")
         .navigationBarTitleDisplayMode(.inline)
+        .task { model.adopt(store: store) }
     }
 
     private var sectionHeader: (String) -> Text {
@@ -48,17 +50,43 @@ struct RoundSetupView: View {
         VStack(alignment: .leading, spacing: 8) {
             sectionHeader("НАЗВАНИЕ ПОЛЯ")
                 .foregroundStyle(DSColor.onSurfaceVariant)
-            TextField("Например: Гольф клуб Москва", text: $model.courseName)
-                .font(DSFont.bodyMD)
-                .padding(14)
-                .background(DSColor.surfaceContainerLowest)
-                .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.cornerRadius)
-                        .stroke(nameFocused ? DSColor.primary : DSColor.outlineVariant)
-                )
-                .focused($nameFocused)
+            if model.selectedPlaceId != nil {
+                selectedCourseCard
+            } else {
+                TextField("Например: Гольф клуб Москва", text: $model.courseName)
+                    .font(DSFont.bodyMD)
+                    .padding(14)
+                    .background(DSColor.surfaceContainerLowest)
+                    .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.cornerRadius)
+                            .stroke(nameFocused ? DSColor.primary : DSColor.outlineVariant)
+                    )
+                    .focused($nameFocused)
+            }
         }
+    }
+
+    private var selectedCourseCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(model.courseName)
+                .font(DSFont.titleLG)
+                .foregroundStyle(DSColor.onSurface)
+            Text("\(model.selectedVicinity) · \(String(format: "%.1f", model.selectedDistanceKm)) км")
+                .font(DSFont.labelLG)
+                .foregroundStyle(DSColor.onSurfaceVariant)
+            Button("Сменить поле") {
+                router.replaceLast(.courseSearch)
+            }
+            .font(DSFont.labelLG)
+            .foregroundStyle(DSColor.primary)
+            .frame(minHeight: DS.touchTarget)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DSColor.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: DS.cornerRadius).stroke(DSColor.outlineVariant.opacity(0.25)))
     }
 
     private var holesSection: some View {

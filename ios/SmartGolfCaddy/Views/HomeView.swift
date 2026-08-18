@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(SessionViewModel.self) private var session
     @Environment(AppRouter.self) private var router
+    @Environment(AppStore.self) private var store
     @State private var model = HomeViewModel()
 
     private var firstName: String {
@@ -23,6 +24,11 @@ struct HomeView: View {
                 }
                 VStack(spacing: 12) {
                     DSButton(title: "Начать новый раунд", icon: "plus") {
+                        router.push(.courseSearch)
+                    }
+                    DSButton(title: "Быстрый старт без выбора поля", icon: "bolt", style: .secondary) {
+                        store.prefillCourseName = nil
+                        store.selectedCourse = nil
                         router.push(.roundSetup)
                     }
                 }

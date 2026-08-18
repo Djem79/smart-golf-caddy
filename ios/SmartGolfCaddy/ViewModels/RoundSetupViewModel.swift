@@ -9,10 +9,27 @@ final class RoundSetupViewModel {
     var tee: TeeColor = .men
     var creating = false
     var errorMessage: String?
+    var selectedPlaceId: String?
+    var selectedVicinity: String = ""
+    var selectedDistanceKm: Double = 0
 
     var effectiveName: String {
         let trimmed = courseName.trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? "Поле для гольфа" : trimmed
+    }
+
+    /// Забирает выбранное поле/префилл из стора (одноразово) и чистит стор.
+    func adopt(store: AppStore) {
+        if let course = store.selectedCourse {
+            courseName = course.name
+            selectedPlaceId = course.placeId
+            selectedVicinity = course.vicinity
+            selectedDistanceKm = course.distanceKm
+        } else if let prefill = store.prefillCourseName {
+            courseName = prefill
+        }
+        store.selectedCourse = nil
+        store.prefillCourseName = nil
     }
 
     /// Создаёт соло-раунд, возвращает id или nil при ошибке (сообщение уже выставлено).
@@ -31,7 +48,7 @@ final class RoundSetupViewModel {
             return try await RoundsService.createSoloRound(
                 hostId: uid,
                 hostInfo: info,
-                courseId: "custom-\(UUID().uuidString)",
+                courseId: selectedPlaceId ?? "custom-\(UUID().uuidString)",
                 courseName: effectiveName,
                 totalHoles: totalHoles,
                 tee: tee
