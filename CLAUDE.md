@@ -89,7 +89,18 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 `functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
 во всех трёх — при правке схемы на одной стороне обновлять остальные
 две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
-`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 2a: роутер `App/AppRouter.swift` (NavigationStack, enum Route);
+`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 2b: корень — TabView (Раунды/История/Профиль, AppRouter держит
+selectedTab и три стека); экраны History/Profile/MyBag/CourseSearch;
+`Services/UsersService.swift` (bag/units, setDoc merge),
+`Services/CoursesService.swift` (Places API New; ключ — Info.plist
+GooglePlacesAPIKey ← GOOGLE_PLACES_IOS_KEY из Local.xcconfig, отдельный
+iOS-ключ с bundle-restriction), `Services/GeolocationService.swift`
+(CoreLocation, only-there import). Штраф: псевдо-клюшка
+`Clubs.penaltyId` ↔ `PENALTY_ID` (src/types) — SYNC; исключается из
+статистики клюшек на обеих платформах. Иконка генерируется
+`swift ios/scripts/gen-appicon.swift`.
+
+Фаза 2a: роутер `App/AppRouter.swift` (NavigationStack, enum Route);
 экраны Home/RoundSetup/HoleTracker/RoundResults + вью-модели;
 `Services/RoundsService.swift` (создание соло-раунда клиентом, finish,
 подписка, запрос истории; удары/пар — через callable);

@@ -373,6 +373,13 @@ retries — функция проверяет `emailedAt` и скипает по
 6. Запуск на iPhone: Apple ID в Xcode → Accounts, Team ID → в
    Local.xcconfig (DEV_TEAM), устройство в Developer Mode, Run из
    Xcode. Бесплатная подпись живёт 7 дней, потом Run заново.
+6a. Ключ Google Places для iOS (поиск полей): Google Cloud Console →
+   проект smart-golf-caddy → APIs & Services → Credentials → Create
+   credentials → API key → Application restrictions: iOS apps → bundle
+   `com.dzhambulat.smartgolfcaddy`; API restrictions: Places API (New).
+   Ключ → `ios/Config/Local.xcconfig`: `GOOGLE_PLACES_IOS_KEY = <ключ>`
+   (файл вне git). Без ключа экран поиска показывает «API ключ Google
+   Places не настроен» — ручной ввод поля работает всегда.
 7. Сборка/тесты — **только** через `./ios/scripts/build.sh` и
    `./ios/scripts/test.sh`. Они держат DerivedData в
    `~/Library/Developer/Xcode/DerivedData/SmartGolfCaddy-local` — ВНЕ
