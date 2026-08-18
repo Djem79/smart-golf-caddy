@@ -344,10 +344,17 @@ export const updateHoleConfig = onCall(
       if (!snap.exists) throw new HttpsError('not-found', 'Раунд не найден')
       const data = snap.data() as {
         hostId?: string
+        status?: string
         holes?: { par: number; distanceMeters: number }[]
       }
       if (data.hostId !== uid) {
         throw new HttpsError('permission-denied', 'Только хост может менять конфигурацию лунки')
+      }
+      // Только активный раунд — иначе хост мог бы задним числом переписать
+      // par/distance уже завершённого раунда, меняя scoreDiff/цвета
+      // скорборда для всех участников после факта.
+      if (data.status !== 'active') {
+        throw new HttpsError('failed-precondition', 'Раунд неактивен')
       }
       const holes = (data.holes ?? []).slice()
       if (holeIndex >= holes.length) {
@@ -378,15 +385,19 @@ export const joinLobbyByCode = onCall(
       throw new HttpsError('invalid-argument', 'Код должен содержать 6 символов')
     }
     const info = playerInfo ?? {}
+    const uid = request.auth.uid
+    // email — только из подписанного токена: клиентское значение позволяло бы
+    // вписать произвольный адрес и затем слать на него письма через
+    // shareRoundByEmail. Имя/аватар — из клиента, они не используются для
+    // security-чувствительных решений.
+    const tokenEmail = request.auth.token.email
     const cleanInfo = {
       name: info.name ?? 'Голфер',
       avatar: info.avatar ?? '',
-      email: info.email ?? '',
+      ...(tokenEmail ? { email: tokenEmail } : {}),
       totalScore: 0,
       scoreDiff: 0,
     }
-
-    const uid = request.auth.uid
 
     // Rate-limit join attempts (hits AND misses) per user/day so an attacker
     // can't enumerate lobby codes — each guessed hit would otherwise auto-join

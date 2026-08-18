@@ -27,10 +27,20 @@ service cloud.firestore {
         && resource.data.playerIds is list
         && request.auth.uid in resource.data.playerIds;
 
-      // `list` is left permissive (authed only) for `getUserRounds` which
-      // queries by `playerIds array-contains <auth.uid>` — Firestore evaluates
-      // per-doc get rules during list, so non-participant docs are filtered.
-      allow list: if request.auth != null;
+      // `list` ДОЛЖЕН ссылаться на resource.data — иначе Firestore пропускает
+      // неограниченный запрос и отдаёт все документы коллекции. С этим
+      // условием проходит только запрос, гарантированно ограниченный своим
+      // uid (getUserRounds: where playerIds array-contains uid), а голый
+      // getDocs(collection('rounds')) отклоняется.
+      //
+      // ВАЖНО (проверено эмулятором): доп. проверка `resource.data.playerIds
+      // is list` здесь ЛОМАЕТ статический query-prover Firestore — с ней
+      // ЛЮБОЙ list, включая легитимный array-contains-запрос своего uid,
+      // отклоняется как "недоказуемый". Без неё provability работает: чтобы
+      // array-contains вообще совпал, поле обязано быть массивом, так что
+      // type-guard здесь избыточен и его отсутствие безопасно.
+      allow list: if request.auth != null
+        && request.auth.uid in resource.data.playerIds;
 
       // CREATE — host creates a round with themselves as the only player.
       allow create: if request.auth != null
@@ -39,7 +49,12 @@ service cloud.firestore {
         && request.resource.data.playerIds.size() == 1
         && request.resource.data.playerIds[0] == request.auth.uid
         && request.resource.data.status in ['lobby', 'active']
-        && request.resource.data.totalHoles in [9, 18];
+        && request.resource.data.totalHoles in [9, 18]
+        // Создатель кладёт в players только себя; server-only поля запрещены —
+        // иначе фиктивный players открывал бы обход allowlist в shareRoundByEmail.
+        && request.resource.data.players.keys().hasOnly([request.auth.uid])
+        && !request.resource.data.keys()
+            .hasAny(['emailedAt', 'emailingStartedAt', 'emailedTo', 'emailResults']);
 
       // UPDATE — one of three per-action rules must match. JOIN now happens
       // ONLY through the joinLobbyByCode callable (Admin SDK, bypasses rules),
@@ -52,11 +67,15 @@ service cloud.firestore {
         && !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['players', 'holes', 'emailedAt', 'emailingStartedAt', 'emailedTo', 'emailResults'])
         && (
-          // 1. LEAVE — user removing only themselves from playerIds
+          // 1. LEAVE — пользователь убирает ИМЕННО И ТОЛЬКО себя.
+          //    Без проверки равенства множеств участник мог бы под видом
+          //    выхода выкинуть хоста/других или вписать чужой uid.
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playerIds'])
-            && !(request.auth.uid in request.resource.data.playerIds)
             && (request.auth.uid in resource.data.playerIds)
+            && request.resource.data.playerIds is list
+            && request.resource.data.playerIds.toSet() ==
+               resource.data.playerIds.toSet().difference([request.auth.uid].toSet())
           )
           // 2. START — host transitions lobby → active
           || (

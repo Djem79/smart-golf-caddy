@@ -11,7 +11,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing'
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, getDocs, collection, query, where } from 'firebase/firestore'
 
 const HOST = 'host-uid'
 const ALICE = 'alice-uid' // participant
@@ -130,6 +130,53 @@ try {
   })
   await test('non-participant CANNOT read the round', async () => {
     await assertFails(getDoc(doc(outsider, 'rounds', 'r8')))
+  })
+
+  // --- CRITICAL-1 fix: `list` без where на playerIds отдаёт весь дамп ---
+  await test('non-participant CANNOT list the whole rounds collection', async () => {
+    await assertFails(getDocs(collection(outsider, 'rounds')))
+  })
+  await test('non-participant CAN list rounds scoped to their own uid via array-contains', async () => {
+    await assertSucceeds(
+      getDocs(query(collection(outsider, 'rounds'), where('playerIds', 'array-contains', OUTSIDER))),
+    )
+  })
+
+  // --- CRITICAL-2 fix: LEAVE больше не позволяет переписать чужих участников ---
+  const twoPlayer = lobbyRound()
+  twoPlayer.players = {
+    [HOST]: { name: 'Host', avatar: '', email: 'host@example.com' },
+    [MALLORY]: { name: 'Mallory', avatar: '', email: 'mallory@example.com' },
+  }
+  twoPlayer.playerIds = [HOST, MALLORY]
+  await seed('r9', twoPlayer)
+  await test('participant CANNOT rewrite playerIds to kick the host while staying themselves', async () => {
+    await assertFails(updateDoc(doc(mallory, 'rounds', 'r9'), { playerIds: [MALLORY] }))
+  })
+  await seed('r10', twoPlayer)
+  await test('participant CAN leave legitimately (new list == old minus only self)', async () => {
+    await assertSucceeds(updateDoc(doc(mallory, 'rounds', 'r10'), { playerIds: [HOST] }))
+  })
+
+  // --- HIGH-3 fix: `create` не даёт вписать чужой uid в players ---
+  await test('user CANNOT create a round with a foreign key in players', async () => {
+    const bad = lobbyRound()
+    bad.hostId = OUTSIDER
+    bad.playerIds = [OUTSIDER]
+    bad.players = {
+      [OUTSIDER]: { name: 'Me', avatar: '', email: 'me@example.com' },
+      'victim-uid': { name: 'Victim', avatar: '', email: 'victim@example.com' },
+    }
+    await assertFails(setDoc(doc(outsider, 'rounds', 'r11'), bad))
+  })
+  await test('user CAN create a round with only themselves in players', async () => {
+    const good = lobbyRound()
+    good.hostId = OUTSIDER
+    good.playerIds = [OUTSIDER]
+    good.players = {
+      [OUTSIDER]: { name: 'Me', avatar: '', email: 'me@example.com' },
+    }
+    await assertSucceeds(setDoc(doc(outsider, 'rounds', 'r12'), good))
   })
 } finally {
   await testEnv.cleanup()
