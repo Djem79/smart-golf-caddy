@@ -252,6 +252,17 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(usage.first?.percent, 67)
     }
 
+    func testClubUsageAveragesDistances() {
+        let round = makeRound(holes: [
+            hole(1, par: 4, shots: ["u1": ["count": 3, "clubs": ["Driver", "Driver", "Putter"],
+                                           "distances": [200, 220, 0]]]),
+        ])
+        let usage = Scoring.clubUsage(round: round, userId: "u1")
+        let driver = usage.first { $0.club == "Driver" }
+        XCTAssertEqual(driver?.avgDistanceMeters, 210)
+        XCTAssertEqual(usage.first { $0.club == "Putter" }?.avgDistanceMeters, 0)
+    }
+
     // MARK: TeeColor labels
 
     func testTeeLabels() {

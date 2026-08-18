@@ -9,6 +9,7 @@ struct ClubStat: Equatable, Identifiable {
     let club: String
     let count: Int
     let percent: Int
+    let avgDistanceMeters: Int
     var id: String { club }
 }
 
@@ -76,28 +77,42 @@ enum Scoring {
 
     static func clubUsage(rounds: [Round], userId: String) -> [ClubStat] {
         var counts: [String: Int] = [:]
+        var distanceSums: [String: Int] = [:]
+        var distanceCounts: [String: Int] = [:]
         var total = 0
         for round in rounds {
             for hole in round.holes {
-                for club in hole.shots[userId]?.resolvedClubs ?? [] {
+                let resolvedClubs = hole.shots[userId]?.resolvedClubs ?? []
+                let resolvedDistances = hole.shots[userId]?.resolvedDistances ?? []
+                for (index, club) in resolvedClubs.enumerated() {
                     if club == "Неизвестно" || club == Clubs.penaltyId { continue }
                     counts[club, default: 0] += 1
                     total += 1
+                    
+                    // Собираем суммы и количества ненулевых дистанций
+                    let distance = index < resolvedDistances.count ? resolvedDistances[index] : 0
+                    if distance > 0 {
+                        distanceSums[club, default: 0] += distance
+                        distanceCounts[club, default: 0] += 1
+                    }
                 }
             }
         }
         if total == 0 { return [] }
         return counts
             .map { club, count in
-                ClubStat(club: club, count: count,
-                         percent: Int((Double(count) / Double(total) * 100).rounded()))
+                let avgDistance = distanceCounts[club, default: 0] > 0
+                    ? Int((Double(distanceSums[club, default: 0]) / Double(distanceCounts[club, default: 0])).rounded())
+                    : 0
+                return ClubStat(club: club, count: count,
+                                percent: Int((Double(count) / Double(total) * 100).rounded()),
+                                avgDistanceMeters: avgDistance)
             }
             .sorted { a, b in
                 if a.count != b.count { return a.count > b.count }
                 return a.club.localizedStandardCompare(b.club) == .orderedAscending
             }
     }
-
     static func leaderboard(round: Round) -> [LeaderboardEntry] {
         var entries: [LeaderboardEntry] = []
         for uid in round.playerIds {

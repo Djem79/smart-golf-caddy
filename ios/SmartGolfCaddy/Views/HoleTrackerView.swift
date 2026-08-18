@@ -263,7 +263,9 @@ struct HoleTrackerView: View {
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             FlowLayoutCompat(items: Array(model.currentClubs.enumerated()), spacing: 6) { index, club in
-                Text("\(index + 1). \(Clubs.label(for: club, in: fullBag))")
+                Text(model.currentDistances.indices.contains(index) && model.currentDistances[index] > 0
+                     ? "\(index + 1). \(Clubs.label(for: club, in: fullBag)) · \(model.currentDistances[index]) м"
+                     : "\(index + 1). \(Clubs.label(for: club, in: fullBag))")
                     .font(DSFont.labelMD)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -272,6 +274,10 @@ struct HoleTrackerView: View {
                     .clipShape(Capsule())
             }
             .padding(.horizontal, DS.screenPadding)
+            Label(model.gpsReady ? "GPS готов — дистанции пишутся" : "Ждём GPS — дистанции не пишутся",
+                  systemImage: model.gpsReady ? "location.fill" : "location.slash")
+                .font(DSFont.labelMD)
+                .foregroundStyle(DSColor.onSurfaceVariant)
         }
     }
 

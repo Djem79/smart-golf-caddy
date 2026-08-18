@@ -152,7 +152,9 @@ struct RoundResultsView: View {
                                  ? "Клюшки"
                                  : "Клюшки · \(round.players[uid]?.name ?? "")")
                     FlowLayoutCompat(items: Array(usage.enumerated()), spacing: 6) { _, stat in
-                        Text("\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%)")
+                        Text(stat.avgDistanceMeters > 0
+                             ? "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%) · ср. \(stat.avgDistanceMeters) м"
+                             : "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%)")
                             .font(DSFont.labelMD)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
