@@ -15,18 +15,38 @@ struct RootView: View {
             case .signedOut:
                 AuthView()
             case .signedIn:
-                NavigationStack(path: $router.path) {
-                    HomeView()
-                        .navigationDestination(for: Route.self) { route in
-                            // .id(route): смена значения Route (например, лунка 2 → 3
-                            // через replaceLast) ОБЯЗАНА пересоздать экран целиком —
-                            // иначе SwiftUI сохраняет старый @State (вью-модель со
-                            // старым holeIndex), и удары пишутся в чужую лунку.
-                            destination(for: route)
-                                .id(route)
-                        }
-                        .navigationBarHidden(true)
+                TabView(selection: $router.selectedTab) {
+                    NavigationStack(path: $router.path) {
+                        HomeView()
+                            .navigationDestination(for: Route.self) { route in
+                                // .id(route): смена значения Route обязана пересоздать
+                                // экран (урок 2а: иначе старый @State пишет в чужую лунку).
+                                RouteDestinationView(route: route).id(route)
+                            }
+                            .toolbar(.hidden, for: .navigationBar)
+                    }
+                    .tabItem { Label("Раунды", systemImage: "figure.golf") }
+                    .tag(AppTab.rounds)
+
+                    NavigationStack(path: $router.historyPath) {
+                        HistoryView()
+                            .navigationDestination(for: Route.self) { route in
+                                RouteDestinationView(route: route).id(route)
+                            }
+                    }
+                    .tabItem { Label("История", systemImage: "clock.arrow.circlepath") }
+                    .tag(AppTab.history)
+
+                    NavigationStack(path: $router.profilePath) {
+                        ProfileView()
+                            .navigationDestination(for: Route.self) { route in
+                                RouteDestinationView(route: route).id(route)
+                            }
+                    }
+                    .tabItem { Label("Профиль", systemImage: "person.crop.circle") }
+                    .tag(AppTab.profile)
                 }
+                .tint(DSColor.primary)
             }
         }
         // Приложение спроектировано под светлую палитру Fairway Elite (как веб):
@@ -39,9 +59,12 @@ struct RootView: View {
         .task { session.start() }
         .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
     }
+}
 
-    @ViewBuilder
-    private func destination(for route: Route) -> some View {
+struct RouteDestinationView: View {
+    let route: Route
+
+    var body: some View {
         switch route {
         case .roundSetup:
             RoundSetupView()
@@ -49,6 +72,10 @@ struct RootView: View {
             HoleTrackerView(roundId: roundId, holeNumber: number)
         case .results(let roundId):
             RoundResultsView(roundId: roundId)
+        case .myBag:
+            MyBagView()
+        case .courseSearch:
+            CourseSearchView()
         }
     }
 }

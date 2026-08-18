@@ -20,7 +20,7 @@ struct RoundResultsView: View {
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.error)
                         .multilineTextAlignment(.center)
-                    DSButton(title: "На главную", style: .secondary) { router.popToRoot() }
+                    DSButton(title: "На главную", style: .secondary) { router.goHome() }
                         .padding(.horizontal, 48)
                 }
                 .padding(DS.screenPadding)
@@ -35,7 +35,7 @@ struct RoundResultsView: View {
                 Text("Итоги раунда").font(DSFont.titleLG)
             }
             ToolbarItem(placement: .topBarLeading) {
-                Button { router.popToRoot() } label: { Image(systemName: "house") }
+                Button { router.goHome() } label: { Image(systemName: "house") }
                     .accessibilityLabel("На главную")
             }
         }
@@ -52,10 +52,9 @@ struct RoundResultsView: View {
                 scorecardSection(round)
                 VStack(spacing: 10) {
                     DSButton(title: "Новый раунд", icon: "plus") {
-                        router.popToRoot()
-                        router.push(.roundSetup)
+                        router.startNewRound()
                     }
-                    DSButton(title: "На главную", style: .secondary) { router.popToRoot() }
+                    DSButton(title: "На главную", style: .secondary) { router.goHome() }
                 }
                 .padding(.horizontal, DS.screenPadding)
             }
