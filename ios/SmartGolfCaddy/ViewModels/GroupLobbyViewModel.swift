@@ -52,11 +52,21 @@ final class GroupLobbyViewModel {
         }
     }
 
-    func leave() async {
-        guard let roundId, let uid = AuthService.currentUserId, let round else { return }
-        try? await RoundsService.leaveLobby(
-            roundId: roundId, userId: uid, currentPlayerIds: round.playerIds
-        )
+    @discardableResult
+    func leave() async -> Bool {
+        guard let roundId, let uid = AuthService.currentUserId, let round else { return false }
+        do {
+            try await RoundsService.leaveLobby(
+                roundId: roundId, userId: uid, currentPlayerIds: round.playerIds
+            )
+            return true
+        } catch {
+            // Гонка: playerIds на сервере уже изменились (кто-то другой вышел
+            // или подключился) — подписка сама подтянет актуальный список,
+            // повторный тап сработает.
+            errorMessage = "Не удалось выйти из лобби. Обновите экран и попробуйте ещё раз."
+            return false
+        }
     }
 
     @MainActor deinit {

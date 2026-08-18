@@ -93,9 +93,12 @@ struct HoleTrackerView: View {
             model.start()
         }
         .onChange(of: model.round?.status) { _, status in
-            if status == .finished {
-                router.replaceLast(.results(roundId: roundId))
-            }
+            // Заменяем только когда трекер наверху: если поверх открыта
+            // таблица, она сама уйдёт по своей навигации, а двойная замена
+            // ломает стек.
+            guard status == .finished,
+                  router.path.last == .hole(roundId: roundId, number: holeNumber) else { return }
+            router.replaceLast(.results(roundId: roundId))
         }
         .confirmationDialog("Закончить игру?", isPresented: $showFinishConfirm, titleVisibility: .visible) {
             Button("Завершить", role: .destructive) {

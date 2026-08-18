@@ -58,9 +58,9 @@ struct GroupLobbyView: View {
             Button("Покинуть") {
                 Task {
                     leaving = true
-                    await model.leave()
+                    let ok = await model.leave()
                     leaving = false
-                    router.goHome()
+                    if ok { router.goHome() }
                 }
             }
             Button("Остаться", role: .cancel) {}

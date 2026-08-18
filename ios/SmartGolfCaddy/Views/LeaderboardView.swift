@@ -32,6 +32,10 @@ struct LeaderboardView: View {
         .navigationTitle("Таблица")
         .navigationBarTitleDisplayMode(.inline)
         .task { model.start(roundId: roundId) }
+        .onChange(of: model.round?.status) { _, status in
+            guard status == .finished else { return }
+            router.replaceLast(.results(roundId: roundId))
+        }
     }
 
     private var isMatchPlay: Bool {
