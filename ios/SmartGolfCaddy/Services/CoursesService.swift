@@ -101,6 +101,10 @@ final class CoursesService: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
         request.setValue(Self.fieldMask, forHTTPHeaderField: "X-Goog-FieldMask")
+        // Обязателен для ключей с iOS-app-restriction: без него Google
+        // отвечает 403 «Requests from this iOS client <empty> are blocked».
+        request.setValue(Bundle.main.bundleIdentifier ?? "com.dzhambulat.smartgolfcaddy",
+                         forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let data: Data

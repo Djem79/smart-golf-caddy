@@ -65,4 +65,15 @@ final class CoursesServiceTests: XCTestCase {
         XCTAssertEqual(sentBody["textQuery"] as? String, "гольф")
         XCTAssertNotNil(sentBody["locationBias"])
     }
+
+
+    func testRequestsCarryIOSBundleHeader() async throws {
+        var headers: [String: String] = [:]
+        let service = makeService(body: #"{"places":[]}"#) { request in
+            headers = request.allHTTPHeaderFields ?? [:]
+        }
+        _ = try await service.findNearby(lat: 1, lng: 1)
+        // Ключ с iOS-restriction требует этот заголовок — без него 403.
+        XCTAssertFalse((headers["X-Ios-Bundle-Identifier"] ?? "").isEmpty)
+    }
 }
