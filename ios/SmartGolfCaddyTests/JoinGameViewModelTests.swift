@@ -42,4 +42,22 @@ final class JoinGameViewModelTests: XCTestCase {
         _ = await model.autoJoinIfNeeded(initial: "ABC234", profile: nil)
         XCTAssertEqual(calls, 1)
     }
+
+    @MainActor
+    func testJoinIsNotReentrant() async {
+        var calls = 0
+        let model = JoinGameViewModel(joiner: { _, _ in
+            calls += 1
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            return "r1"
+        })
+        model.setCode("ABC234")
+        async let first = model.join(profile: nil)
+        // Второй вызов, пока первый ещё в полёте, должен отбиться guard-ом
+        try? await Task.sleep(nanoseconds: 5_000_000)
+        let second = await model.join(profile: nil)
+        _ = await first
+        XCTAssertNil(second)
+        XCTAssertEqual(calls, 1)
+    }
 }

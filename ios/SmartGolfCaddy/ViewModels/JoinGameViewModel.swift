@@ -33,6 +33,7 @@ final class JoinGameViewModel {
     }
 
     func join(profile: AppUser?) async -> String? {
+        guard !loading else { return nil }
         guard code.count == 6 else {
             errorMessage = "Код должен содержать 6 символов"
             return nil
