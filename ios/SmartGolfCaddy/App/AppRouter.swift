@@ -7,6 +7,9 @@ enum Route: Hashable {
     case results(roundId: String)
     case myBag
     case courseSearch
+    case lobby(roundId: String)
+    case joinGame(code: String?)
+    case leaderboard(roundId: String)
 }
 
 enum AppTab: Hashable {

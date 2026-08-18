@@ -14,6 +14,8 @@ struct RoundSetupView: View {
                 nameSection
                 holesSection
                 teeSection
+                modeSection
+                formatSection
                 if let message = model.errorMessage {
                     Text(message)
                         .font(DSFont.labelLG)
@@ -25,7 +27,9 @@ struct RoundSetupView: View {
                          disabled: model.creating) {
                     Task {
                         if let roundId = await model.createRound(profile: session.profile) {
-                            router.replaceLast(.hole(roundId: roundId, number: 1))
+                            router.replaceLast(model.mode == .group
+                                               ? .lobby(roundId: roundId)
+                                               : .hole(roundId: roundId, number: 1))
                         }
                     }
                 }
@@ -157,6 +161,65 @@ struct RoundSetupView: View {
                 RoundedRectangle(cornerRadius: DS.cornerRadius)
                     .stroke(selected ? DSColor.primary : DSColor.outlineVariant.opacity(0.6), lineWidth: 2)
             )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var modeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("РЕЖИМ ИГРЫ").foregroundStyle(DSColor.onSurfaceVariant)
+            HStack(spacing: 12) {
+                choiceCard(title: "Соло", subtitle: "Только вы",
+                           icon: "person", selected: model.mode == .solo) { model.mode = .solo }
+                choiceCard(title: "Группа", subtitle: "С друзьями",
+                           icon: "person.2", selected: model.mode == .group) { model.mode = .group }
+            }
+            if model.mode == .group {
+                Text("После создания раунда вы получите код, чтобы пригласить друзей")
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(DSColor.onSurfaceVariant)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var formatSection: some View {
+        if model.mode == .group {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionHeader("ФОРМАТ ИГРЫ").foregroundStyle(DSColor.onSurfaceVariant)
+                HStack(spacing: 12) {
+                    choiceCard(title: "Stroke", subtitle: "Общий счёт по ударам",
+                               icon: "chart.bar", selected: model.playMode == .stroke) { model.playMode = .stroke }
+                    choiceCard(title: "Match", subtitle: "2 игрока · по лункам",
+                               icon: "flag.2.crossed", selected: model.playMode == .match) { model.playMode = .match }
+                }
+                if model.playMode == .match {
+                    Text("Match play считается по победам в каждой лунке. Лучше всего работает 1 на 1.")
+                        .font(DSFont.labelMD)
+                        .foregroundStyle(DSColor.onSurfaceVariant)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    private func choiceCard(title: String, subtitle: String, icon: String,
+                            selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(selected ? DSColor.primary : DSColor.onSurfaceVariant)
+                Text(title).font(DSFont.labelLG).foregroundStyle(DSColor.onSurface)
+                Text(subtitle).font(DSFont.labelMD).foregroundStyle(DSColor.onSurfaceVariant)
+            }
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+            .padding(12)
+            .background(selected ? DSColor.primaryContainer.opacity(0.1) : DSColor.surfaceContainerLowest)
+            .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: DS.cornerRadius)
+                .stroke(selected ? DSColor.primary : DSColor.outlineVariant.opacity(0.6), lineWidth: 2))
         }
         .buttonStyle(.plain)
     }

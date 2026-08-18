@@ -1,12 +1,18 @@
 import Foundation
 import Observation
 
+enum RoundMode: String, CaseIterable {
+    case solo, group
+}
+
 @Observable
 @MainActor
 final class RoundSetupViewModel {
     var courseName: String = ""
     var totalHoles: Int = 18          // 9 | 18
     var tee: TeeColor = .men
+    var mode: RoundMode = .solo
+    var playMode: PlayMode = .stroke
     var creating = false
     var errorMessage: String?
     var selectedPlaceId: String?
@@ -46,7 +52,18 @@ final class RoundSetupViewModel {
             totalScore: 0, scoreDiff: 0,
             email: AuthService.currentUserEmail
         )
+        // Match play осмыслен только вдвоём — соло-раунд всегда stroke
+        // (веб-паритет createRound).
+        let effectivePlayMode: PlayMode = mode == .group ? playMode : .stroke
         do {
+            if mode == .group {
+                return try await RoundsService.createGroupRound(
+                    hostId: uid, hostInfo: info,
+                    courseId: selectedPlaceId ?? "custom-\(UUID().uuidString)",
+                    courseName: effectiveName,
+                    totalHoles: totalHoles, tee: tee, playMode: effectivePlayMode
+                )
+            }
             return try await RoundsService.createSoloRound(
                 hostId: uid,
                 hostInfo: info,

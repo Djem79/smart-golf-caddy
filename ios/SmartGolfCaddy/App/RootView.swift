@@ -57,7 +57,15 @@ struct RootView: View {
         .environment(router)
         .environment(store)
         .task { session.start() }
-        .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
+        .onOpenURL { url in
+            // smartgolfcaddy://join/ABC234 или https://<host>/join/ABC234
+            if let code = Self.joinCode(from: url) {
+                router.selectedTab = .rounds
+                router.path = [.joinGame(code: code)]
+                return
+            }
+            GIDSignIn.sharedInstance.handle(url)
+        }
         .onChange(of: session.state) { _, state in
             // Повторный вход (в т.ч. другим аккаунтом) начинается с чистого Home.
             if state == .signedOut {
@@ -67,6 +75,18 @@ struct RootView: View {
                 store.lastClubUsed = "Driver"
             }
         }
+    }
+
+    /// Извлекает код лобби из join-ссылки (схема приложения или веб-ссылка).
+    static func joinCode(from url: URL) -> String? {
+        let parts = url.pathComponents.filter { $0 != "/" }
+        if url.scheme == "smartgolfcaddy", url.host == "join", let code = parts.first {
+            return code
+        }
+        if parts.count >= 2, parts[parts.count - 2] == "join" {
+            return parts[parts.count - 1]
+        }
+        return nil
     }
 }
 
@@ -85,6 +105,12 @@ struct RouteDestinationView: View {
             MyBagView()
         case .courseSearch:
             CourseSearchView()
+        case .lobby(let roundId):
+            GroupLobbyView(roundId: roundId)
+        case .joinGame(let code):
+            JoinGameView(code: code)
+        case .leaderboard(let roundId):
+            LeaderboardView(roundId: roundId)
         }
     }
 }

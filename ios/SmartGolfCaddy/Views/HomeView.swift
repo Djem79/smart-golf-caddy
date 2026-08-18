@@ -36,6 +36,9 @@ struct HomeView: View {
                         store.selectedCourse = nil
                         router.push(.roundSetup)
                     }
+                    DSButton(title: "Присоединиться к игре", icon: "person.2", style: .secondary) {
+                        router.push(.joinGame(code: nil))
+                    }
                 }
                 .padding(.horizontal, DS.screenPadding)
                 .padding(.top, 24)
