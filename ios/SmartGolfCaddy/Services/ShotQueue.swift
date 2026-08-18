@@ -35,10 +35,15 @@ final class ShotQueue: @unchecked Sendable {
     static let shared = ShotQueue(
         storeURL: ShotQueue.defaultStoreURL(),
         sender: { shot in
+            // БЕЗ `?? []` — legacy-запись (nil) должна остаться nil: пустой
+            // массив при непустых clubs бьётся о серверный Zod-refine
+            // (distances.length == clubs.length) → invalid-argument →
+            // permanent → удар теряется. nil → ключ выпадает из payload,
+            // сервер сохраняет прежние distances.
             try await RoundsService.recordShot(
                 roundId: shot.roundId, holeIndex: shot.holeIndex,
                 targetUid: shot.targetUid, clubs: shot.clubs,
-                distances: shot.distances ?? []
+                distances: shot.distances
             )
         }
     )
@@ -147,7 +152,8 @@ final class ShotQueue: @unchecked Sendable {
     private func dequeueIfMatches(_ entry: PendingShot) {
         let key = slotKey(entry.roundId, entry.holeIndex, entry.targetUid)
         withMap { map in
-            if let current = map[key], current.clubs == entry.clubs {
+            if let current = map[key], current.clubs == entry.clubs,
+               (current.distances ?? []) == (entry.distances ?? []) {
                 map.removeValue(forKey: key)
             }
         }

@@ -16,6 +16,10 @@ final class ShotRangefinder: @unchecked Sendable {
     /// Разумные границы длины удара — вне их значение считаем неизвестным.
     static let minMeters = 3.0
     static let maxMeters = 600.0
+    /// Максимальный возраст фикса. Экран блокируется → CLLocationManager
+    /// стопится, `lastFix` замирает; без гейта замер после разблокировки
+    /// считает дистанцию от точки многоминутной давности.
+    static let maxFixAgeSeconds: TimeInterval = 90
 
     private struct Mark: Codable {
         var lat: Double
@@ -34,6 +38,7 @@ final class ShotRangefinder: @unchecked Sendable {
 
     static func isUsable(_ fix: GeoFix?) -> Bool {
         guard let fix else { return false }
+        guard Date().timeIntervalSince(fix.timestamp) <= maxFixAgeSeconds else { return false }
         return fix.accuracy > 0 && fix.accuracy <= accuracyLimitMeters
     }
 

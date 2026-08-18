@@ -219,6 +219,7 @@ private struct ClubRowView: View {
                         .onChange(of: distanceFocused) { _, focused in
                             if !focused { onSetDistance(distanceText) }
                         }
+                        .accessibilityLabel("Дистанция \(club.customName ?? club.id), \(units == .yd ? "ярды" : "метры")")
                     Text(units == .yd ? "я" : "м")
                         .font(DSFont.labelMD)
                         .foregroundStyle(DSColor.onSurfaceVariant)

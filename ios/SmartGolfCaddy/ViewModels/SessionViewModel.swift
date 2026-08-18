@@ -5,7 +5,7 @@ import Observation
 @Observable
 @MainActor
 final class SessionViewModel {
-    enum State {
+    enum State: Equatable {
         case loading, signedOut, signedIn
     }
 

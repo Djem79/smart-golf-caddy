@@ -8,7 +8,10 @@ final class CourseSearchViewModel {
     var searchText = ""
     var nearby: [CourseResult] = []
     var textResults: [CourseResult]?
-    var loading = false
+    // Изначально true — ждём геолокацию до первого onUpdate/onDenied/onError;
+    // иначе content показывает «Поля не найдены» на долю секунды до ответа
+    // геолокации.
+    var loading = true
     var errorMessage: String?
     var geoDenied = false
 
@@ -36,9 +39,11 @@ final class CourseSearchViewModel {
             onDenied: { [weak self] message in
                 self?.geoDenied = true
                 self?.errorMessage = message
+                self?.loading = false
             },
             onError: { [weak self] message in
                 self?.errorMessage = message
+                self?.loading = false
             }
         )
     }

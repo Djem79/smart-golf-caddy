@@ -56,8 +56,15 @@ struct HoleTrackerView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("Лунка \(holeNumber) / \(model.round?.totalHoles ?? 0)")
-                    .font(DSFont.titleLG)
+                Group {
+                    // «Лунка N / 0» при загрузке иначе — round ещё не пришёл.
+                    if let round = model.round {
+                        Text("Лунка \(holeNumber) / \(round.totalHoles)")
+                    } else {
+                        Text("Лунка \(holeNumber)")
+                    }
+                }
+                .font(DSFont.titleLG)
             }
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -108,6 +115,7 @@ struct HoleTrackerView: View {
                     },
                     onCancel: { if !savingHole { showHoleEditor = false } }
                 )
+                .interactiveDismissDisabled(savingHole)
             }
         }
     }
@@ -324,8 +332,11 @@ struct HoleTrackerView: View {
                         router.replaceLast(.hole(roundId: roundId, number: holeNumber + 1))
                     }
                 } else {
-                    DSButton(title: "Закончить игру", icon: "flag.fill",
-                             disabled: model.finishing) {
+                    // Тот же host-гейт, что у «досрочно»: не-хосту — та же
+                    // кнопка текстом «Завершит хост» и disabled, как на вебе.
+                    // В соло isHost всегда true — видимых изменений нет.
+                    DSButton(title: model.isHost ? "Закончить игру" : "Завершит хост", icon: "flag.fill",
+                             disabled: !model.isHost || model.finishing || model.saving) {
                         showFinishConfirm = true
                     }
                 }

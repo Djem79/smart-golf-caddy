@@ -54,7 +54,7 @@ struct CourseSearchView: View {
                     .multilineTextAlignment(.center)
                 if !model.geoDenied {
                     DSButton(title: "Повторить", style: .secondary) {
-                        Task { await model.loadNearby() }
+                        model.start()
                     }
                     .padding(.horizontal, 64)
                 }

@@ -103,7 +103,11 @@ enum RoundsService {
         }
     }
 
-    static func recordShot(roundId: String, holeIndex: Int, targetUid: String, clubs: [String], distances: [Int]) async throws {
+    // distances: [Int]? — nil (не «[]») означает «не передавать поле».
+    // Сервер (Zod-refine в contracts.ts) требует distances.length == clubs.length,
+    // КОГДА distances присутствует; пустой массив при непустых clubs — invalid-argument.
+    // nil → JSONEncoder дропает ключ → сервер сохраняет прежние distances.
+    static func recordShot(roundId: String, holeIndex: Int, targetUid: String, clubs: [String], distances: [Int]?) async throws {
         let payload = try callableDict(RecordShotInput(
             roundId: roundId, holeIndex: holeIndex, clubs: clubs, distances: distances, targetUid: targetUid
         ))

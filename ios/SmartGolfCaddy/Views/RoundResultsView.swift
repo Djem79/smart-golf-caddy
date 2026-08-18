@@ -10,6 +10,14 @@ struct RoundResultsView: View {
 
     private var viewerBag: [BagClub] { session.profile?.resolvedBag ?? Clubs.defaultBag }
 
+    /// Средняя дистанция клюшки в юнитах пользователя (профиль → ярды/метры).
+    private func avgDistanceText(_ meters: Int) -> String {
+        if session.profile?.units == .yd {
+            return "\(Score.metersToYards(meters)) я"
+        }
+        return "\(meters) м"
+    }
+
     var body: some View {
         Group {
             if let round = model.round {
@@ -153,7 +161,7 @@ struct RoundResultsView: View {
                                  : "Клюшки · \(round.players[uid]?.name ?? "")")
                     FlowLayoutCompat(items: Array(usage.enumerated()), spacing: 6) { _, stat in
                         Text(stat.avgDistanceMeters > 0
-                             ? "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%) · ср. \(stat.avgDistanceMeters) м"
+                             ? "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%) · ср. \(avgDistanceText(stat.avgDistanceMeters))"
                              : "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%)")
                             .font(DSFont.labelMD)
                             .padding(.horizontal, 10)

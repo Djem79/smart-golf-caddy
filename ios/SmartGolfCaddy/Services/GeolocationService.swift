@@ -7,6 +7,7 @@ struct GeoFix: Equatable {
     let lat: Double
     let lng: Double
     let accuracy: Double   // метры; < 0 = недостоверно
+    let timestamp: Date    // из CLLocation.timestamp — для гейта устаревших фиксов
 }
 
 final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
@@ -25,7 +26,11 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
         fixQueue.sync { _lastFix }
     }
 
-    private var tracking = false
+    // refcount: при replaceLast-переходе лунка→лунка новый экран стартует
+    // трекинг раньше, чем deinit старого остановит его — булев флаг тут
+    // ловит гонку (второй start проходит мимо guard, первый stop гасит
+    // трекинг раньше времени). Счётчик балансирует старт/стоп по парам.
+    private var trackingCount = 0
 
     override private init() {
         super.init()
@@ -54,8 +59,8 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
     /// Непрерывный трекинг на время экрана лунки. Точность «до 10 метров»
     /// достаточна для замера ударов и экономнее полной.
     func startTracking() {
-        guard !tracking else { return }
-        tracking = true
+        trackingCount += 1
+        guard trackingCount == 1 else { return }
         // Одноразовые колбэки поиска полей не должны переигрываться на каждом тике трекинга.
         onUpdate = nil
         onDenied = nil
@@ -68,8 +73,8 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
     }
 
     func stopTracking() {
-        guard tracking else { return }
-        tracking = false
+        trackingCount = max(0, trackingCount - 1)
+        guard trackingCount == 0 else { return }
         manager.stopUpdatingLocation()
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
@@ -77,7 +82,7 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            if tracking {
+            if trackingCount > 0 {
                 manager.startUpdatingLocation()
             } else {
                 manager.requestLocation()
@@ -95,10 +100,11 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
         guard let location = locations.last else { return }
         let fix = GeoFix(lat: location.coordinate.latitude,
                          lng: location.coordinate.longitude,
-                         accuracy: location.horizontalAccuracy)
+                         accuracy: location.horizontalAccuracy,
+                         timestamp: location.timestamp)
         fixQueue.sync { self._lastFix = fix }
         // Вызвать onUpdate только для одноразовых запросов, не для непрерывного трекинга.
-        if !tracking {
+        if trackingCount == 0 {
             DispatchQueue.main.async { [weak self] in
                 self?.onUpdate?(location.coordinate.latitude, location.coordinate.longitude)
             }

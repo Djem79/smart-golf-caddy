@@ -120,4 +120,59 @@ final class ShotQueueTests: XCTestCase {
                                          clubs: ["Driver", "7i"], distances: [215, 0])
         XCTAssertEqual(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u")?.distances, [215, 0])
     }
+
+    /// Legacy-запись (до Task 3) на диске не содержит ключа "distances" —
+    /// декодер синтезирует nil. Sender должен получить nil, а НЕ [] —
+    /// иначе сервер видит непустые clubs + пустой distances и бьётся о
+    /// Zod-refine (length mismatch) → invalid-argument → удар дропается.
+    func testLegacyEntryWithNilDistancesSendsNilNotEmptyArray() async {
+        let legacyJSON = """
+        {"r:0:u":{"roundId":"r","holeIndex":0,"targetUid":"u","clubs":["Driver"],"updatedAt":0}}
+        """
+        try? legacyJSON.data(using: .utf8)!.write(to: storeURL)
+
+        var senderCalled = false
+        var receivedDistances: [Int]? = [999]  // sentinel, отличный и от nil, и от []
+        let queue = makeQueue(sender: { shot in
+            senderCalled = true
+            receivedDistances = shot.distances
+        })
+        let remaining = await queue.flush()
+
+        XCTAssertTrue(senderCalled)
+        XCTAssertNil(receivedDistances)
+        XCTAssertEqual(remaining, 0)
+    }
+
+    /// dequeueIfMatches должен сверять И clubs, И distances: пока старый
+    /// удар «летит» к серверу, новый замер той же лунки может переписать
+    /// слот теми же clubs, но другой distances — такой новый замер не
+    /// должен быть стёрт возвратом старого.
+    func testDequeueIfMatchesRespectsDistancesNotJustClubs() async {
+        var onlineFlag = true
+        let queue = makeQueue(
+            sender: { shot in
+                if shot.distances == [0] {
+                    // Имитируем «полёт» A — держим его в sender, пока тест
+                    // не перезапишет слот B.
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            },
+            online: { onlineFlag }
+        )
+
+        let flightTask = Task {
+            _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u",
+                                             clubs: ["Driver"], distances: [0])
+        }
+        // Дать A время уйти в sender и записать слот.
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        onlineFlag = false  // B должен только перезаписать слот, не улететь в sender
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u",
+                                         clubs: ["Driver"], distances: [215])
+
+        await flightTask.value  // дождаться, что A вернулась и отработала dequeueIfMatches
+
+        XCTAssertEqual(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u")?.distances, [215])
+    }
 }

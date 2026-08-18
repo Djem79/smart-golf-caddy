@@ -58,6 +58,15 @@ struct RootView: View {
         .environment(store)
         .task { session.start() }
         .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
+        .onChange(of: session.state) { _, state in
+            // Повторный вход (в т.ч. другим аккаунтом) начинается с чистого Home.
+            if state == .signedOut {
+                router.goHome()
+                store.selectedCourse = nil
+                store.prefillCourseName = nil
+                store.lastClubUsed = "Driver"
+            }
+        }
     }
 }
 

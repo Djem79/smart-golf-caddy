@@ -39,6 +39,12 @@ const CLUB_ABBREV: Record<string, string> = {
   Putter: 'PT',
 }
 
+// SYNC: PENALTY_ID в src/types/index.ts и Clubs.penaltyId в iOS
+// (ios/SmartGolfCaddy/Models/Club.swift). Псевдо-клюшка «Штраф» — обычный
+// элемент clubs[] (счёт +1), исключается из статистики клюшек так же, как
+// «Неизвестно».
+const PENALTY_ID = 'Штраф'
+
 function resolveClubLabel(clubId: string, bag: BagClubLite[] | undefined): string {
   if (CLUB_ABBREV[clubId]) return CLUB_ABBREV[clubId]
   if (bag) {
@@ -101,7 +107,7 @@ function topClubs(
   let total = 0
   for (const h of round.holes) {
     for (const c of getShots(h.shots[uid])) {
-      if (c === 'Неизвестно') continue
+      if (c === 'Неизвестно' || c === PENALTY_ID) continue
       counts.set(c, (counts.get(c) ?? 0) + 1)
       total += 1
     }

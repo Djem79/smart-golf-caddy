@@ -17,6 +17,11 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
+                if let message = session.errorMessage {
+                    profileErrorBanner(message)
+                        .padding(.horizontal, DS.screenPadding)
+                        .padding(.top, 24)
+                }
                 if let active = model.activeRound {
                     resumeCard(active)
                         .padding(.horizontal, DS.screenPadding)
@@ -142,6 +147,20 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    /// Ошибка подписки на профиль (напр. потеря сети сразу после входа) —
+    /// без кнопки: session сам обновится, как только подписка восстановится.
+    private func profileErrorBanner(_ message: String) -> some View {
+        HStack(spacing: 12) {
+            Text(message)
+                .font(DSFont.labelLG)
+                .foregroundStyle(DSColor.onSurface)
+            Spacer()
+        }
+        .padding(14)
+        .background(DSColor.errorContainer.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
     }
 
     private var errorBanner: some View {

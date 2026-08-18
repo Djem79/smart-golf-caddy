@@ -71,9 +71,6 @@ struct ProfileView: View {
                     .font(DSFont.titleLG)
                     .foregroundStyle(DSColor.onSurface)
                     .lineLimit(1)
-                Text("Гандикап профиля: \(Int(session.profile?.handicap ?? 0))")
-                    .font(DSFont.labelLG)
-                    .foregroundStyle(DSColor.onSurfaceVariant)
             }
             Spacer()
         }
