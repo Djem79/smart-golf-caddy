@@ -18,7 +18,13 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
     private var onError: ((String) -> Void)?
 
     /// Последний известный фикс — читается дальномером в момент записи удара.
-    private(set) var lastFix: GeoFix?
+    /// Потокобезопасный доступ через отдельную очередь.
+    private let fixQueue = DispatchQueue(label: "sgc.geo.fix")
+    private var _lastFix: GeoFix?
+    var lastFix: GeoFix? {
+        fixQueue.sync { _lastFix }
+    }
+
     private var tracking = false
 
     override private init() {
@@ -50,6 +56,10 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
     func startTracking() {
         guard !tracking else { return }
         tracking = true
+        // Одноразовые колбэки поиска полей не должны переигрываться на каждом тике трекинга.
+        onUpdate = nil
+        onDenied = nil
+        onError = nil
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         if manager.authorizationStatus == .notDetermined {
             manager.requestWhenInUseAuthorization()
@@ -86,9 +96,12 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
         let fix = GeoFix(lat: location.coordinate.latitude,
                          lng: location.coordinate.longitude,
                          accuracy: location.horizontalAccuracy)
-        DispatchQueue.main.async { [weak self] in
-            self?.lastFix = fix
-            self?.onUpdate?(location.coordinate.latitude, location.coordinate.longitude)
+        fixQueue.sync { self._lastFix = fix }
+        // Вызвать onUpdate только для одноразовых запросов, не для непрерывного трекинга.
+        if !tracking {
+            DispatchQueue.main.async { [weak self] in
+                self?.onUpdate?(location.coordinate.latitude, location.coordinate.longitude)
+            }
         }
     }
 

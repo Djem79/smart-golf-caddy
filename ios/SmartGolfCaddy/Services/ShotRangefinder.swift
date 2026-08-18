@@ -66,22 +66,24 @@ final class ShotRangefinder: @unchecked Sendable {
 
     private func load() -> [String: Mark] {
         ioQueue.sync {
-            guard let data = try? Data(contentsOf: storeURL) else { return [:] }
-            return (try? JSONDecoder().decode([String: Mark].self, from: data)) ?? [:]
+            readLocked()
         }
     }
 
     private func mutate(_ block: (inout [String: Mark]) -> Void) {
         ioQueue.sync {
-            var map: [String: Mark] = {
-                guard let data = try? Data(contentsOf: storeURL) else { return [:] }
-                return (try? JSONDecoder().decode([String: Mark].self, from: data)) ?? [:]
-            }()
+            var map = readLocked()
             block(&map)
             if let data = try? JSONEncoder().encode(map) {
                 try? data.write(to: storeURL, options: .atomic)
             }
         }
+    }
+
+    /// Читает содержимое файла без использования sync (вызывается изнутри ioQueue.sync).
+    private func readLocked() -> [String: Mark] {
+        guard let data = try? Data(contentsOf: storeURL) else { return [:] }
+        return (try? JSONDecoder().decode([String: Mark].self, from: data)) ?? [:]
     }
 
     private static func defaultStoreURL() -> URL {
