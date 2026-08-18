@@ -89,7 +89,19 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 `functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
 во всех трёх — при правке схемы на одной стороне обновлять остальные
 две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
-`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 2b: корень — TabView (Раунды/История/Профиль, AppRouter держит
+`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 2c (GPS-дальномер): `Services/ShotRangefinder.swift` — авто-замер
+дистанции удара. Позиция запоминается в момент записи удара (слот
+`round:hole:uid`, файл в Application Support), дистанция считается при
+записи следующего; присваивается ТОЛЬКО при непрерывности (метка
+принадлежит непосредственно предыдущему удару) — иначе замер покрыл бы
+несколько ударов. Гейты: точность фикса ≤25 м, дистанция 3…600 м,
+**0 = «неизвестно»**. `GeolocationService` умеет непрерывный трекинг
+(startTracking на экране лунки; одноразовые колбэки поиска полей при
+этом отключаются). Схема: `HoleShots.distances` параллельно `clubs`
+(инвариант равной длины; сервер сохраняет прежние замеры, если клиент
+поле не прислал — веб дистанции не измеряет).
+
+Фаза 2b: корень — TabView (Раунды/История/Профиль, AppRouter держит
 selectedTab и три стека); экраны History/Profile/MyBag/CourseSearch;
 `Services/UsersService.swift` (bag/units, setDoc merge),
 `Services/CoursesService.swift` (Places API New; ключ — Info.plist
