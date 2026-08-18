@@ -117,6 +117,10 @@ export const CLUB_ABBREV: Record<string, string> = {
   Putter: 'PT',
 }
 
+// Псевдо-клюшка «Штраф»: обычный элемент clubs[] (счёт +1), исключается из
+// статистики клюшек. SYNC: Clubs.penaltyId в ios/SmartGolfCaddy/Models/Club.swift.
+export const PENALTY_ID = 'Штраф'
+
 export const DEFAULT_HOLE_PARS: Record<9 | 18, (3 | 4 | 5)[]> = {
   9:  [4, 3, 5, 4, 4, 3, 5, 4, 4],
   18: [4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4],

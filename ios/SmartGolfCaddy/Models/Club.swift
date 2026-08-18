@@ -42,6 +42,11 @@ struct BagClub: Equatable, Identifiable {
 }
 
 enum Clubs {
+    /// Псевдо-клюшка «Штраф»: пишется в серию как обычный удар (счёт +1 по
+    /// правилам гольфа), исключается из статистики клюшек. SYNC: PENALTY_ID
+    /// в src/types/index.ts.
+    static let penaltyId = "Штраф"
+
     static let abbrev: [String: String] = [
         "Driver": "DRV", "3W": "3W", "5W": "5W", "Hybrid": "HY",
         "3i": "3i", "4i": "4i", "5i": "5i", "6i": "6i", "7i": "7i", "8i": "8i", "9i": "9i",

@@ -71,7 +71,7 @@ struct HoleTrackerView: View {
         .task {
             selectedClub = store.lastClubUsed
             let ids = pickerClubs.map(\.id)
-            if !ids.contains(selectedClub) { selectedClub = ids.first ?? "Driver" }
+            if !ids.contains(selectedClub) && selectedClub != Clubs.penaltyId { selectedClub = ids.first ?? "Driver" }
             model.start()
         }
         .onChange(of: model.round?.status) { _, status in
@@ -291,12 +291,18 @@ struct HoleTrackerView: View {
                             selectedClub = club.id
                         }
                     }
+                    ClubChipView(
+                        label: Clubs.penaltyId,
+                        selected: selectedClub == Clubs.penaltyId
+                    ) {
+                        selectedClub = Clubs.penaltyId
+                    }
                 }
                 .padding(.horizontal, DS.screenPadding)
             }
         }
         .onChange(of: pickerClubs.map(\.id)) { _, ids in
-            if !ids.contains(selectedClub) { selectedClub = ids.first ?? "Driver" }
+            if !ids.contains(selectedClub) && selectedClub != Clubs.penaltyId { selectedClub = ids.first ?? "Driver" }
         }
     }
 

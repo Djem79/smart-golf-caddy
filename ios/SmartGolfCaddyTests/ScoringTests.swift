@@ -67,6 +67,20 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(usage.map(\.club), ["Driver", "SW"])  // count равен → по имени
     }
 
+    func testClubUsageExcludesPenalty() {
+        let round = makeRound(holes: [
+            hole(1, par: 4, shots: ["u1": ["count": 3, "clubs": ["Driver", "Штраф", "Putter"]]]),
+        ])
+        let usage = Scoring.clubUsage(round: round, userId: "u1")
+        XCTAssertEqual(usage.map(\.club).sorted(), ["Driver", "Putter"])
+        XCTAssertEqual(usage.first?.percent, 50)  // из 2 не-штрафных
+    }
+
+    func testPenaltyConstantAndLabel() {
+        XCTAssertEqual(Clubs.penaltyId, "Штраф")
+        XCTAssertEqual(Clubs.label(for: Clubs.penaltyId, in: []), "Штраф")  // id вне abbrev → как есть
+    }
+
     // MARK: leaderboard — без ударов тонут вниз, сортировка diff→total→имя
 
     func testLeaderboardSort() {

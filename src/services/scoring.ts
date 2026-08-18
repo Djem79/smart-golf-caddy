@@ -1,5 +1,5 @@
 import type { Round } from '../types'
-import { getHoleClubs } from '../types'
+import { getHoleClubs, PENALTY_ID } from '../types'
 
 // ============================================================================
 // Per-round computations
@@ -44,7 +44,7 @@ export function computeClubUsage(
     for (const hole of round.holes) {
       const clubs = getHoleClubs(hole.shots[userId])
       for (const club of clubs) {
-        if (club === 'Неизвестно') continue
+        if (club === 'Неизвестно' || club === PENALTY_ID) continue
         counts.set(club, (counts.get(club) ?? 0) + 1)
         total += 1
       }

@@ -77,6 +77,17 @@ describe('computeClubUsage', () => {
     expect(stats[0].club).toBe('7i')
     expect(stats[0].count).toBe(3) // synthesized: 3 strokes all attributed to "7i"
   })
+
+  it('исключает штрафные удары из статистики клюшек', () => {
+    const r = makeRound({
+      holes: [
+        { holeNumber: 1, par: 4, distanceMeters: 360, shots: { uid1: { count: 3, clubs: ['Driver', 'Штраф', 'Putter'], updatedAt: new Date() } } },
+      ],
+    })
+    const stats = computeClubUsage(r, 'uid1')
+    expect(stats.map(s => s.club).sort()).toEqual(['Driver', 'Putter'])
+    expect(stats[0].percent).toBe(50)
+  })
 })
 
 describe('computePlayerStats', () => {

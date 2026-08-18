@@ -80,7 +80,7 @@ enum Scoring {
         for round in rounds {
             for hole in round.holes {
                 for club in hole.shots[userId]?.resolvedClubs ?? [] {
-                    if club == "Неизвестно" { continue }
+                    if club == "Неизвестно" || club == Clubs.penaltyId { continue }
                     counts[club, default: 0] += 1
                     total += 1
                 }
