@@ -18,12 +18,21 @@ struct RootView: View {
                 NavigationStack(path: $router.path) {
                     HomeView()
                         .navigationDestination(for: Route.self) { route in
+                            // .id(route): смена значения Route (например, лунка 2 → 3
+                            // через replaceLast) ОБЯЗАНА пересоздать экран целиком —
+                            // иначе SwiftUI сохраняет старый @State (вью-модель со
+                            // старым holeIndex), и удары пишутся в чужую лунку.
                             destination(for: route)
+                                .id(route)
                         }
                         .navigationBarHidden(true)
                 }
             }
         }
+        // Приложение спроектировано под светлую палитру Fairway Elite (как веб):
+        // фиксируем светлую тему, чтобы системные адаптивные цвета (текст полей
+        // ввода, фон sheet) не давали белое-на-белом в тёмной теме устройства.
+        .preferredColorScheme(.light)
         .environment(session)
         .environment(router)
         .environment(store)

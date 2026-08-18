@@ -71,6 +71,7 @@ struct HoleEditorSheet: View {
                 TextField("", text: $distanceText)
                     .keyboardType(.numberPad)
                     .font(DSFont.headlineMD)
+                    .foregroundStyle(DSColor.onSurface)
                     .monospacedDigit()
                     .padding(14)
                     .background(DSColor.surfaceContainerLow)
