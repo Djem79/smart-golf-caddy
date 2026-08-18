@@ -205,6 +205,53 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(Scoring.matchPlayStatus(round: round, uidA: "a", uidB: "b").label, "AS")
     }
 
+    func testMatchPlayMidRoundLabels() {
+        // 3 лунки, сыграна 1: A выиграл → "1 UP" (не закрыто); ничья → "AS"
+        func round(aCount: Int, bCount: Int) -> Round {
+            makeRound(
+                holes: [
+                    hole(1, par: 4, shots: [
+                        "a": ["count": aCount, "clubs": Array(repeating: "7i", count: aCount)],
+                        "b": ["count": bCount, "clubs": Array(repeating: "7i", count: bCount)],
+                    ]),
+                    hole(2, par: 4), hole(3, par: 4),
+                ],
+                players: [
+                    "a": ["name": "А", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+                    "b": ["name": "Б", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+                ],
+                playerIds: ["a", "b"], playMode: "match"
+            )
+        }
+        XCTAssertEqual(Scoring.matchPlayStatus(round: round(aCount: 3, bCount: 4), uidA: "a", uidB: "b").label, "1 UP")
+        XCTAssertEqual(Scoring.matchPlayStatus(round: round(aCount: 4, bCount: 4), uidA: "a", uidB: "b").label, "AS")
+    }
+
+    func testLeaderboardTotalScoreTieBreak() {
+        // Равный diff, разный total: меньше ударов — выше
+        let round = makeRound(
+            holes: [
+                hole(1, par: 4, shots: ["a": ["count": 4, "clubs": ["7i", "7i", "PW", "Putter"]]]),
+                hole(2, par: 3, shots: ["b": ["count": 3, "clubs": ["7i", "PW", "Putter"]]]),
+            ],
+            players: [
+                "a": ["name": "А", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+                "b": ["name": "Б", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+            ],
+            playerIds: ["a", "b"]
+        )
+        XCTAssertEqual(Scoring.leaderboard(round: round).map(\.uid), ["b", "a"])
+    }
+
+    func testClubUsageAcrossRounds() {
+        let r1 = makeRound(holes: [hole(1, par: 4, shots: ["u1": ["count": 1, "clubs": ["Driver"]]])])
+        let r2 = makeRound(holes: [hole(1, par: 4, shots: ["u1": ["count": 2, "clubs": ["Driver", "PW"]]])])
+        let usage = Scoring.clubUsage(rounds: [r1, r2], userId: "u1")
+        XCTAssertEqual(usage.first?.club, "Driver")
+        XCTAssertEqual(usage.first?.count, 2)
+        XCTAssertEqual(usage.first?.percent, 67)
+    }
+
     // MARK: TeeColor labels
 
     func testTeeLabels() {

@@ -25,6 +25,7 @@ enum AuthServiceError: LocalizedError {
 @MainActor
 enum AuthService {
     static var currentUserId: String? { Auth.auth().currentUser?.uid }
+    static var currentUserEmail: String? { Auth.auth().currentUser?.email }
 
     static func subscribe(_ callback: @escaping (String?) -> Void) -> () -> Void {
         let handle = Auth.auth().addStateDidChangeListener { _, user in

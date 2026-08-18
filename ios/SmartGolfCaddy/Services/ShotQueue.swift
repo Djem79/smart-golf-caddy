@@ -35,8 +35,7 @@ final class ShotQueue: @unchecked Sendable {
                 roundId: shot.roundId, holeIndex: shot.holeIndex,
                 targetUid: shot.targetUid, clubs: shot.clubs
             )
-        },
-        isOnline: { ShotQueue.pathMonitorOnline }
+        }
     )
 
     // Ошибки сервера, которые не исправятся повтором — дроп из очереди.
@@ -47,16 +46,20 @@ final class ShotQueue: @unchecked Sendable {
 
     private let storeURL: URL
     private let sender: (PendingShot) async throws -> Void
-    private let isOnline: () -> Bool
+    // Тестовый инжект оверрайда online-статуса; в shared — nil, реальный
+    // статус читается из инстансного поля `online`, обновляемого монитором.
+    private let isOnlineOverride: (() -> Bool)?
     private let ioQueue = DispatchQueue(label: "sgc.shotqueue.io")
     private var flushing = false
+    private var monitor: NWPathMonitor?
+    private var online = true
 
     init(storeURL: URL,
          sender: @escaping (PendingShot) async throws -> Void,
-         isOnline: @escaping () -> Bool) {
+         isOnline: (() -> Bool)? = nil) {
         self.storeURL = storeURL
         self.sender = sender
-        self.isOnline = isOnline
+        self.isOnlineOverride = isOnline
     }
 
     // MARK: хранилище (JSON-файл, ключ слота "round:hole:uid")
@@ -117,7 +120,8 @@ final class ShotQueue: @unchecked Sendable {
         let key = slotKey(roundId, holeIndex, targetUid)
         withMap { map in map[key] = entry }
 
-        guard isOnline() else { return .queued }
+        let isOnline = isOnlineOverride?() ?? online
+        guard isOnline else { return .queued }
 
         do {
             try await sender(entry)
@@ -189,22 +193,20 @@ final class ShotQueue: @unchecked Sendable {
 
     // MARK: сеть и автозапуск
 
-    private static var monitor: NWPathMonitor?
-    private static var pathMonitorOnline = true
-
     func initSync() {
-        guard Self.monitor == nil else { return }
+        guard monitor == nil else { return }
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
-            let online = path.status == .satisfied
-            let wasOffline = !Self.pathMonitorOnline
-            Self.pathMonitorOnline = online
-            if online && wasOffline {
-                Task { await self?.flush() }
+            guard let self else { return }
+            let isOnline = path.status == .satisfied
+            let wasOffline = !self.online
+            self.online = isOnline
+            if isOnline && wasOffline {
+                Task { await self.flush() }
             }
         }
         monitor.start(queue: DispatchQueue(label: "sgc.shotqueue.network"))
-        Self.monitor = monitor
+        self.monitor = monitor
         Task { await flush() }
     }
 

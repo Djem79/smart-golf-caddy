@@ -38,11 +38,13 @@ final class RoundSetupViewModel {
         creating = true
         errorMessage = nil
         defer { creating = false }
+        // Паритет с вебом: user.email ?? '' (пустую строку не шлём — nil
+        // опускается в firestoreData, сервер имеет Auth-lookup fallback).
         let info = PlayerInfo(
             name: profile?.name ?? "Голфер",
             avatar: profile?.avatar ?? "",
             totalScore: 0, scoreDiff: 0,
-            email: nil
+            email: AuthService.currentUserEmail
         )
         do {
             return try await RoundsService.createSoloRound(

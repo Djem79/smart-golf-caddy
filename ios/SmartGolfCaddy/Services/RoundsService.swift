@@ -79,7 +79,14 @@ enum RoundsService {
                 if let error { onError(error); return }
                 guard let snapshot, snapshot.exists, let raw = snapshot.data() else { return }
                 let data = FirebaseService.normalizedDates(raw) as? [String: Any] ?? raw
-                if let round = Round(id: snapshot.documentID, data: data) { onChange(round) }
+                if let round = Round(id: snapshot.documentID, data: data) {
+                    onChange(round)
+                } else {
+                    onError(NSError(
+                        domain: "SmartGolfCaddy", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Данные раунда повреждены"]
+                    ))
+                }
             }
         return { listener.remove() }
     }
