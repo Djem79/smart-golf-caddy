@@ -66,10 +66,13 @@ final class CourseSearchViewModel {
             self.loading = true
             defer { self.loading = false }
             do {
-                self.textResults = try await CoursesService.shared.searchByText(
+                let results = try await CoursesService.shared.searchByText(
                     query, biasLat: self.lat, biasLng: self.lng
                 )
+                guard !Task.isCancelled else { return }
+                self.textResults = results
             } catch {
+                guard !Task.isCancelled else { return }
                 self.textResults = []
             }
         }
