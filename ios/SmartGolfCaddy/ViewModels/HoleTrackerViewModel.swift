@@ -67,8 +67,11 @@ final class HoleTrackerViewModel {
     /// Переключить активного игрока (только хост должен вызывать это для
     /// чужого uid — гейт на уровне UI, сервер дополнительно enforce'ит).
     /// Сбрасывает optimistic-оверлей — он слот-тегирован под предыдущего
-    /// игрока и не должен протекать в новый слот.
+    /// игрока и не должен протекать в новый слот. Повторный тап по уже
+    /// активному игроку — no-op: иначе сброс optimistic посреди
+    /// in-flight save откатил бы счётчик назад (мигание, находка Фазы 2а).
     func setActiveUser(_ uid: String) {
+        guard uid != activeUserId else { return }
         activeUserId = uid
         optimistic = nil
     }

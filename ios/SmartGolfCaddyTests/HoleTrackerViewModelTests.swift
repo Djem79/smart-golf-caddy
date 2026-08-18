@@ -61,4 +61,14 @@ final class HoleTrackerViewModelTests: XCTestCase {
         model.setActiveUser("mate")
         XCTAssertFalse(model.measuresDistances)     // чужой слот — координаты не мои
     }
+
+    @MainActor
+    func testReselectingSameUserKeepsOptimistic() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "host")
+        model.optimistic = .init(slot: "0:host", clubs: ["Driver"], distances: [0], awaitingKey: "Driver")
+        model.setActiveUser("host")
+        XCTAssertNotNil(model.optimistic)          // тот же игрок — оверлей жив
+        model.setActiveUser("mate")
+        XCTAssertNil(model.optimistic)             // смена игрока — сброс
+    }
 }

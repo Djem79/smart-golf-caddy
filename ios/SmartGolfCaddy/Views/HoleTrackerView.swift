@@ -320,8 +320,14 @@ struct HoleTrackerView: View {
                     let clubs = model.currentClubs
                     guard !clubs.isEmpty else { return }
                     let newClubs = Array(clubs.dropLast())
+                    // Захватываем слот СИНХРОННО, до await: save() делает
+                    // сетевой вызов, и если за это время хост переключит
+                    // активного игрока, model.measuresDistances после await
+                    // отразила бы уже нового игрока, а не того, за кого
+                    // реально писался этот удар.
+                    let ownSlot = model.measuresDistances
                     Task {
-                        if await model.save(newClubs), let last = newClubs.last, model.measuresDistances {
+                        if await model.save(newClubs), let last = newClubs.last, ownSlot {
                             // Порт HoleTracker.tsx save(): «последняя клюшка»
                             // персонализируется только для своих ударов —
                             // иначе выбор хоста для товарища перезаписал бы
@@ -350,8 +356,11 @@ struct HoleTrackerView: View {
                 Button {
                     haptics.impactOccurred()
                     let newClubs = model.currentClubs + [selectedClub]
+                    // Захватываем слот СИНХРОННО, до await — см. комментарий
+                    // у кнопки «минус» выше.
+                    let ownSlot = model.measuresDistances
                     Task {
-                        if await model.save(newClubs), let last = newClubs.last, model.measuresDistances {
+                        if await model.save(newClubs), let last = newClubs.last, ownSlot {
                             // Порт HoleTracker.tsx save(): «последняя клюшка»
                             // персонализируется только для своих ударов —
                             // иначе выбор хоста для товарища перезаписал бы
