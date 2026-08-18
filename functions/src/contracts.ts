@@ -14,15 +14,23 @@ import { z } from 'zod'
 // exceed ~15; 30 is a sanity bound against runaway loops or replay attacks).
 // Each club id is a short identifier (1..50 chars) — DEFAULT_BAG ids are
 // short but custom user ids can be a few words long.
-export const RecordShotInput = z.object({
-  roundId: z.string().min(1).max(128),
-  holeIndex: z.number().int().min(0).max(17),
-  clubs: z.array(z.string().min(1).max(50)).max(30),
-  // Whose slot to write. Optional — defaults to the caller. The host may
-  // pass another participant's uid to keep score for the whole group.
-  // Any non-host caller writing a foreign slot is rejected by index.ts.
-  targetUid: z.string().min(1).max(128).optional(),
-})
+export const RecordShotInput = z
+  .object({
+    roundId: z.string().min(1).max(128),
+    holeIndex: z.number().int().min(0).max(17),
+    clubs: z.array(z.string().min(1).max(50)).max(30),
+    // Дистанции ударов в метрах, параллельно clubs. 0 = неизвестна
+    // (последний удар лунки, слабый GPS). Необязательно: веб-клиент
+    // дистанции не измеряет и поле не шлёт.
+    distances: z.array(z.number().int().min(0).max(1000)).max(30).optional(),
+    // Whose slot to write. Optional — defaults to the caller. The host may
+    // pass another participant's uid to keep score for the whole group.
+    // Any non-host caller writing a foreign slot is rejected by index.ts.
+    targetUid: z.string().min(1).max(128).optional(),
+  })
+  .refine(v => v.distances == null || v.distances.length === v.clubs.length, {
+    message: 'Длина distances должна совпадать с clubs',
+  })
 export type RecordShotInput = z.infer<typeof RecordShotInput>
 
 // --- updateHoleConfig ---

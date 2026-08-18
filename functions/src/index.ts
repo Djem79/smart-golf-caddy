@@ -255,7 +255,7 @@ export const recordShot = onCall(
   { region: 'us-central1', enforceAppCheck: true },
   async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
-    const { roundId, holeIndex, clubs, targetUid } = parseInput(RecordShotInput, request.data)
+    const { roundId, holeIndex, clubs, distances, targetUid } = parseInput(RecordShotInput, request.data)
 
     const callerUid = request.auth.uid
     // Default to writing the caller's own slot when no explicit target given.
@@ -292,6 +292,15 @@ export const recordShot = onCall(
       // because Firestore doesn't support `holes.${i}` syntax on array fields,
       // but we explicitly read-then-write the same array shape so the diff is
       // bounded to a single nested record.
+      // Дистанции: пришли — пишем как есть (клиент шлёт полный массив);
+      // не пришли (веб) — сохраняем прежние, подгоняя под новую длину clubs,
+      // чтобы редактирование с веба не стирало замеры, сделанные на iOS.
+      const prevSlot = (data.holes[holeIndex]?.shots ?? {})[target] as
+        | { distances?: number[] }
+        | undefined
+      const prevDistances = Array.isArray(prevSlot?.distances) ? prevSlot.distances : []
+      const nextDistances = distances ?? Array.from({ length: clubs.length }, (_, i) => prevDistances[i] ?? 0)
+
       const holes = data.holes.map((h, i) =>
         i === holeIndex
           ? {
@@ -301,6 +310,7 @@ export const recordShot = onCall(
                 [target]: {
                   count: clubs.length,
                   clubs,
+                  distances: nextDistances,
                   club: clubs[clubs.length - 1] ?? '',
                   updatedAt: new Date(),
                 },

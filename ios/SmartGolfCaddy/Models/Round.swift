@@ -24,6 +24,7 @@ enum TeeColor: String, CaseIterable {
 struct HoleShots: Equatable {
     var count: Int
     var clubs: [String]
+    var distances: [Int]      // метры; 0 = неизвестно. Длина выравнивается по clubs.
     var legacyClub: String?   // Firestore-ключ "club" (старые раунды)
     var updatedAt: Date?
 
@@ -34,9 +35,20 @@ struct HoleShots: Equatable {
         return Array(repeating: "Неизвестно", count: count)
     }
 
-    init(count: Int, clubs: [String], legacyClub: String?, updatedAt: Date?) {
+    /// Дистанции, выровненные по длине серии: недостающие — 0, лишние отброшены.
+    /// Инвариант хранения (distances.count == clubs.count) может нарушиться
+    /// у документов, записанных старыми клиентами — здесь он восстанавливается.
+    var resolvedDistances: [Int] {
+        let target = resolvedClubs.count
+        if distances.count == target { return distances }
+        if distances.count > target { return Array(distances.prefix(target)) }
+        return distances + Array(repeating: 0, count: target - distances.count)
+    }
+
+    init(count: Int, clubs: [String], distances: [Int], legacyClub: String?, updatedAt: Date?) {
         self.count = count
         self.clubs = clubs
+        self.distances = distances
         self.legacyClub = legacyClub
         self.updatedAt = updatedAt
     }
@@ -44,12 +56,13 @@ struct HoleShots: Equatable {
     init?(data: [String: Any]) {
         count = (data["count"] as? NSNumber)?.intValue ?? 0
         clubs = data["clubs"] as? [String] ?? []
+        distances = (data["distances"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
         legacyClub = data["club"] as? String
         updatedAt = data["updatedAt"] as? Date
     }
 
     var firestoreData: [String: Any] {
-        var d: [String: Any] = ["count": count, "clubs": clubs]
+        var d: [String: Any] = ["count": count, "clubs": clubs, "distances": distances]
         if let legacyClub { d["club"] = legacyClub }
         if let updatedAt { d["updatedAt"] = updatedAt }
         return d

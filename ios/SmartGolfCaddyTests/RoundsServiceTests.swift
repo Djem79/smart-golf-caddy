@@ -38,7 +38,7 @@ final class RoundsServiceTests: XCTestCase {
 
     func testHoleConfigFirestoreRoundTrip() {
         var config = Rounds.buildDefaultHoles(totalHoles: 9, tee: .men)[0]
-        config.shots["u1"] = HoleShots(count: 2, clubs: ["Driver", "Putter"], legacyClub: nil, updatedAt: nil)
+        config.shots["u1"] = HoleShots(count: 2, clubs: ["Driver", "Putter"], distances: [], legacyClub: nil, updatedAt: nil)
         let restored = HoleConfig(data: config.firestoreData)
         XCTAssertEqual(restored?.holeNumber, config.holeNumber)
         XCTAssertEqual(restored?.par, config.par)

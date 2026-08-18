@@ -14,6 +14,7 @@ export interface RecordShotInput {
   roundId: string
   holeIndex: number
   clubs: string[]
+  distances?: number[]      // метры; 0 = неизвестна
   targetUid?: string
 }
 export interface RecordShotResult {

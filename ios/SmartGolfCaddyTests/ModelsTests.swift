@@ -6,24 +6,46 @@ final class ModelsTests: XCTestCase {
     // MARK: HoleShots — паритет getHoleClubs
 
     func testResolvedClubsCanonical() {
-        let shots = HoleShots(count: 2, clubs: ["Driver", "Putter"], legacyClub: nil, updatedAt: nil)
+        let shots = HoleShots(count: 2, clubs: ["Driver", "Putter"], distances: [], legacyClub: nil, updatedAt: nil)
         XCTAssertEqual(shots.resolvedClubs, ["Driver", "Putter"])
     }
 
     func testResolvedClubsLegacy() {
-        let shots = HoleShots(count: 3, clubs: [], legacyClub: "7i", updatedAt: nil)
+        let shots = HoleShots(count: 3, clubs: [], distances: [], legacyClub: "7i", updatedAt: nil)
         XCTAssertEqual(shots.resolvedClubs, ["7i", "7i", "7i"])
     }
 
     func testResolvedClubsUnknown() {
-        let shots = HoleShots(count: 2, clubs: [], legacyClub: nil, updatedAt: nil)
+        let shots = HoleShots(count: 2, clubs: [], distances: [], legacyClub: nil, updatedAt: nil)
         XCTAssertEqual(shots.resolvedClubs, ["Неизвестно", "Неизвестно"])
     }
 
     func testResolvedClubsEmptyLegacy() {
         // Empty string legacy club should be falsy (web parity: JS if (shots.club) with "" → false)
-        let shots = HoleShots(count: 2, clubs: [], legacyClub: "", updatedAt: nil)
+        let shots = HoleShots(count: 2, clubs: [], distances: [], legacyClub: "", updatedAt: nil)
         XCTAssertEqual(shots.resolvedClubs, ["Неизвестно", "Неизвестно"])
+    }
+
+    // MARK: HoleShots — distances (Phase 2c GPS rangefinder)
+
+    func testResolvedDistancesPadsToClubsLength() {
+        let shots = HoleShots(count: 3, clubs: ["Driver", "7i", "Putter"],
+                              distances: [215], legacyClub: nil, updatedAt: nil)
+        XCTAssertEqual(shots.resolvedDistances, [215, 0, 0])
+    }
+
+    func testResolvedDistancesTrimsExtra() {
+        let shots = HoleShots(count: 1, clubs: ["Driver"],
+                              distances: [215, 140], legacyClub: nil, updatedAt: nil)
+        XCTAssertEqual(shots.resolvedDistances, [215])
+    }
+
+    func testDistancesRoundTripThroughFirestoreData() {
+        let shots = HoleShots(count: 2, clubs: ["Driver", "PW"],
+                              distances: [215, 0], legacyClub: nil, updatedAt: nil)
+        let restored = HoleShots(data: shots.firestoreData)
+        XCTAssertEqual(restored?.distances, [215, 0])
+        XCTAssertEqual(restored?.resolvedDistances, [215, 0])
     }
 
     // MARK: Clubs — паритет getBagFromUser / getClubLabel

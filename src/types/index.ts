@@ -24,6 +24,7 @@ export interface AppUser {
 export interface HoleShots {
   count: number       // equals clubs.length for new writes
   clubs: string[]     // ordered list, one entry per stroke
+  distances?: number[] // метры, параллельно clubs; 0 = неизвестна
   club?: string       // legacy: present in older rounds (last-used club)
   updatedAt: Date
 }
@@ -34,6 +35,14 @@ export function getHoleClubs(shots: HoleShots | undefined): string[] {
   if (Array.isArray(shots.clubs) && shots.clubs.length > 0) return shots.clubs
   if (shots.club) return new Array<string>(shots.count).fill(shots.club)
   return new Array<string>(shots.count).fill('Неизвестно')
+}
+
+// Дистанции ударов, выровненные по длине серии (0 = неизвестна). Веб их не
+// измеряет, но отображает то, что записал iOS-клиент.
+export function getHoleDistances(shots: HoleShots | undefined): number[] {
+  const clubs = getHoleClubs(shots)
+  const raw = shots?.distances ?? []
+  return clubs.map((_, i) => raw[i] ?? 0)
 }
 
 export interface HoleConfig {

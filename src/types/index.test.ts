@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   scoreColor, scoreDirection, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
   DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory, getClubLabel,
-  metersToYards, yardsToMeters,
+  metersToYards, yardsToMeters, getHoleDistances,
+  type HoleShots,
 } from './index'
 
 describe('scoreColor', () => {
@@ -180,6 +181,27 @@ describe('distance unit conversion', () => {
     const start = 200
     const roundtrip = yardsToMeters(metersToYards(start))
     expect(Math.abs(roundtrip - start)).toBeLessThan(2)
+  })
+})
+
+describe('getHoleDistances', () => {
+  it('returns empty array for undefined shots', () => {
+    expect(getHoleDistances(undefined)).toEqual([])
+  })
+
+  it('pads missing distances with 0 to match clubs length', () => {
+    const shots: HoleShots = { count: 3, clubs: ['Driver', '7i', 'Putter'], distances: [215], updatedAt: new Date() }
+    expect(getHoleDistances(shots)).toEqual([215, 0, 0])
+  })
+
+  it('trims extra distances beyond clubs length', () => {
+    const shots: HoleShots = { count: 1, clubs: ['Driver'], distances: [215, 140], updatedAt: new Date() }
+    expect(getHoleDistances(shots)).toEqual([215])
+  })
+
+  it('defaults to zeros when distances is missing entirely (legacy/web-only records)', () => {
+    const shots: HoleShots = { count: 2, clubs: ['Driver', 'Putter'], updatedAt: new Date() }
+    expect(getHoleDistances(shots)).toEqual([0, 0])
   })
 })
 
