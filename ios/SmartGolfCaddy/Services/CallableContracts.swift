@@ -9,8 +9,7 @@ struct RecordShotInput: Encodable {
     let holeIndex: Int
     let clubs: [String]
     // Дистанции ударов в метрах, параллельно clubs; 0 = неизвестна.
-    // Default nil сохраняет существующие вызовы (замер добавляется в Task 3).
-    let distances: [Int]? = nil
+    let distances: [Int]?
     let targetUid: String?
 }
 

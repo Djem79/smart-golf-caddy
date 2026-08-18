@@ -13,6 +13,7 @@ final class HoleTrackerViewModel {
     struct Optimistic: Equatable {
         var slot: String
         var clubs: [String]
+        var distances: [Int] = []
         var awaitingKey: String
     }
 
@@ -30,11 +31,15 @@ final class HoleTrackerViewModel {
 
     private var unsubscribe: (() -> Void)?
     private var queueObserver: NSObjectProtocol?
+    // Дальномер инжектируется для тестов; вью продолжают вызывать init без
+    // изменений — дефолт .shared.
+    private let rangefinder: ShotRangefinder
 
-    init(roundId: String, holeIndex: Int, userId: String) {
+    init(roundId: String, holeIndex: Int, userId: String, rangefinder: ShotRangefinder = .shared) {
         self.roundId = roundId
         self.holeIndex = holeIndex
         self.userId = userId
+        self.rangefinder = rangefinder
     }
 
     var slotKey: String { "\(holeIndex):\(userId)" }
@@ -44,8 +49,14 @@ final class HoleTrackerViewModel {
     }
     var isHost: Bool { round?.hostId == userId }
 
+    /// Индикатор для UI: достаточно ли точен текущий GPS-фикс для замера.
+    /// Вычисляемое свойство — не тикает по таймеру, обновится вместе со
+    /// следующей перерисовкой SwiftUI на изменение состояния VM.
+    var gpsReady: Bool { ShotRangefinder.isUsable(GeolocationService.shared.lastFix) }
+
     func start() {
         guard unsubscribe == nil else { return }
+        GeolocationService.shared.startTracking()
         refreshQueueBadge()
         queueObserver = NotificationCenter.default.addObserver(
             forName: .shotQueueDidChange, object: nil, queue: .main
@@ -79,17 +90,73 @@ final class HoleTrackerViewModel {
         return displayedClubs(serverClubs: server, pendingClubs: pending)
     }
 
+    /// Дерив отображаемых дистанций — зеркалит displayedClubs: optimistic
+    /// пока «впереди» сервера → pending из очереди → server.
+    func displayedDistances(serverDistances: [Int], pendingDistances: [Int]?,
+                             serverClubs: [String], pendingClubs: [String]?) -> [Int] {
+        if let optimistic, optimistic.slot == slotKey,
+           serverClubs.joined(separator: "|") != optimistic.awaitingKey {
+            return optimistic.distances
+        }
+        return pendingDistances ?? serverDistances
+    }
+
+    var currentDistances: [Int] {
+        let pending = ShotQueue.shared.pendingShot(
+            roundId: roundId, holeIndex: holeIndex, targetUid: userId
+        )
+        return displayedDistances(
+            serverDistances: hole?.shots[userId]?.resolvedDistances ?? [],
+            pendingDistances: pending?.distances,
+            serverClubs: hole?.shots[userId]?.resolvedClubs ?? [],
+            pendingClubs: pending?.clubs
+        )
+    }
+
     /// Возвращает true при .synced/.queued (веб ставит lastClubUsed только на
     /// успешной мутации), false при .rejected (rollback-ветка).
     @discardableResult
     func save(_ clubs: [String]) async -> Bool {
         saving = true
         saveError = nil
-        optimistic = Optimistic(slot: slotKey, clubs: clubs,
-                                awaitingKey: clubs.joined(separator: "|"))
         defer { saving = false }
+
+        let previous = currentClubs
+        let next = clubs
+        var distances = currentDistances
+
+        if next.count > previous.count {
+            let newIndex = next.count - 1
+            // Замер достоверен, только если метка принадлежит непосредственно
+            // предыдущему удару: при пропущенной метке (слабый GPS) дистанция
+            // покрыла бы несколько ударов сразу — такой замер отбрасываем.
+            if let measured = rangefinder.measure(roundId: roundId, holeIndex: holeIndex, targetUid: userId),
+               measured.previousIndex == previous.count - 1,
+               measured.meters > 0,
+               distances.indices.contains(measured.previousIndex) {
+                distances[measured.previousIndex] = measured.meters
+            }
+            rangefinder.markShot(roundId: roundId, holeIndex: holeIndex, targetUid: userId, shotIndex: newIndex)
+        } else if next.count < previous.count {
+            distances = Array(distances.prefix(next.count))
+            // Точку замера переносим на последний оставшийся удар — иначе
+            // следующий замер посчитал бы дистанцию от удалённого удара.
+            if next.count > 0 {
+                rangefinder.markShot(roundId: roundId, holeIndex: holeIndex, targetUid: userId, shotIndex: next.count - 1)
+            }
+        }
+
+        // Инвариант: длина distances == длине clubs — паддинг нулями/обрезка.
+        if distances.count < next.count {
+            distances += Array(repeating: 0, count: next.count - distances.count)
+        } else if distances.count > next.count {
+            distances = Array(distances.prefix(next.count))
+        }
+
+        optimistic = Optimistic(slot: slotKey, clubs: next, distances: distances,
+                                awaitingKey: next.joined(separator: "|"))
         let outcome = await ShotQueue.shared.recordShotQueued(
-            roundId: roundId, holeIndex: holeIndex, targetUid: userId, clubs: clubs
+            roundId: roundId, holeIndex: holeIndex, targetUid: userId, clubs: next, distances: distances
         )
         if case .rejected = outcome {
             saveError = "Не удалось сохранить удар."
@@ -135,5 +202,6 @@ final class HoleTrackerViewModel {
     @MainActor deinit {
         unsubscribe?()
         if let queueObserver { NotificationCenter.default.removeObserver(queueObserver) }
+        GeolocationService.shared.stopTracking()
     }
 }

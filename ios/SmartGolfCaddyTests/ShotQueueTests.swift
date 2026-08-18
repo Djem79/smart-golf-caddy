@@ -29,7 +29,7 @@ final class ShotQueueTests: XCTestCase {
 
     func testSyncedPathClearsQueue() async {
         let queue = makeQueue()
-        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"])
+        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"], distances: [])
         guard case .synced = outcome else { return XCTFail("ожидали synced") }
         XCTAssertNil(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u"))
         XCTAssertEqual(queue.pendingCount(roundId: "r"), 0)
@@ -37,7 +37,7 @@ final class ShotQueueTests: XCTestCase {
 
     func testOfflineStaysQueuedAndSurvivesReload() async {
         let queue = makeQueue(online: { false })
-        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 2, targetUid: "u", clubs: ["7i", "Putter"])
+        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 2, targetUid: "u", clubs: ["7i", "Putter"], distances: [])
         guard case .queued = outcome else { return XCTFail("ожидали queued") }
         XCTAssertEqual(queue.pendingShot(roundId: "r", holeIndex: 2, targetUid: "u")?.clubs, ["7i", "Putter"])
         // «Перезапуск»: новый инстанс над тем же файлом
@@ -48,8 +48,8 @@ final class ShotQueueTests: XCTestCase {
 
     func testLastWriteWinsPerSlot() async {
         let queue = makeQueue(online: { false })
-        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"])
-        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver", "PW"])
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"], distances: [])
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver", "PW"], distances: [0, 0])
         XCTAssertEqual(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u")?.clubs, ["Driver", "PW"])
         XCTAssertEqual(queue.pendingCount(roundId: "r"), 1)
     }
@@ -59,14 +59,14 @@ final class ShotQueueTests: XCTestCase {
             throw NSError(domain: "com.firebase.functions", code: 14,
                           userInfo: ["FIRFunctionsErrorCode": "unavailable"])
         })
-        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"])
+        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"], distances: [])
         guard case .queued = outcome else { return XCTFail("ожидали queued") }
         XCTAssertNotNil(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u"))
     }
 
     func testPermanentFailureDropsAndReports() async {
         let queue = makeQueue(sender: { _ in throw self.permanentError() })
-        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"])
+        let outcome = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"], distances: [])
         guard case .rejected = outcome else { return XCTFail("ожидали rejected") }
         XCTAssertNil(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u"))
     }
@@ -81,15 +81,15 @@ final class ShotQueueTests: XCTestCase {
             }
             sent.append("\(shot.roundId):\(shot.holeIndex)")
         }, online: { false })
-        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"])
-        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 1, targetUid: "u", clubs: ["7i"])
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"], distances: [])
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 1, targetUid: "u", clubs: ["7i"], distances: [])
         XCTAssertEqual(queue.pendingCount(roundId: "r"), 2)
 
         let remaining = await queue.flush()
         XCTAssertEqual(remaining, 0)
         XCTAssertEqual(sent.count, 2)
 
-        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 2, targetUid: "u", clubs: ["PW"])
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 2, targetUid: "u", clubs: ["PW"], distances: [])
         failNext = true
         let remaining2 = await queue.flush()
         XCTAssertEqual(remaining2, 1)  // transient — остался в очереди
@@ -97,7 +97,7 @@ final class ShotQueueTests: XCTestCase {
 
     func testFlushDropsPermanent() async {
         let queue = makeQueue(sender: { _ in throw self.permanentError() }, online: { false })
-        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"])
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u", clubs: ["Driver"], distances: [])
         let remaining = await queue.flush()
         XCTAssertEqual(remaining, 0)  // permanent дропнут, очередь не заклинена
     }
@@ -107,10 +107,17 @@ final class ShotQueueTests: XCTestCase {
         await withTaskGroup(of: Void.self) { group in
             for i in 0..<20 {
                 group.addTask {
-                    _ = await queue.recordShotQueued(roundId: "r", holeIndex: i, targetUid: "u", clubs: ["7i"])
+                    _ = await queue.recordShotQueued(roundId: "r", holeIndex: i, targetUid: "u", clubs: ["7i"], distances: [])
                 }
             }
         }
         XCTAssertEqual(queue.pendingCount(roundId: "r"), 20)
+    }
+
+    func testQueuePreservesDistances() async {
+        let queue = makeQueue(online: { false })
+        _ = await queue.recordShotQueued(roundId: "r", holeIndex: 0, targetUid: "u",
+                                         clubs: ["Driver", "7i"], distances: [215, 0])
+        XCTAssertEqual(queue.pendingShot(roundId: "r", holeIndex: 0, targetUid: "u")?.distances, [215, 0])
     }
 }

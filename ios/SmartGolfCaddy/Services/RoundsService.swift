@@ -103,9 +103,9 @@ enum RoundsService {
         }
     }
 
-    static func recordShot(roundId: String, holeIndex: Int, targetUid: String, clubs: [String]) async throws {
+    static func recordShot(roundId: String, holeIndex: Int, targetUid: String, clubs: [String], distances: [Int]) async throws {
         let payload = try callableDict(RecordShotInput(
-            roundId: roundId, holeIndex: holeIndex, clubs: clubs, targetUid: targetUid
+            roundId: roundId, holeIndex: holeIndex, clubs: clubs, distances: distances, targetUid: targetUid
         ))
         _ = try await FirebaseService.functions.httpsCallable("recordShot").call(payload)
     }

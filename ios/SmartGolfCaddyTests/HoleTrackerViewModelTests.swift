@@ -27,4 +27,22 @@ final class HoleTrackerViewModelTests: XCTestCase {
         let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")
         XCTAssertEqual(model.displayedClubs(serverClubs: [], pendingClubs: ["PW"]), ["PW"])
     }
+
+    @MainActor
+    func testDistancesDerivedLikeClubs() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")
+        model.optimistic = .init(slot: "0:u", clubs: ["Driver", "7i"],
+                                 distances: [215, 0], awaitingKey: "Driver|7i")
+        XCTAssertEqual(model.displayedDistances(serverDistances: [0], pendingDistances: nil,
+                                                serverClubs: ["Driver"], pendingClubs: nil), [215, 0])
+    }
+
+    @MainActor
+    func testDistancesFallBackToServerWhenEchoed() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")
+        model.optimistic = .init(slot: "0:u", clubs: ["Driver"], distances: [0], awaitingKey: "Driver")
+        // сервер отэхоил и знает дистанцию — показываем серверную
+        XCTAssertEqual(model.displayedDistances(serverDistances: [215], pendingDistances: nil,
+                                                serverClubs: ["Driver"], pendingClubs: nil), [215])
+    }
 }

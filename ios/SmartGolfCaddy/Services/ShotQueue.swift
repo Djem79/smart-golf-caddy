@@ -13,6 +13,10 @@ struct PendingShot: Codable, Equatable {
     var holeIndex: Int
     var targetUid: String
     var clubs: [String]
+    // Optional — старые файлы очереди (записанные до Task 3) не содержат
+    // это поле; декодер синтезирует nil без миграции. На использование —
+    // `shot.distances ?? []`.
+    var distances: [Int]?
     var updatedAt: TimeInterval
 }
 
@@ -33,7 +37,8 @@ final class ShotQueue: @unchecked Sendable {
         sender: { shot in
             try await RoundsService.recordShot(
                 roundId: shot.roundId, holeIndex: shot.holeIndex,
-                targetUid: shot.targetUid, clubs: shot.clubs
+                targetUid: shot.targetUid, clubs: shot.clubs,
+                distances: shot.distances ?? []
             )
         }
     )
@@ -113,9 +118,9 @@ final class ShotQueue: @unchecked Sendable {
         ioQueue.sync { loadLocked() }.values.filter { $0.roundId == roundId }.count
     }
 
-    func recordShotQueued(roundId: String, holeIndex: Int, targetUid: String, clubs: [String]) async -> RecordOutcome {
+    func recordShotQueued(roundId: String, holeIndex: Int, targetUid: String, clubs: [String], distances: [Int]) async -> RecordOutcome {
         let entry = PendingShot(roundId: roundId, holeIndex: holeIndex,
-                                targetUid: targetUid, clubs: clubs,
+                                targetUid: targetUid, clubs: clubs, distances: distances,
                                 updatedAt: Date().timeIntervalSince1970)
         let key = slotKey(roundId, holeIndex, targetUid)
         withMap { map in map[key] = entry }
