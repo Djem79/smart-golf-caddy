@@ -29,6 +29,37 @@ enum Rounds {
     static func generateLobbyCode() -> String {
         String((0..<6).map { _ in lobbyChars.randomElement()! })
     }
+
+    /// Код лобби: только буквы/цифры алфавита LOBBY_CHARS, верхний регистр, 6 символов.
+    static func normalizeLobbyCode(_ raw: String) -> String {
+        let allowed = Set(lobbyChars)
+        let cleaned = raw.uppercased().filter { allowed.contains($0) }
+        return String(cleaned.prefix(6))
+    }
+
+    /// Payload группового раунда — вынесен из сервиса, чтобы форму документа
+    /// можно было проверить тестом без Firestore.
+    static func groupRoundPayload(
+        hostId: String, hostInfo: PlayerInfo,
+        courseId: String, courseName: String,
+        totalHoles: Int, tee: TeeColor, playMode: PlayMode
+    ) -> [String: Any] {
+        [
+            "courseId": courseId,
+            "courseName": courseName,
+            "totalHoles": totalHoles,
+            "lobbyCode": generateLobbyCode(),
+            "status": "lobby",
+            "hostId": hostId,
+            "players": [hostId: hostInfo.firestoreData],
+            "playerIds": [hostId],
+            "tee": tee.rawValue,
+            "playMode": playMode.rawValue,
+            "holes": buildDefaultHoles(totalHoles: totalHoles, tee: tee).map { $0.firestoreData },
+            "startedAt": NSNull(),
+            "finishedAt": NSNull(),
+        ]
+    }
 }
 
 enum RoundsService {
@@ -66,6 +97,60 @@ enum RoundsService {
         try await FirebaseService.db.collection("rounds").document(roundId).updateData([
             "status": "finished",
             "finishedAt": FieldValue.serverTimestamp(),
+        ])
+    }
+
+    /// Групповой раунд создаётся в статусе lobby: игроки входят по коду, хост
+    /// стартует. createdAt добавляется здесь (serverTimestamp нельзя положить
+    /// в чистый payload-хелпер).
+    static func createGroupRound(
+        hostId: String, hostInfo: PlayerInfo,
+        courseId: String, courseName: String,
+        totalHoles: Int, tee: TeeColor, playMode: PlayMode
+    ) async throws -> String {
+        let ref = FirebaseService.db.collection("rounds").document()
+        var payload = Rounds.groupRoundPayload(
+            hostId: hostId, hostInfo: hostInfo,
+            courseId: courseId, courseName: courseName,
+            totalHoles: totalHoles, tee: tee, playMode: playMode
+        )
+        payload["createdAt"] = FieldValue.serverTimestamp()
+        try await ref.setData(payload)
+        return ref.documentID
+    }
+
+    /// Вход по коду — ТОЛЬКО через callable (Admin SDK): правила запрещают
+    /// клиенту писать `players`. nil = лобби с таким кодом не найдено.
+    static func joinByCode(_ code: String, playerInfo: PlayerInfo) async throws -> String? {
+        let payload = try callableDict(JoinLobbyInput(
+            code: Rounds.normalizeLobbyCode(code),
+            playerInfo: JoinLobbyPlayerInfo(
+                name: playerInfo.name,
+                avatar: playerInfo.avatar,
+                email: nil,          // сервер подставит email из токена
+                totalScore: 0,
+                scoreDiff: 0
+            )
+        ))
+        let result = try await FirebaseService.functions.httpsCallable("joinLobbyByCode").call(payload)
+        guard let data = result.data as? [String: Any] else { return nil }
+        return data["roundId"] as? String
+    }
+
+    static func startRound(roundId: String) async throws {
+        try await FirebaseService.db.collection("rounds").document(roundId).updateData([
+            "status": "active",
+            "startedAt": FieldValue.serverTimestamp(),
+        ])
+    }
+
+    /// Выход из лобби. Правила требуют, чтобы новый playerIds был РОВНО
+    /// старым минус свой uid, поэтому передаём актуальный список из подписки
+    /// (FieldValue.arrayRemove не даёт правилам доказать равенство множеств).
+    static func leaveLobby(roundId: String, userId: String, currentPlayerIds: [String]) async throws {
+        let next = currentPlayerIds.filter { $0 != userId }
+        try await FirebaseService.db.collection("rounds").document(roundId).updateData([
+            "playerIds": next,
         ])
     }
 

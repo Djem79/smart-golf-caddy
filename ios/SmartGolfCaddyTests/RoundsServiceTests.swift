@@ -54,4 +54,25 @@ final class RoundsServiceTests: XCTestCase {
         let noEmail = PlayerInfo(name: "А", avatar: "", totalScore: 0, scoreDiff: 0, email: nil)
         XCTAssertNil(noEmail.firestoreData["email"])
     }
+
+    func testNormalizeLobbyCode() {
+        XCTAssertEqual(Rounds.normalizeLobbyCode(" ab-c2 3d"), "ABC23D")
+        XCTAssertEqual(Rounds.normalizeLobbyCode("abcdefgh"), "ABCDEF")   // обрезка до 6
+        XCTAssertEqual(Rounds.normalizeLobbyCode("!!!"), "")
+    }
+
+    func testGroupRoundDocumentShape() {
+        // Чистая проверка формы через хелпер, который собирает payload
+        let payload = Rounds.groupRoundPayload(
+            hostId: "u1",
+            hostInfo: PlayerInfo(name: "А", avatar: "", totalScore: 0, scoreDiff: 0, email: nil),
+            courseId: "c1", courseName: "Поле", totalHoles: 9, tee: .men, playMode: .match
+        )
+        XCTAssertEqual(payload["status"] as? String, "lobby")
+        XCTAssertEqual(payload["playMode"] as? String, "match")
+        XCTAssertEqual((payload["playerIds"] as? [String]) ?? [], ["u1"])
+        XCTAssertTrue(payload["startedAt"] is NSNull)
+        XCTAssertEqual((payload["holes"] as? [[String: Any]])?.count, 9)
+        XCTAssertEqual((payload["lobbyCode"] as? String)?.count, 6)
+    }
 }
