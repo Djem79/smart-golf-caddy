@@ -14,6 +14,7 @@ struct HoleTrackerView: View {
     @State private var showFinishConfirm = false
     @State private var showHoleEditor = false
     @State private var savingHole = false
+    @State private var showHostOnlyHint = false
 
     private let haptics = UIImpactFeedbackGenerator(style: .medium)
 
@@ -74,6 +75,16 @@ struct HoleTrackerView: View {
                 }
                 .accessibilityLabel("На главную")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                if let round = model.round, round.playerIds.count > 1 {
+                    Button {
+                        router.push(.leaderboard(roundId: roundId))
+                    } label: {
+                        Image(systemName: "trophy")
+                    }
+                    .accessibilityLabel("Турнирная таблица")
+                }
+            }
         }
         .task {
             selectedClub = store.lastClubUsed
@@ -132,6 +143,7 @@ struct HoleTrackerView: View {
     private func content(round: Round, hole: HoleConfig) -> some View {
         VStack(spacing: 0) {
             holeHeader(round: round, hole: hole)
+            if round.playerIds.count > 1 { playerStrip(round: round, hole: hole) }
             ScrollView {
                 VStack(spacing: 24) {
                     counter
@@ -204,11 +216,103 @@ struct HoleTrackerView: View {
         .background(DSColor.primaryContainer)
     }
 
+    // Порт ленты игроков (HoleTracker.tsx:279-315): аватар-инициал, имя
+    // («Вы» для себя), счётчик ударов лунки, выделение активного. Тап
+    // доступен всем на свой слот; чужой слот — только хосту (сервер
+    // enforce'ит host-or-self, здесь дублируем гейт для UI-подсказки).
+    private func playerStrip(round: Round, hole: HoleConfig) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Игрок (тап для переключения)")
+                .font(DSFont.labelMD)
+                .textCase(.uppercase)
+                .tracking(1)
+                .foregroundStyle(DSColor.onSurfaceVariant)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(round.playerIds, id: \.self) { uid in
+                        playerChip(uid: uid, round: round, hole: hole)
+                    }
+                }
+            }
+            if showHostOnlyHint {
+                Text("Счёт за других ведёт хост")
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(DSColor.onSurfaceVariant)
+            }
+        }
+        .padding(.horizontal, DS.screenPadding)
+        .padding(.top, 12)
+    }
+
+    private func playerChip(uid: String, round: Round, hole: HoleConfig) -> some View {
+        let active = uid == model.activeUserId
+        let isMe = uid == model.userId
+        let name = round.players[uid]?.name ?? "—"
+        let count = hole.shots[uid]?.count ?? 0
+        return Button {
+            selectPlayer(uid)
+        } label: {
+            HStack(spacing: 8) {
+                Text(initials(name))
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(active ? DSColor.primary : DSColor.onPrimary)
+                    .frame(width: 24, height: 24)
+                    .background(active ? DSColor.onPrimary : DSColor.primaryContainer)
+                    .clipShape(Circle())
+                Text(isMe ? "Вы" : name)
+                    .font(DSFont.labelLG)
+                    .lineLimit(1)
+                    .frame(maxWidth: 100, alignment: .leading)
+                Text("\(count)")
+                    .font(DSFont.labelLG.weight(.bold))
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: DS.touchTarget)
+        }
+        .foregroundStyle(active ? DSColor.onPrimary : DSColor.onSurface)
+        .background(active ? DSColor.primary : DSColor.surfaceContainerLowest)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(active ? Color.clear : DSColor.outlineVariant.opacity(0.6)))
+    }
+
+    private func selectPlayer(_ uid: String) {
+        guard model.canScoreForOthers || uid == model.userId else {
+            showHostOnlyHint = true
+            Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                showHostOnlyHint = false
+            }
+            return
+        }
+        model.setActiveUser(uid)
+    }
+
+    private func initials(_ name: String) -> String {
+        let parts = name.trimmingCharacters(in: .whitespaces).split(separator: " ")
+        if parts.isEmpty { return "—" }
+        if parts.count == 1 { return String(parts[0].prefix(2)).uppercased() }
+        let first = parts[0].first.map(String.init) ?? ""
+        let last = parts[parts.count - 1].first.map(String.init) ?? ""
+        return (first + last).uppercased()
+    }
+
+    // «Ваши удары» соло/для себя, «Удары: <имя>» когда хост ведёт счёт
+    // за другого игрока (порт заголовка серии из HoleTracker.tsx:317-322).
+    private var seriesTitle: String {
+        guard let round = model.round, round.playerIds.count > 1,
+              model.activeUserId != model.userId else {
+            return "Ваши удары"
+        }
+        return "Удары: \(round.players[model.activeUserId]?.name ?? "—")"
+    }
+
     private var counter: some View {
         VStack(spacing: 12) {
-            Text("ВАШИ УДАРЫ")
+            Text(seriesTitle)
                 .font(DSFont.labelLG)
                 .tracking(1.5)
+                .textCase(.uppercase)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             HStack(spacing: 40) {
                 Button {
@@ -217,7 +321,11 @@ struct HoleTrackerView: View {
                     guard !clubs.isEmpty else { return }
                     let newClubs = Array(clubs.dropLast())
                     Task {
-                        if await model.save(newClubs), let last = newClubs.last {
+                        if await model.save(newClubs), let last = newClubs.last, model.measuresDistances {
+                            // Порт HoleTracker.tsx save(): «последняя клюшка»
+                            // персонализируется только для своих ударов —
+                            // иначе выбор хоста для товарища перезаписал бы
+                            // дефолт клюшки самого хоста.
                             store.lastClubUsed = last
                         }
                     }
@@ -243,7 +351,11 @@ struct HoleTrackerView: View {
                     haptics.impactOccurred()
                     let newClubs = model.currentClubs + [selectedClub]
                     Task {
-                        if await model.save(newClubs), let last = newClubs.last {
+                        if await model.save(newClubs), let last = newClubs.last, model.measuresDistances {
+                            // Порт HoleTracker.tsx save(): «последняя клюшка»
+                            // персонализируется только для своих ударов —
+                            // иначе выбор хоста для товарища перезаписал бы
+                            // дефолт клюшки самого хоста.
                             store.lastClubUsed = last
                         }
                     }

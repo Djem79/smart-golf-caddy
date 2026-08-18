@@ -1,8 +1,9 @@
 // ios/SmartGolfCaddy/ViewModels/HoleTrackerViewModel.swift
 // Порт HoleTracker.tsx: оптимистичный оверлей поверх Firestore + офлайн-
-// очереди. Слот "\(holeIndex):\(userId)" не даёт оверлею одной лунки/
+// очереди. Слот "\(holeIndex):\(activeUserId)" не даёт оверлею одной лунки/
 // игрока протечь в другую; awaitingKey гасит оверлей, как только сервер
-// отэхоил ровно те же клюшки.
+// отэхоил ровно те же клюшки. activeUserId — игрок, за которого хост
+// ведёт счёт (по умолчанию сам userId).
 import Foundation
 import Observation
 
@@ -20,6 +21,13 @@ final class HoleTrackerViewModel {
     let roundId: String
     let holeIndex: Int
     let userId: String
+
+    /// Игрок, за которого сейчас ведётся счёт. По умолчанию — сам userId;
+    /// хост может переключить на любого участника (setActiveUser). Все
+    /// операции записи (слот очереди, метки дальномера) следуют за этим
+    /// значением, а не за userId — иначе переключение мид-сейв протекает
+    /// в чужой слот (находка финального ревью Фазы 2в).
+    private(set) var activeUserId: String
 
     var round: Round?
     var loadError: String?
@@ -39,15 +47,31 @@ final class HoleTrackerViewModel {
         self.roundId = roundId
         self.holeIndex = holeIndex
         self.userId = userId
+        self.activeUserId = userId
         self.rangefinder = rangefinder
     }
 
-    var slotKey: String { "\(holeIndex):\(userId)" }
+    var slotKey: String { "\(holeIndex):\(activeUserId)" }
     var hole: HoleConfig? {
         guard let round, round.holes.indices.contains(holeIndex) else { return nil }
         return round.holes[holeIndex]
     }
     var isHost: Bool { round?.hostId == userId }
+    /// Разрешение вести счёт за других — только хост (сервер это enforce'ит,
+    /// здесь дублируем для UI-гейтинга переключателя).
+    var canScoreForOthers: Bool { round?.hostId == userId }
+    /// GPS-замер достоверен только для своего слота: координаты устройства
+    /// принадлежат userId, а не activeUserId, если хост ведёт счёт за другого.
+    var measuresDistances: Bool { activeUserId == userId }
+
+    /// Переключить активного игрока (только хост должен вызывать это для
+    /// чужого uid — гейт на уровне UI, сервер дополнительно enforce'ит).
+    /// Сбрасывает optimistic-оверлей — он слот-тегирован под предыдущего
+    /// игрока и не должен протекать в новый слот.
+    func setActiveUser(_ uid: String) {
+        activeUserId = uid
+        optimistic = nil
+    }
 
     /// Индикатор для UI: достаточно ли точен текущий GPS-фикс для замера.
     /// Вычисляемое свойство — не тикает по таймеру, обновится вместе со
@@ -83,9 +107,9 @@ final class HoleTrackerViewModel {
     }
 
     var currentClubs: [String] {
-        let server = hole?.shots[userId]?.resolvedClubs ?? []
+        let server = hole?.shots[activeUserId]?.resolvedClubs ?? []
         let pending = ShotQueue.shared.pendingShot(
-            roundId: roundId, holeIndex: holeIndex, targetUid: userId
+            roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId
         )?.clubs
         return displayedClubs(serverClubs: server, pendingClubs: pending)
     }
@@ -103,12 +127,12 @@ final class HoleTrackerViewModel {
 
     var currentDistances: [Int] {
         let pending = ShotQueue.shared.pendingShot(
-            roundId: roundId, holeIndex: holeIndex, targetUid: userId
+            roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId
         )
         return displayedDistances(
-            serverDistances: hole?.shots[userId]?.resolvedDistances ?? [],
+            serverDistances: hole?.shots[activeUserId]?.resolvedDistances ?? [],
             pendingDistances: pending?.distances,
-            serverClubs: hole?.shots[userId]?.resolvedClubs ?? [],
+            serverClubs: hole?.shots[activeUserId]?.resolvedClubs ?? [],
             pendingClubs: pending?.clubs
         )
     }
@@ -127,22 +151,29 @@ final class HoleTrackerViewModel {
 
         if next.count > previous.count {
             let newIndex = next.count - 1
-            // Замер достоверен, только если метка принадлежит непосредственно
-            // предыдущему удару: при пропущенной метке (слабый GPS) дистанция
-            // покрыла бы несколько ударов сразу — такой замер отбрасываем.
-            if let measured = rangefinder.measure(roundId: roundId, holeIndex: holeIndex, targetUid: userId),
-               measured.previousIndex == previous.count - 1,
-               measured.meters > 0,
-               distances.indices.contains(measured.previousIndex) {
-                distances[measured.previousIndex] = measured.meters
+            // GPS-замер достоверен только для своего слота: координаты
+            // устройства принадлежат userId, а не activeUserId, когда хост
+            // ведёт счёт за другого — для чужого слота замер пропускаем
+            // целиком (дистанция остаётся 0), иначе позиция хоста
+            // приписалась бы товарищу.
+            if measuresDistances {
+                // Замер достоверен, только если метка принадлежит непосредственно
+                // предыдущему удару: при пропущенной метке (слабый GPS) дистанция
+                // покрыла бы несколько ударов сразу — такой замер отбрасываем.
+                if let measured = rangefinder.measure(roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId),
+                   measured.previousIndex == previous.count - 1,
+                   measured.meters > 0,
+                   distances.indices.contains(measured.previousIndex) {
+                    distances[measured.previousIndex] = measured.meters
+                }
+                rangefinder.markShot(roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId, shotIndex: newIndex)
             }
-            rangefinder.markShot(roundId: roundId, holeIndex: holeIndex, targetUid: userId, shotIndex: newIndex)
         } else if next.count < previous.count {
             distances = Array(distances.prefix(next.count))
             // Точку замера переносим на последний оставшийся удар — иначе
             // следующий замер посчитал бы дистанцию от удалённого удара.
-            if next.count > 0 {
-                rangefinder.markShot(roundId: roundId, holeIndex: holeIndex, targetUid: userId, shotIndex: next.count - 1)
+            if measuresDistances, next.count > 0 {
+                rangefinder.markShot(roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId, shotIndex: next.count - 1)
             }
         }
 
@@ -156,7 +187,7 @@ final class HoleTrackerViewModel {
         optimistic = Optimistic(slot: slotKey, clubs: next, distances: distances,
                                 awaitingKey: next.joined(separator: "|"))
         let outcome = await ShotQueue.shared.recordShotQueued(
-            roundId: roundId, holeIndex: holeIndex, targetUid: userId, clubs: next, distances: distances
+            roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId, clubs: next, distances: distances
         )
         if case .rejected = outcome {
             saveError = "Не удалось сохранить удар."

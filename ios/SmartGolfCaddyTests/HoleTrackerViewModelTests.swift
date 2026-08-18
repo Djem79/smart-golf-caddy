@@ -45,4 +45,20 @@ final class HoleTrackerViewModelTests: XCTestCase {
         XCTAssertEqual(model.displayedDistances(serverDistances: [215], pendingDistances: nil,
                                                 serverClubs: ["Driver"], pendingClubs: nil), [215])
     }
+
+    @MainActor
+    func testSlotKeyFollowsActiveUser() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 2, userId: "host")
+        XCTAssertEqual(model.slotKey, "2:host")
+        model.setActiveUser("mate")
+        XCTAssertEqual(model.slotKey, "2:mate")
+    }
+
+    @MainActor
+    func testDistancesMeasuredOnlyForOwnSlot() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "host")
+        XCTAssertTrue(model.measuresDistances)      // свой слот
+        model.setActiveUser("mate")
+        XCTAssertFalse(model.measuresDistances)     // чужой слот — координаты не мои
+    }
 }
