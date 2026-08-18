@@ -89,7 +89,18 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 `functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
 во всех трёх — при правке схемы на одной стороне обновлять остальные
 две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
-`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 2c (GPS-дальномер): `Services/ShotRangefinder.swift` — авто-замер
+`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 3a (групповая игра): экраны GroupLobby (код + QR через CoreImage,
+список игроков, старт хостом), JoinGame (ввод кода + автовход по
+deep-link `smartgolfcaddy://join/<CODE>`, латч на один код), Leaderboard
+(живая таблица, match-статус). Режимы в настройке: Соло/Группа и
+Stroke/Match (match — только для группы). В трекере `activeUserId`:
+хост ведёт счёт за любого игрока, слоты очереди И меток дальномера
+следуют за активным игроком, GPS-замер и lastClubUsed — ТОЛЬКО для
+своего слота (иначе координаты/дефолт хоста утекут товарищу).
+ВАЖНО: выход из лобби пишет ПОЛНЫЙ новый playerIds (правила требуют
+равенства множеств — arrayRemove не проходит).
+
+Фаза 2c (GPS-дальномер): `Services/ShotRangefinder.swift` — авто-замер
 дистанции удара. Позиция запоминается в момент записи удара (слот
 `round:hole:uid`, файл в Application Support), дистанция считается при
 записи следующего; присваивается ТОЛЬКО при непрерывности (метка
