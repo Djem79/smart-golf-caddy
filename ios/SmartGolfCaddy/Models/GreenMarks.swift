@@ -48,7 +48,15 @@ enum Greens {
             .lowercased()
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
-        return "name:\(normalized)"
+        // Слеш — разделитель сегментов пути Firestore, поэтому любые
+        // недопустимые символы заменяем на «-», а пустое имя заменяем
+        // плейсхолдером, иначе получится пустой сегмент пути.
+        let sanitized = String(normalized.map { char in
+            (char == "/" || char == "\\" || char == "." || char == "#" || char == "$"
+             || char == "[" || char == "]") ? "-" : char
+        })
+        let bounded = String(sanitized.prefix(100))
+        return bounded.isEmpty ? "name:unnamed" : "name:\(bounded)"
     }
 
     /// Среднее координат по всем игрокам, отметившим эту лунку.

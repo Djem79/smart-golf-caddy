@@ -40,4 +40,15 @@ final class GreenMarksTests: XCTestCase {
         let restored = GreenMarkSet(data: set.firestoreData)
         XCTAssertEqual(restored, set)
     }
+
+    func testCourseKeySanitizesPathBreakingCharacters() {
+        let key = Greens.courseKey(courseId: "custom-1", courseName: "Golf Club / North #2")
+        XCTAssertFalse(key.contains("/"))
+        XCTAssertFalse(key.contains("#"))
+        XCTAssertEqual(key, "name:golf club - north -2")
+    }
+
+    func testCourseKeyForEmptyNameIsStable() {
+        XCTAssertEqual(Greens.courseKey(courseId: "custom-1", courseName: "   "), "name:unnamed")
+    }
 }
