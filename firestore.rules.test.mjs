@@ -55,6 +55,12 @@ async function seed(id, data) {
   })
 }
 
+async function seedGreenMark(courseKey, userId, data) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'courses', courseKey, 'greenMarks', userId), data)
+  })
+}
+
 let passed = 0
 let failed = 0
 async function test(name, fn) {
@@ -177,6 +183,26 @@ try {
       [OUTSIDER]: { name: 'Me', avatar: '', email: 'me@example.com' },
     }
     await assertSucceeds(setDoc(doc(outsider, 'rounds', 'r12'), good))
+  })
+
+  // --- Task 1 (Phase 3b): краудсорс-метки гринов, courses/{courseKey}/greenMarks/{uid} ---
+  const COURSE_KEY = 'name:test course'
+  function greenMark() {
+    return { holes: { 1: { lat: 55.7, lng: 37.4 } }, updatedAt: new Date() }
+  }
+  await test('owner CAN write their own green marks', async () => {
+    await assertSucceeds(
+      setDoc(doc(alice, 'courses', COURSE_KEY, 'greenMarks', ALICE), greenMark()),
+    )
+  })
+  await test("другой пользователь CANNOT write into someone else's green marks doc", async () => {
+    await assertFails(
+      setDoc(doc(mallory, 'courses', COURSE_KEY, 'greenMarks', ALICE), greenMark()),
+    )
+  })
+  await test('authenticated user CAN read a green marks doc that is not theirs (нужно для усреднения)', async () => {
+    await seedGreenMark(COURSE_KEY, ALICE, greenMark())
+    await assertSucceeds(getDoc(doc(outsider, 'courses', COURSE_KEY, 'greenMarks', ALICE)))
   })
 } finally {
   await testEnv.cleanup()

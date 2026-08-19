@@ -15,6 +15,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Краудсорс-координаты гринов. Документ на пользователя: каждый пишет
+    // ТОЛЬКО свои метки, читают все аутентифицированные (клиент усредняет).
+    // Так одна порченая отметка не ломает поле остальным.
+    match /courses/{courseKey}/greenMarks/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['holes', 'updatedAt'])
+        && request.resource.data.holes is map
+        && request.resource.data.holes.size() <= 18;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Rounds — field-aware update rules split per action.
     match /rounds/{roundId} {
 
