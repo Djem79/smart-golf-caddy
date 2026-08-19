@@ -20,8 +20,13 @@ service cloud.firestore {
     // Так одна порченая отметка не ломает поле остальным.
     match /courses/{courseKey}/greenMarks/{userId} {
       allow read: if request.auth != null;
+      // Rules не умеют итерировать map, поэтому диапазон lat/lng (-90..90 /
+      // -180..180) валидируется на клиенте (GreensService.saveMark). Здесь —
+      // только форма: размер courseKey ограничен (защита от произвольных
+      // мусорных путей) и holes — непустой map разумного размера.
       allow create, update: if request.auth != null
         && request.auth.uid == userId
+        && courseKey.size() <= 120
         && request.resource.data.keys().hasOnly(['holes', 'updatedAt'])
         && request.resource.data.holes is map
         && request.resource.data.holes.size() <= 18;

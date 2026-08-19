@@ -23,6 +23,10 @@ enum GreensService {
     /// Merge по конкретной лунке: точечный путь `holes.<N>` не трогает
     /// остальные лунки в документе игрока.
     static func saveMark(courseKey: String, userId: String, hole: Int, lat: Double, lng: Double) async throws {
+        // Rules не валидируют диапазон координат (не умеют итерировать map) —
+        // гейт на клиенте, чтобы мусорный фикс не улетел на сервер и не
+        // испортил среднее для всех игроков поля.
+        guard (-90...90).contains(lat), (-180...180).contains(lng) else { return }
         try await FirebaseService.db
             .collection("courses").document(courseKey)
             .collection("greenMarks").document(userId)

@@ -38,10 +38,18 @@ struct GreenMarkSet: Equatable {
 }
 
 enum Greens {
-    /// Стабильный ключ поля. Для полей из поиска — placeId. Для введённых
-    /// вручную id уникален на раунд (`custom-<UUID>`), поэтому ключом служит
-    /// нормализованное название — иначе метки никогда бы не переиспользовались.
-    static func courseKey(courseId: String, courseName: String) -> String {
+    /// Дефолтная заглушка `RoundSetupViewModel.effectiveName`, которую
+    /// пользователь не вводил сам — не идентифицирует физическое поле.
+    private static let unnamedCoursePlaceholder = "поле для гольфа"
+
+    /// Стабильный ключ поля для меток гринов. Для полей из поиска —
+    /// placeId. Для введённых вручную id уникален на раунд
+    /// (`custom-<UUID>`), поэтому ключом служит нормализованное название —
+    /// иначе метки никогда бы не переиспользовались. nil = поле не
+    /// идентифицировано (ручной раунд без названия): метки не собираем,
+    /// иначе грины разных физических полей смешались бы под одним ключом
+    /// «поле для гольфа».
+    static func courseKey(courseId: String, courseName: String) -> String? {
         if !courseId.hasPrefix("custom-"), !courseId.isEmpty { return courseId }
         let normalized = courseName
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -56,7 +64,9 @@ enum Greens {
              || char == "[" || char == "]") ? "-" : char
         })
         let bounded = String(sanitized.prefix(100))
-        return bounded.isEmpty ? "name:unnamed" : "name:\(bounded)"
+        // Дефолтное имя-заглушка не идентифицирует поле.
+        guard !bounded.isEmpty, bounded != unnamedCoursePlaceholder else { return nil }
+        return "name:\(bounded)"
     }
 
     /// Среднее координат по всем игрокам, отметившим эту лунку.

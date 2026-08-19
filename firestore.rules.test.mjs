@@ -204,6 +204,12 @@ try {
     await seedGreenMark(COURSE_KEY, ALICE, greenMark())
     await assertSucceeds(getDoc(doc(outsider, 'courses', COURSE_KEY, 'greenMarks', ALICE)))
   })
+  await test('owner CANNOT write green marks under an oversized courseKey', async () => {
+    const oversized = 'name:' + 'x'.repeat(120)
+    await assertFails(
+      setDoc(doc(alice, 'courses', oversized, 'greenMarks', ALICE), greenMark()),
+    )
+  })
 } finally {
   await testEnv.cleanup()
 }

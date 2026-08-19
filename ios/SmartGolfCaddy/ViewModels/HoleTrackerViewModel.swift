@@ -53,9 +53,15 @@ final class HoleTrackerViewModel {
         courseKey != nil && ShotRangefinder.isUsable(GeolocationService.shared.lastFix)
     }
 
+    /// Индикатор для UI: идентифицировано ли поле раунда (есть courseKey).
+    /// false для ручных раундов без названия («Быстрый старт») — метки
+    /// гринов для них не собираются (Greens.courseKey возвращает nil).
+    var courseIdentified: Bool { courseKey != nil }
+
     /// Ключ поля (Greens.courseKey) — известен только после первого снапшота
     /// раунда (courseId/courseName приходят из Round). До этого подписки на
-    /// метки нет.
+    /// метки нет. nil — поле не идентифицировано (пустое/дефолтное
+    /// название), подписка на метки не поднимается вовсе.
     private var courseKey: String?
     private var unsubscribeGreens: (() -> Void)?
 
@@ -119,8 +125,11 @@ final class HoleTrackerViewModel {
                 self.round = round
                 // Ключ поля известен только из раунда — поднимаем подписку на
                 // метки при первом снапшоте (courseKey ещё не установлен).
-                if self.courseKey == nil {
-                    self.startGreens(courseKey: Greens.courseKey(courseId: round.courseId, courseName: round.courseName))
+                // Раунды без осмысленного названия поля (courseKey == nil)
+                // подписку не поднимают вовсе — иначе метки разных
+                // физических полей смешались бы под общим ключом-заглушкой.
+                if self.courseKey == nil, let key = Greens.courseKey(courseId: round.courseId, courseName: round.courseName) {
+                    self.startGreens(courseKey: key)
                 }
                 self.applyGreenMarks(self.greenMarks, fix: GeolocationService.shared.lastFix)
             },
@@ -156,7 +165,9 @@ final class HoleTrackerViewModel {
             greenDistanceMeters = nil
             return
         }
-        greenDistanceMeters = Greens.distanceMeters(from: fix, to: average)
+        // Больше 800 м до грина не бывает: это чужое поле или мусорная метка.
+        let meters = Greens.distanceMeters(from: fix, to: average)
+        greenDistanceMeters = (0...800).contains(meters) ? meters : nil
     }
 
     /// Поставить метку грина текущей лункой по текущему GPS-фиксу. Метка —

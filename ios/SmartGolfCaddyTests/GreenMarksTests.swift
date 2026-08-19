@@ -8,12 +8,12 @@ final class GreenMarksTests: XCTestCase {
         XCTAssertEqual(Greens.courseKey(courseId: "ChIJp1HB", courseName: "Krylatskoye"), "ChIJp1HB")
     }
 
-    func testCourseKeyFallsBackToNormalizedNameForManualCourses() {
+    func testCourseKeyFallsBackToNormalizedNameForManualCourses() throws {
         // Ручной ввод даёт уникальный на раунд id — метки бы не переиспользовались.
         let a = Greens.courseKey(courseId: "custom-ABC123", courseName: "  Dubai   Hills  ")
         let b = Greens.courseKey(courseId: "custom-XYZ789", courseName: "dubai hills")
         XCTAssertEqual(a, b)
-        XCTAssertTrue(a.hasPrefix("name:"))
+        XCTAssertTrue(try XCTUnwrap(a).hasPrefix("name:"))
     }
 
     func testAverageOfMarks() {
@@ -41,14 +41,22 @@ final class GreenMarksTests: XCTestCase {
         XCTAssertEqual(restored, set)
     }
 
-    func testCourseKeySanitizesPathBreakingCharacters() {
-        let key = Greens.courseKey(courseId: "custom-1", courseName: "Golf Club / North #2")
+    func testCourseKeySanitizesPathBreakingCharacters() throws {
+        let key = try XCTUnwrap(Greens.courseKey(courseId: "custom-1", courseName: "Golf Club / North #2"))
         XCTAssertFalse(key.contains("/"))
         XCTAssertFalse(key.contains("#"))
         XCTAssertEqual(key, "name:golf club - north -2")
     }
 
-    func testCourseKeyForEmptyNameIsStable() {
-        XCTAssertEqual(Greens.courseKey(courseId: "custom-1", courseName: "   "), "name:unnamed")
+    func testCourseKeyForEmptyNameIsNil() {
+        // Пустое имя не идентифицирует поле — метки собирать не для чего.
+        XCTAssertNil(Greens.courseKey(courseId: "custom-1", courseName: "   "))
+    }
+
+    func testCourseKeyForDefaultPlaceholderIsNil() {
+        // "Поле для гольфа" — заглушка RoundSetupViewModel.effectiveName при
+        // пустом вводе («Быстрый старт»), а не название реального поля.
+        // Схлопывать метки разных физических полей под этим ключом нельзя.
+        XCTAssertNil(Greens.courseKey(courseId: "custom-1", courseName: "Поле для гольфа"))
     }
 }

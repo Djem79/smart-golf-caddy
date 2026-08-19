@@ -95,4 +95,14 @@ final class HoleTrackerViewModelTests: XCTestCase {
         model.applyGreenMarks([GreenMarkSet(holes: [1: GreenMark(lat: 55.701, lng: 37.4)])], fix: old)
         XCTAssertNil(model.greenDistanceMeters)
     }
+
+    @MainActor
+    func testImplausiblyFarGreenMarkHidesDistance() {
+        // Метка в ~5 км (чужое поле или мусорные координаты) — больше
+        // 800 м до грина не бывает, значение не показываем вовсе.
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")  // лунка 1
+        let sets = [GreenMarkSet(holes: [1: GreenMark(lat: 55.745, lng: 37.400)])]
+        model.applyGreenMarks(sets, fix: GeoFix(lat: 55.700, lng: 37.400, accuracy: 5, timestamp: Date()))
+        XCTAssertNil(model.greenDistanceMeters)
+    }
 }

@@ -236,7 +236,13 @@ struct HoleTrackerView: View {
             Image(systemName: "flag.checkered")
                 .font(.system(size: 14))
                 .foregroundStyle(DSColor.onPrimary.opacity(0.8))
-            if let meters = model.greenDistanceMeters {
+            if !model.courseIdentified {
+                // Ручной раунд без названия поля — метки гринов не собираются
+                // (Greens.courseKey вернул nil), кнопку отметки не показываем.
+                Text("Укажите название поля, чтобы отмечать грины")
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(DSColor.onPrimary.opacity(0.7))
+            } else if let meters = model.greenDistanceMeters {
                 Text(session.profile?.units == .yd
                      ? "До грина: \(Score.metersToYards(meters)) я"
                      : "До грина: \(meters) м")
@@ -249,20 +255,22 @@ struct HoleTrackerView: View {
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
             }
             Spacer()
-            Button {
-                Task { _ = await model.markGreen() }
-            } label: {
-                Text("Я НА ГРИНЕ")
-                    .font(DSFont.labelMD)
-                    .tracking(1.2)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: DS.touchTarget)
+            if model.courseIdentified {
+                Button {
+                    Task { _ = await model.markGreen() }
+                } label: {
+                    Text("Я НА ГРИНЕ")
+                        .font(DSFont.labelMD)
+                        .tracking(1.2)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: DS.touchTarget)
+                }
+                .foregroundStyle(DSColor.onPrimary)
+                .background(DSColor.onPrimary.opacity(model.canMarkGreen ? 0.18 : 0.08))
+                .clipShape(Capsule())
+                .disabled(!model.canMarkGreen)
+                .accessibilityLabel("Отметить грин текущей лунки")
             }
-            .foregroundStyle(DSColor.onPrimary)
-            .background(DSColor.onPrimary.opacity(model.canMarkGreen ? 0.18 : 0.08))
-            .clipShape(Capsule())
-            .disabled(!model.canMarkGreen)
-            .accessibilityLabel("Отметить грин текущей лунки")
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 10)
