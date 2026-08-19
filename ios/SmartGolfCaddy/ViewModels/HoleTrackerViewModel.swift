@@ -45,7 +45,13 @@ final class HoleTrackerViewModel {
     /// недостаточно точный/свежий (тот же гейт, что и у дальномера ударов).
     private(set) var greenDistanceMeters: Int?
     /// Индикатор для UI: можно ли поставить метку грина прямо сейчас.
-    var canMarkGreen: Bool { ShotRangefinder.isUsable(GeolocationService.shared.lastFix) }
+    /// Отметить грин можно, когда есть годный фикс И известно поле раунда
+    /// (без courseKey markGreen() молча вернёт false — без этого условия
+    /// кнопка выглядела бы активной, но не срабатывала до первого снапшота
+    /// раунда).
+    var canMarkGreen: Bool {
+        courseKey != nil && ShotRangefinder.isUsable(GeolocationService.shared.lastFix)
+    }
 
     /// Ключ поля (Greens.courseKey) — известен только после первого снапшота
     /// раунда (courseId/courseName приходят из Round). До этого подписки на
@@ -160,7 +166,10 @@ final class HoleTrackerViewModel {
     @discardableResult
     func markGreen() async -> Bool {
         guard let fix = GeolocationService.shared.lastFix, ShotRangefinder.isUsable(fix) else { return false }
-        guard let courseKey else { return false }
+        guard let courseKey else {
+            saveError = "Раунд ещё загружается — попробуйте через секунду."
+            return false
+        }
         do {
             try await GreensService.saveMark(
                 courseKey: courseKey, userId: userId, hole: holeIndex + 1, lat: fix.lat, lng: fix.lng

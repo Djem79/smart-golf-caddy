@@ -146,10 +146,18 @@ struct HoleTrackerView: View {
     private func content(round: Round, hole: HoleConfig) -> some View {
         VStack(spacing: 0) {
             holeHeader(round: round, hole: hole)
+            greenRow
             if round.playerIds.count > 1 { playerStrip(round: round, hole: hole) }
             ScrollView {
                 VStack(spacing: 24) {
                     counter
+                    if model.greenDistanceMeters == nil && model.canMarkGreen {
+                        Text("Отметьте грин, когда дойдёте — со следующего раунда покажем дистанцию")
+                            .font(DSFont.labelMD)
+                            .foregroundStyle(DSColor.onSurfaceVariant)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, DS.screenPadding)
+                    }
                     if !model.currentClubs.isEmpty { series }
                     if let saveError = model.saveError {
                         Text(saveError)
@@ -216,6 +224,48 @@ struct HoleTrackerView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
+        .background(DSColor.primaryContainer)
+    }
+
+    // Компактная строка «До грина» + кнопка отметки (3b-T3): под шапкой
+    // пар/дист./тии, тот же primaryContainer-фон — визуально продолжение
+    // шапки. Единицы — из профиля, как в RoundResultsView.avgDistanceText.
+    @ViewBuilder
+    private var greenRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "flag.checkered")
+                .font(.system(size: 14))
+                .foregroundStyle(DSColor.onPrimary.opacity(0.8))
+            if let meters = model.greenDistanceMeters {
+                Text(session.profile?.units == .yd
+                     ? "До грина: \(Score.metersToYards(meters)) я"
+                     : "До грина: \(meters) м")
+                    .font(DSFont.labelLG)
+                    .foregroundStyle(DSColor.onPrimary)
+                    .monospacedDigit()
+            } else {
+                Text("Грин не отмечен")
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(DSColor.onPrimary.opacity(0.7))
+            }
+            Spacer()
+            Button {
+                Task { _ = await model.markGreen() }
+            } label: {
+                Text("Я НА ГРИНЕ")
+                    .font(DSFont.labelMD)
+                    .tracking(1.2)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: DS.touchTarget)
+            }
+            .foregroundStyle(DSColor.onPrimary)
+            .background(DSColor.onPrimary.opacity(model.canMarkGreen ? 0.18 : 0.08))
+            .clipShape(Capsule())
+            .disabled(!model.canMarkGreen)
+            .accessibilityLabel("Отметить грин текущей лунки")
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 10)
         .background(DSColor.primaryContainer)
     }
 
