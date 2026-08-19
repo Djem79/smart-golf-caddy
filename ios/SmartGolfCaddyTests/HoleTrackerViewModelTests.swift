@@ -71,4 +71,28 @@ final class HoleTrackerViewModelTests: XCTestCase {
         model.setActiveUser("mate")
         XCTAssertNil(model.optimistic)             // смена игрока — сброс
     }
+
+    @MainActor
+    func testGreenDistanceNilWithoutMarks() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")
+        model.applyGreenMarks([], fix: GeoFix(lat: 55.7, lng: 37.4, accuracy: 5, timestamp: Date()))
+        XCTAssertNil(model.greenDistanceMeters)
+    }
+
+    @MainActor
+    func testGreenDistanceComputedFromAveragedMarks() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")  // лунка 1
+        let sets = [GreenMarkSet(holes: [1: GreenMark(lat: 55.701, lng: 37.400)])]
+        model.applyGreenMarks(sets, fix: GeoFix(lat: 55.700, lng: 37.400, accuracy: 5, timestamp: Date()))
+        XCTAssertEqual(Double(model.greenDistanceMeters ?? 0), 111, accuracy: 3)
+    }
+
+    @MainActor
+    func testStaleFixHidesGreenDistance() {
+        let model = HoleTrackerViewModel(roundId: "r", holeIndex: 0, userId: "u")
+        let old = GeoFix(lat: 55.700, lng: 37.400, accuracy: 5,
+                         timestamp: Date().addingTimeInterval(-300))
+        model.applyGreenMarks([GreenMarkSet(holes: [1: GreenMark(lat: 55.701, lng: 37.4)])], fix: old)
+        XCTAssertNil(model.greenDistanceMeters)
+    }
 }

@@ -37,6 +37,22 @@ final class HoleTrackerViewModel {
     var hasQueuedShots = false
     var optimistic: Optimistic?
 
+    /// Усреднённые метки грина по всем игрокам поля (сырые, до пересчёта
+    /// дистанции) — хранятся, чтобы applyGreenMarks можно было перевызвать
+    /// с новым фиксом без повторной подписки.
+    private var greenMarks: [GreenMarkSet] = []
+    /// Дистанция до грина в метрах. nil = нет меток на эту лунку или фикс
+    /// недостаточно точный/свежий (тот же гейт, что и у дальномера ударов).
+    private(set) var greenDistanceMeters: Int?
+    /// Индикатор для UI: можно ли поставить метку грина прямо сейчас.
+    var canMarkGreen: Bool { ShotRangefinder.isUsable(GeolocationService.shared.lastFix) }
+
+    /// Ключ поля (Greens.courseKey) — известен только после первого снапшота
+    /// раунда (courseId/courseName приходят из Round). До этого подписки на
+    /// метки нет.
+    private var courseKey: String?
+    private var unsubscribeGreens: (() -> Void)?
+
     private var unsubscribe: (() -> Void)?
     private var queueObserver: NSObjectProtocol?
     // Дальномер инжектируется для тестов; вью продолжают вызывать init без
@@ -92,11 +108,68 @@ final class HoleTrackerViewModel {
         }
         unsubscribe = RoundsService.subscribeToRound(
             roundId: roundId,
-            onChange: { [weak self] round in self?.round = round },
+            onChange: { [weak self] round in
+                guard let self else { return }
+                self.round = round
+                // Ключ поля известен только из раунда — поднимаем подписку на
+                // метки при первом снапшоте (courseKey ещё не установлен).
+                if self.courseKey == nil {
+                    self.startGreens(courseKey: Greens.courseKey(courseId: round.courseId, courseName: round.courseName))
+                }
+                self.applyGreenMarks(self.greenMarks, fix: GeolocationService.shared.lastFix)
+            },
             onError: { [weak self] _ in
                 self?.loadError = "Не удалось загрузить раунд. Проверьте связь."
             }
         )
+    }
+
+    private func startGreens(courseKey: String) {
+        self.courseKey = courseKey
+        unsubscribeGreens = GreensService.subscribeToMarks(
+            courseKey: courseKey,
+            onChange: { [weak self] sets in
+                self?.applyGreenMarks(sets, fix: GeolocationService.shared.lastFix)
+            },
+            onError: { [weak self] _ in
+                self?.loadError = "Не удалось загрузить метки грина."
+            }
+        )
+    }
+
+    /// Пересчёт дистанции до грина: чистая функция, тестируется напрямую
+    /// без Firebase/CoreLocation. `holes` в метках индексируются с 1 (как в
+    /// вебе), поэтому текущая лунка — `holeIndex + 1`. Гейт достоверности
+    /// фикса переиспользует ShotRangefinder.isUsable — та же логика, что и
+    /// для замера ударов, не дублируем.
+    func applyGreenMarks(_ sets: [GreenMarkSet], fix: GeoFix?) {
+        greenMarks = sets
+        guard ShotRangefinder.isUsable(fix),
+              let fix,
+              let average = Greens.average(sets, hole: holeIndex + 1) else {
+            greenDistanceMeters = nil
+            return
+        }
+        greenDistanceMeters = Greens.distanceMeters(from: fix, to: average)
+    }
+
+    /// Поставить метку грина текущей лункой по текущему GPS-фиксу. Метка —
+    /// это позиция ЭТОГО устройства, поэтому пишем под userId, а не
+    /// activeUserId (аналогично measuresDistances — координаты устройства
+    /// не принадлежат тому, за кого хост ведёт счёт).
+    @discardableResult
+    func markGreen() async -> Bool {
+        guard let fix = GeolocationService.shared.lastFix, ShotRangefinder.isUsable(fix) else { return false }
+        guard let courseKey else { return false }
+        do {
+            try await GreensService.saveMark(
+                courseKey: courseKey, userId: userId, hole: holeIndex + 1, lat: fix.lat, lng: fix.lng
+            )
+            return true
+        } catch {
+            saveError = "Не удалось сохранить метку грина."
+            return false
+        }
     }
 
     /// Дерив отображаемой серии (порт myClubs из HoleTracker.tsx):
@@ -147,6 +220,11 @@ final class HoleTrackerViewModel {
         saving = true
         saveError = nil
         defer { saving = false }
+        // Лёгкий пересчёт дистанции до грина на актуальном фиксе — полноценный
+        // тик раз в секунду в беклоге (MVP: пересчёт на каждый save() и на
+        // снапшоте раунда достаточен). Безусловно — не зависит от исхода
+        // записи удара ниже.
+        applyGreenMarks(greenMarks, fix: GeolocationService.shared.lastFix)
 
         let previous = currentClubs
         let next = clubs
@@ -235,6 +313,7 @@ final class HoleTrackerViewModel {
 
     @MainActor deinit {
         unsubscribe?()
+        unsubscribeGreens?()
         if let queueObserver { NotificationCenter.default.removeObserver(queueObserver) }
         GeolocationService.shared.stopTracking()
     }
