@@ -98,7 +98,12 @@ struct WatchRootView: View {
                       distanceMeters: 280 + $0 * 4, myShots: $0 < 3 ? 4 : 0)
         },
         clubs: ["Driver", "3 Wood", "5 Iron", "7 Iron", "PW", "Putter"],
-        greens: [:],
+        // Метка грина лунки 3 — ~78 м к северу от координаты, которую
+        // ставит live-проверка через `xcrun simctl location` (см.
+        // task-5-report.md). Только для этой лунки: остальные остаются без
+        // метки, чтобы live-проверка заодно подтвердила скрытие строки
+        // «До грина» там, где метки нет.
+        greens: [3: GreenMark(lat: 37.335600, lng: -122.009020)],
         activeHoleNumber: 3,
         units: .m,
         updatedAt: Date()

@@ -7,6 +7,14 @@ import SwiftUI
 struct WatchHoleView: View {
     let viewModel: WatchRoundViewModel
 
+    // Владелец жизненного цикла GPS-трекинга: старт при появлении ЭТОГО
+    // экрана (лунки), стоп при уходе — батарея часов дороже телефонной.
+    // Держим как let-ссылку на .shared (как WatchRootView держит
+    // PhoneBridge.shared) — @Observable сам заводит трекинг чтения без
+    // property wrapper'а. import CoreLocation здесь НЕ нужен: публичный
+    // тип сервиса — Foundation-only GeoFix (см. CLAUDE.md).
+    private let locationService = WatchLocationService.shared
+
     // DEBUG-only: запуск с launch argument -watchPreviewShowPicker сразу
     // открывает пикер клюшек — нужно для скриншот-доказательства без
     // возможности скриптованного тапа по симулятору часов.
@@ -27,6 +35,22 @@ struct WatchHoleView: View {
         return "\(value) \(unitsYards ? "ярд" : "м")"
     }
 
+    /// Строка «До грина» показывается ТОЛЬКО если для текущей лунки в
+    /// снимке есть усреднённая метка грина — тем же паттерном, что и
+    /// distanceLabel выше (nil = строка скрыта целиком, а не «0 м»/«—»
+    /// навсегда: на поле, которое никто не отмечал, постоянная «—» была бы
+    /// голым шумом на экране 41–46мм). Когда метка ЕСТЬ, но GPS-фикс
+    /// негоден (устарел/неточен) или ещё не получен — «—»: строка остаётся
+    /// на месте (метка для этой лунки реально существует), просто текущая
+    /// дистанция недостоверна — это отличается от «метки вообще нет».
+    private var greenDistanceLabel: String? {
+        guard viewModel.snapshot?.greens[viewModel.holeNumber] != nil else { return nil }
+        guard let meters = viewModel.greenDistanceMeters else { return "—" }
+        let unitsYards = viewModel.snapshot?.units == .yd
+        let value = unitsYards ? Score.metersToYards(meters) : meters
+        return "\(value) \(unitsYards ? "я" : "м")"
+    }
+
     /// «Пар N • 300 м» — совмещаем пар и дистанцию лунки в одну строку под
     /// заголовком, чтобы не тратить лишнюю строку экрана (41–46мм — каждая
     /// точка высоты на счету).
@@ -42,6 +66,10 @@ struct WatchHoleView: View {
         ScrollView {
             VStack(spacing: 6) {
                 holeNavRow
+
+                if let greenDistanceLabel {
+                    greenDistanceRow(greenDistanceLabel)
+                }
 
                 Text("\(viewModel.shots.count)")
                     .font(DSFont.headlineLG)
@@ -73,6 +101,16 @@ struct WatchHoleView: View {
                     }
                 )
             }
+        }
+        .onAppear {
+            locationService.startTracking()
+            viewModel.currentFix = locationService.lastFix
+        }
+        .onDisappear {
+            locationService.stopTracking()
+        }
+        .onChange(of: locationService.lastFix) { _, newFix in
+            viewModel.currentFix = newFix
         }
     }
 
@@ -165,6 +203,18 @@ struct WatchHoleView: View {
             .background(WatchColor.textSecondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+    }
+
+    private func greenDistanceRow(_ label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flag.checkered")
+                .font(.system(size: 11))
+            Text("До грина: \(label)")
+                .font(DSFont.labelMD)
+                .monospacedDigit()
+        }
+        .foregroundStyle(WatchColor.textSecondary)
+        .accessibilityLabel("До грина: \(label)")
     }
 
     private var pendingIndicator: some View {

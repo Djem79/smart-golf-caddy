@@ -365,4 +365,108 @@ final class WatchRoundViewModelTests: XCTestCase {
         vm.addShot()
         XCTAssertTrue(queue.pending.isEmpty)
     }
+
+    // MARK: - greenDistanceMeters (Task 5) — те же гейты, что у
+    // ShotRangefinder.isUsable на телефоне: точность ≤25 м, возраст ≤90 с,
+    // диапазон 0…800 м. currentFix подаётся снаружи (не CoreLocation).
+
+    // ~111 м на север при 0.001° широты — тот же приём, что и в
+    // ShotRangefinderTests.testMeasureBetweenTwoFixes.
+
+    func testGreenDistanceComputedWithUsableFix() {
+        let holes = [WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0)]
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 5, timestamp: Date())
+        XCTAssertEqual(Double(vm.greenDistanceMeters ?? 0), 111, accuracy: 3)
+    }
+
+    func testGreenDistanceNilWithoutFix() {
+        let holes = [WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0)]
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        XCTAssertNil(vm.greenDistanceMeters)
+    }
+
+    func testGreenDistanceNilWhenAccuracyPoor() {
+        let holes = [WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0)]
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 60, timestamp: Date())
+        XCTAssertNil(vm.greenDistanceMeters, "точность хуже 25 м — недостоверно")
+    }
+
+    func testGreenDistanceNilWhenFixStale() {
+        let holes = [WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0)]
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 5, timestamp: Date().addingTimeInterval(-300))
+        XCTAssertNil(vm.greenDistanceMeters, "фикс 5 минут назад — экран лежал заблокированным, трекинг стоял")
+    }
+
+    func testGreenDistanceNilWhenNoGreenMarkForHole() {
+        let holes = [WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0)]
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"], greens: [:],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
+        XCTAssertNil(vm.greenDistanceMeters, "поле не отмечено ни одним игроком — метки для лунки нет")
+    }
+
+    func testGreenDistanceNilBeyondClampRange() {
+        let holes = [WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0)]
+        // ~1.1 км на север (0.01° широты) — за пределами разумного 0…800 м,
+        // тот же клэмп, что и в HoleTrackerViewModel.applyGreenMarks на телефоне.
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"], greens: [3: GreenMark(lat: 55.710000, lng: 37.400000)],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
+        XCTAssertNil(vm.greenDistanceMeters, "больше 800 м — чужое поле или мусорная метка")
+    }
+
+    func testGreenDistanceChangesWithHoleNavigation() {
+        let holes = [
+            WatchHole(number: 3, par: 4, distanceMeters: 300, myShots: 0),
+            WatchHole(number: 4, par: 3, distanceMeters: 150, myShots: 0),
+        ]
+        let snapshot = WatchRoundSnapshot(
+            roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
+            clubs: ["Driver"],
+            greens: [3: GreenMark(lat: 55.701000, lng: 37.400000), 4: GreenMark(lat: 55.702000, lng: 37.400000)],
+            activeHoleNumber: 3, units: .m, updatedAt: Date()
+        )
+        let vm = WatchRoundViewModel(snapshot: snapshot)
+        vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
+
+        let distanceHole3 = vm.greenDistanceMeters
+        XCTAssertEqual(Double(distanceHole3 ?? 0), 111, accuracy: 3)
+
+        vm.nextHole()
+        XCTAssertEqual(vm.holeNumber, 4)
+        let distanceHole4 = vm.greenDistanceMeters
+        XCTAssertEqual(Double(distanceHole4 ?? 0), 222, accuracy: 3)
+        XCTAssertNotEqual(distanceHole3, distanceHole4, "смена лунки меняет дистанцию до грина")
+    }
 }
