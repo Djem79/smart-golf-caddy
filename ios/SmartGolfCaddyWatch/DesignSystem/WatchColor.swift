@@ -16,4 +16,8 @@ enum WatchColor {
     static let accent = DSColor.inversePrimary
     /// Индикатор несинхронизированных ударов.
     static let pending = Color(hex: "#FFB74D")
+    /// Индикатор окончательного отказа синхронизации (Fix 3, живое ревью
+    /// Task 4) — светлый красный, читаемый на чёрном (DSColor.error
+    /// #BA1A1A рассчитан на светлый фон, на OLED почти не виден).
+    static let error = Color(hex: "#FF6B6B")
 }

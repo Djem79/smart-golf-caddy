@@ -200,8 +200,8 @@ final class WatchMessagesTests: XCTestCase {
         WatchShotReceipt(
             roundId: "round-1",
             entries: [
-                WatchShotReceiptEntry(holeNumber: 1, acceptedCount: 2),
-                WatchShotReceiptEntry(holeNumber: 2, acceptedCount: 1),
+                WatchShotReceiptEntry(holeNumber: 1, acceptedCount: 2, accepted: true),
+                WatchShotReceiptEntry(holeNumber: 2, acceptedCount: 1, accepted: false),
             ]
         )
     }
@@ -222,6 +222,36 @@ final class WatchMessagesTests: XCTestCase {
         let restored = try XCTUnwrap(WatchShotReceipt(payload: original.payload))
         XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
         XCTAssertEqual(restored.entries.map(\.acceptedCount), [2, 1])
+    }
+
+    func testReceiptPreservesAcceptedFlag() throws {
+        let original = makeReceipt()
+        let restored = try XCTUnwrap(WatchShotReceipt(payload: original.payload))
+        XCTAssertEqual(restored.entries.map(\.accepted), [true, false])
+    }
+
+    func testReceiptRejectsMissingAcceptedField() {
+        var payload = makeReceipt().payload
+        var entries = payload["entries"] as! [[String: Any]]
+        entries[0].removeValue(forKey: "accepted")
+        payload["entries"] = entries
+        // Одна запись без accepted — весь батч квитанций невалиден (тот же
+        // строгий инвариант entries.count == rawEntries.count).
+        XCTAssertNil(WatchShotReceipt(payload: payload))
+    }
+
+    func testReceiptRoundTripsAcceptedEncodedAsNSNumber() throws {
+        // Bool через XPC/property-list иногда приходит NSNumber(bool:) —
+        // та же гигиена, что у Int/Double полей контракта.
+        var payload = makeReceipt().payload
+        let entries = (payload["entries"] as! [[String: Any]]).map { entry -> [String: Any] in
+            var e = entry
+            e["accepted"] = NSNumber(value: e["accepted"] as! Bool)
+            return e
+        }
+        payload["entries"] = entries
+        let restored = try XCTUnwrap(WatchShotReceipt(payload: payload))
+        XCTAssertEqual(restored, makeReceipt())
     }
 
     func testReceiptRejectsWrongVersion() {

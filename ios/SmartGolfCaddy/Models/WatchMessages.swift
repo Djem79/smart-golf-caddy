@@ -15,6 +15,7 @@ import Foundation
 // (round-trip в одном процессе, как в тестах), и настоящий NSNumber из XPC.
 private func watchIntValue(_ any: Any?) -> Int? { (any as? NSNumber)?.intValue }
 private func watchDoubleValue(_ any: Any?) -> Double? { (any as? NSNumber)?.doubleValue }
+private func watchBoolValue(_ any: Any?) -> Bool? { (any as? NSNumber)?.boolValue }
 
 /// Одна лунка в снимке раунда, отправляемом на часы.
 struct WatchHole: Equatable {
@@ -196,27 +197,37 @@ struct WatchShotBatch: Equatable {
 /// Одна квитанция по лунке: часть `WatchShotReceipt`.
 struct WatchShotReceiptEntry: Equatable {
     let holeNumber: Int
-    /// Сколько клюшек ИЗ ЭТОГО хвоста телефон только что принял и записал
-    /// (= entries[i].clubs.count обработанного WatchShotBatch, не общий
-    /// счёт ударов лунки). Часы срезают ровно этот префикс своей очереди
-    /// (WatchShotQueue.markConfirmed) — остаток, если пользователь успел
-    /// добавить удар, пока квитанция была в пути, остаётся в очереди.
+    /// Сколько клюшек ИЗ ЭТОГО хвоста телефон только что "закрыл" — либо
+    /// реально записал (accepted: true), либо ОКОНЧАТЕЛЬНО отклонил
+    /// сервер (accepted: false, Fix 3 живого ревью Task 4) — НЕ общий счёт
+    /// ударов лунки. В обоих случаях часы срезают ровно этот префикс своей
+    /// очереди (WatchShotQueue.markConfirmed) — остаток, если пользователь
+    /// успел добавить удар, пока квитанция была в пути, остаётся в очереди.
     let acceptedCount: Int
+    /// true — recordShot принял эти клюшки (синхронно или через офлайн-
+    /// очередь ShotQueue на телефоне). false — сервер ОКОНЧАТЕЛЬНО отверг
+    /// запись (permanent error, повтор с тем же payload даст ту же ошибку)
+    /// — часы всё равно снимают слот (ретраить бессмысленно), но помечают
+    /// лунку как "не удалось синхронизировать", а не тихо подтверждённой.
+    let accepted: Bool
 
     var payload: [String: Any] {
-        ["holeNumber": holeNumber, "acceptedCount": acceptedCount]
+        ["holeNumber": holeNumber, "acceptedCount": acceptedCount, "accepted": accepted]
     }
 
-    init(holeNumber: Int, acceptedCount: Int) {
+    init(holeNumber: Int, acceptedCount: Int, accepted: Bool = true) {
         self.holeNumber = holeNumber
         self.acceptedCount = acceptedCount
+        self.accepted = accepted
     }
 
     init?(payload: [String: Any]) {
         guard let holeNumber = watchIntValue(payload["holeNumber"]),
-              let acceptedCount = watchIntValue(payload["acceptedCount"]) else { return nil }
+              let acceptedCount = watchIntValue(payload["acceptedCount"]),
+              let accepted = watchBoolValue(payload["accepted"]) else { return nil }
         self.holeNumber = holeNumber
         self.acceptedCount = acceptedCount
+        self.accepted = accepted
     }
 }
 

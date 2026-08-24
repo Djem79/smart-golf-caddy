@@ -117,7 +117,10 @@ final class PhoneBridge: NSObject, WCSessionDelegate {
             return
         }
         for entry in receipt.entries {
-            WatchShotQueue.shared.markConfirmed(roundId: receipt.roundId, holeNumber: entry.holeNumber, acceptedCount: entry.acceptedCount)
+            WatchShotQueue.shared.markConfirmed(
+                roundId: receipt.roundId, holeNumber: entry.holeNumber,
+                acceptedCount: entry.acceptedCount, accepted: entry.accepted
+            )
         }
     }
 }

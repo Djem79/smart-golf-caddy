@@ -79,7 +79,9 @@ struct WatchHoleView: View {
                 shotButtonsRow
                 clubRow
 
-                if viewModel.pendingCount > 0 {
+                if viewModel.currentHoleSyncFailed {
+                    syncFailedIndicator
+                } else if viewModel.pendingCount > 0 {
                     pendingIndicator
                 }
             }
@@ -225,6 +227,22 @@ struct WatchHoleView: View {
                 .font(DSFont.labelMD)
         }
         .foregroundStyle(WatchColor.pending)
+    }
+
+    /// Fix 3, живое ревью Task 4: сервер ОКОНЧАТЕЛЬНО отклонил попытку
+    /// синхронизации этой лунки (permanent error, повтор бессмысленен) —
+    /// явная ошибка вместо бесконечного «не синхронизировано». Уходит
+    /// сама при новой попытке (addShot/removeShot на лунке — см.
+    /// WatchRoundViewModel.syncQueue()).
+    private var syncFailedIndicator: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+            Text("Не удалось синхронизировать")
+                .font(DSFont.labelMD)
+        }
+        .foregroundStyle(WatchColor.error)
+        .accessibilityLabel("Не удалось синхронизировать удары этой лунки")
     }
 }
 

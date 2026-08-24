@@ -56,18 +56,27 @@ final class WatchRoundViewModel {
     /// изменений, дефолт .shared. НЕ WatchConnectivity — только файловая
     /// очередь, реальная отправка (flush) — забота вью-слоя.
     ///
-    /// pendingCount ниже сознательно считается ЛОКАЛЬНО (shots vs
-    /// confirmedCount), а не читает shotQueue.pending напрямую: очередь —
-    /// источник истины для ТОГО, что уйдёт на телефон, но не для дисплея —
-    /// она может отставать/опережать локальный confirmedCount на доли
-    /// секунды между квитанцией и следующим снимком, а прямое чтение файла
-    /// из @Observable-свойства не дало бы SwiftUI знать, когда перерисовать
-    /// (без ручного трекинга через NotificationCenter, что усложнило бы
-    /// тестовую изоляцию — shotQueue.pending для .shared делится между
-    /// тестами). Оба значения синхронизированы в момент addShot()/
-    /// removeShot() (see syncQueue()) — расхождение самокорректируется со
-    /// следующим снимком с телефона.
+    /// ВАЖНО (Fix 2, живое ревью Task 4): confirmedCount(forHole:) НЕ может
+    /// полагаться только на snapshot.myShots — снимок обновляется ТОЛЬКО
+    /// когда HoleTrackerViewModel.sendWatchSnapshot() вызван, а это
+    /// происходит лишь пока на ТЕЛЕФОНЕ открыт экран лунки. В основном
+    /// сценарии игры с часов телефон лежит в кармане с закрытым экраном —
+    /// снимок не обновляется вовсе, и без доп. источника unsyncedShots()
+    /// после КАЖДОЙ квитанции переоценивала бы уже подтверждённые клюшки
+    /// как неподтверждённые, дописывая их на телефоне ВТОРОЙ раз при
+    /// следующем addShot(). Поэтому confirmedCount берёт max(snapshot.myShots,
+    /// shotQueue.confirmedCount(...)) — последний продвигается СРАЗУ по
+    /// приходу квитанции (WatchShotQueue.markConfirmed), не дожидаясь
+    /// нового снимка.
     private let shotQueue: WatchShotQueue
+
+    /// Лунки, для которых пришла квитанция "сервер окончательно отклонил"
+    /// (Fix 3, живое ревью Task 4) — UI показывает явную ошибку синхронизации
+    /// вместо бесконечного "не синхронизировано". Сбрасывается для лунки
+    /// при новой попытке (addShot/removeShot на ней, см. syncQueue()) и
+    /// целиком при смене раунда.
+    private(set) var syncFailedHoles: Set<Int> = []
+    private var syncFailedObserver: NSObjectProtocol?
 
     init(snapshot: WatchRoundSnapshot?, shotQueue: WatchShotQueue = .shared) {
         self.snapshot = snapshot
@@ -76,6 +85,30 @@ final class WatchRoundViewModel {
             holeNumber = Self.clampHole(snapshot.activeHoleNumber, totalHoles: snapshot.totalHoles)
             seedIfNeeded(from: snapshot)
         }
+        syncFailedObserver = NotificationCenter.default.addObserver(
+            forName: .watchShotSyncFailed, object: nil, queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                self?.handleSyncFailed(notification)
+            }
+        }
+    }
+
+    @MainActor deinit {
+        if let syncFailedObserver { NotificationCenter.default.removeObserver(syncFailedObserver) }
+    }
+
+    /// Индикатор для UI: сервер окончательно отклонил хотя бы одну попытку
+    /// синхронизации текущей лунки.
+    var currentHoleSyncFailed: Bool {
+        syncFailedHoles.contains(holeNumber)
+    }
+
+    private func handleSyncFailed(_ notification: Notification) {
+        guard let roundId = notification.userInfo?["roundId"] as? String,
+              let hole = notification.userInfo?["holeNumber"] as? Int,
+              roundId == snapshot?.roundId else { return }
+        syncFailedHoles.insert(hole)
     }
 
     /// Применяет новый снимок с телефона. См. комментарий у shotsByHole —
@@ -92,10 +125,15 @@ final class WatchRoundViewModel {
     /// activeHoleNumber нового снимка — тем же путём, что в init — ПЕРЕД
     /// посевом.
     func apply(snapshot: WatchRoundSnapshot) {
-        if self.snapshot?.roundId != snapshot.roundId {
+        if let oldRoundId = self.snapshot?.roundId, oldRoundId != snapshot.roundId {
             shotsByHole = [:]
             lastUsedClub = nil
             selectedClub = nil
+            syncFailedHoles = []
+            // Гигиена, не корректность (см. WatchShotQueue.clearConfirmedCounts) —
+            // ключи confirmedCount уже несут roundId, поэтому счётчики
+            // старого раунда физически не читаются для нового и без этого.
+            shotQueue.clearConfirmedCounts(roundId: oldRoundId)
             holeNumber = Self.clampHole(snapshot.activeHoleNumber, totalHoles: snapshot.totalHoles)
         }
         self.snapshot = snapshot
@@ -158,6 +196,11 @@ final class WatchRoundViewModel {
     /// заглушки, только реально введённые на часах клюшки.
     private func syncQueue() {
         guard let snapshot else { return }
+        // Новая локальная попытка (добавили/убрали удар) на лунке,
+        // помеченной как "не удалось синхронизировать" — даём чистый
+        // старт, а не оставляем зависший индикатор ошибки поверх нового
+        // хвоста, который ещё даже не отправлялся.
+        syncFailedHoles.remove(holeNumber)
         shotQueue.enqueue(roundId: snapshot.roundId, holeNumber: holeNumber, clubs: unsyncedShots(forHole: holeNumber))
     }
 
@@ -212,18 +255,30 @@ final class WatchRoundViewModel {
 
     // MARK: - Private
 
+    /// max(snapshot.myShots, shotQueue.confirmedCount) — см. комментарий у
+    /// `shotQueue`/Fix 2 живого ревью Task 4: снимок отстаёт, пока на
+    /// телефоне закрыт экран лунки, квитанция — нет.
     private func confirmedCount(forHole hole: Int) -> Int {
-        snapshot?.holes.first { $0.number == hole }?.myShots ?? 0
+        let fromSnapshot = snapshot?.holes.first { $0.number == hole }?.myShots ?? 0
+        guard let roundId = snapshot?.roundId else { return fromSnapshot }
+        return max(fromSnapshot, shotQueue.confirmedCount(roundId: roundId, holeNumber: hole))
     }
 
     /// ВАЖНО: посеянный префикс — это ЗАГЛУШКИ (clubs.first/"?"), не
     /// реальные названия клюшек чужих (телефонных) ударов. Отправлять его
     /// на телефон НЕЛЬЗЯ — используй unsyncedShots(forHole:), который режет
     /// именно этот префикс.
+    ///
+    /// РОВНО ОДИН РАЗ на лунку (то же условие, что и для плейсхолдеров)
+    /// поднимает durable-базу shotQueue.confirmedCount до hole.myShots —
+    /// без этого markConfirmed прибавлял бы квитанции к нулю, а не к уже
+    /// подтверждённому сервером количеству (Fix 2, живое ревью Task 4, см.
+    /// WatchShotQueue.seedConfirmedCountIfHigher).
     private func seedIfNeeded(from snapshot: WatchRoundSnapshot) {
         let placeholder = snapshot.clubs.first ?? "?"
         for hole in snapshot.holes where shotsByHole[hole.number] == nil {
             shotsByHole[hole.number] = Array(repeating: placeholder, count: max(0, hole.myShots))
+            shotQueue.seedConfirmedCountIfHigher(roundId: snapshot.roundId, holeNumber: hole.number, count: hole.myShots)
         }
     }
 

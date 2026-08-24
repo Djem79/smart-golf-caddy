@@ -8,20 +8,25 @@ import XCTest
 
 final class WatchShotQueueTests: XCTestCase {
     private var storeURL: URL!
+    private var confirmedStoreURL: URL!
 
     override func setUp() {
         super.setUp()
+        let id = UUID().uuidString
         storeURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("watchshotqueue-test-\(UUID().uuidString).json")
+            .appendingPathComponent("watchshotqueue-test-\(id).json")
+        confirmedStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchshotqueue-confirmed-test-\(id).json")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: storeURL)
+        try? FileManager.default.removeItem(at: confirmedStoreURL)
         super.tearDown()
     }
 
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: storeURL)
+        WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL)
     }
 
     // MARK: - enqueue / pending
@@ -222,5 +227,119 @@ final class WatchShotQueueTests: XCTestCase {
         queue.flush { batch in secondSent = batch }
 
         XCTAssertEqual(secondSent?.entries.map(\.holeNumber), [2], "другая лунка не заблокирована throttle'ом первой")
+    }
+
+    // MARK: - confirmedCount (Fix 2, живое ревью Task 4) — монотонный
+    // счётчик подтверждённых квитанцией ударов, независимый от снимка.
+
+    func testConfirmedCountZeroWhenNothingConfirmedYet() {
+        let queue = makeQueue()
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 0)
+    }
+
+    func testMarkConfirmedAdvancesConfirmedCount() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 1)
+    }
+
+    func testConfirmedCountAccumulatesAcrossMultipleReceipts() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["7 Iron"])
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 2, "счётчик только растёт — не перезаписывается")
+    }
+
+    func testConfirmedCountSurvivesRestart() {
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "r", holeNumber: 2, acceptedCount: 3)
+        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL)
+        XCTAssertEqual(reloaded.confirmedCount(roundId: "r", holeNumber: 2), 3)
+    }
+
+    func testClearConfirmedCountsRemovesOnlyGivenRound() {
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "round-A", holeNumber: 1, acceptedCount: 5)
+        queue.markConfirmed(roundId: "round-B", holeNumber: 1, acceptedCount: 2)
+        queue.clearConfirmedCounts(roundId: "round-A")
+        XCTAssertEqual(queue.confirmedCount(roundId: "round-A", holeNumber: 1), 0)
+        XCTAssertEqual(queue.confirmedCount(roundId: "round-B", holeNumber: 1), 2, "другой раунд не задет")
+    }
+
+    func testMarkConfirmedZeroDoesNotAdvanceConfirmedCount() {
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 0)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 0)
+    }
+
+    // MARK: - seedConfirmedCountIfHigher — база под markConfirmed (Fix 2)
+
+    func testSeedConfirmedCountSetsInitialFloor() {
+        let queue = makeQueue()
+        queue.seedConfirmedCountIfHigher(roundId: "r", holeNumber: 1, count: 2)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 2)
+    }
+
+    func testSeedConfirmedCountNeverLowersExistingValue() {
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 5)
+        queue.seedConfirmedCountIfHigher(roundId: "r", holeNumber: 1, count: 1)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 5, "сид не должен откатывать уже более высокое значение")
+    }
+
+    func testMarkConfirmedAddsOnTopOfSeededFloor() {
+        // Именно этот сценарий поймал баг в первой версии Fix 2 (см.
+        // WatchRoundViewModelTests.testConfirmedCountAdvancesFromReceiptEvenWithoutFreshSnapshot):
+        // без базы markConfirmed прибавлял бы к нулю, теряя уже
+        // подтверждённые сервером удары из snapshot.myShots.
+        let queue = makeQueue()
+        queue.seedConfirmedCountIfHigher(roundId: "r", holeNumber: 1, count: 2)
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 3)
+    }
+
+    // MARK: - markConfirmed(accepted: false) — Fix 3, живое ревью Task 4:
+    // окончательный отказ сервера чистит слот и оповещает UI, а не висит
+    // вечно в throttle-цикле.
+
+    func testRejectedReceiptClearsSlotLikeAccepted() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1, accepted: false)
+        XCTAssertTrue(queue.pending.isEmpty, "ретраить окончательно отклонённый payload бессмысленно")
+    }
+
+    func testRejectedReceiptStillAdvancesConfirmedCount() {
+        // Иначе следующий addShot() на часах пересчитал бы unsyncedShots
+        // так, будто отклонённый удар всё ещё не отправлен, и он снова
+        // попал бы в очередь на пересылку с тем же обречённым payload'ом.
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1, accepted: false)
+        XCTAssertEqual(queue.confirmedCount(roundId: "r", holeNumber: 1), 1)
+    }
+
+    func testRejectedReceiptPostsSyncFailedNotification() {
+        let queue = makeQueue()
+        let exp = expectation(forNotification: .watchShotSyncFailed, object: nil) { notification in
+            (notification.userInfo?["roundId"] as? String) == "r"
+                && (notification.userInfo?["holeNumber"] as? Int) == 4
+        }
+        queue.markConfirmed(roundId: "r", holeNumber: 4, acceptedCount: 1, accepted: false)
+        wait(for: [exp], timeout: 1)
+    }
+
+    func testAcceptedReceiptDoesNotPostSyncFailedNotification() {
+        let queue = makeQueue()
+        var failedFired = false
+        let observer = NotificationCenter.default.addObserver(forName: .watchShotSyncFailed, object: nil, queue: nil) { _ in
+            failedFired = true
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+        XCTAssertFalse(failedFired)
     }
 }

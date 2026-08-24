@@ -10,22 +10,39 @@ import XCTest
 final class WatchRoundViewModelTests: XCTestCase {
 
     private var queueStoreURL: URL!
+    private var confirmedStoreURL: URL!
 
     override func setUp() {
         super.setUp()
+        let id = UUID().uuidString
         queueStoreURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("watchroundvm-queue-test-\(UUID().uuidString).json")
+            .appendingPathComponent("watchroundvm-queue-test-\(id).json")
+        confirmedStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchroundvm-confirmed-test-\(id).json")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: queueStoreURL)
+        try? FileManager.default.removeItem(at: confirmedStoreURL)
         super.tearDown()
     }
 
     /// Изолированная (файл во временной директории) очередь для тестов,
     /// которые инспектируют её содержимое — не трогает WatchShotQueue.shared.
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: queueStoreURL)
+        WatchShotQueue(storeURL: queueStoreURL, confirmedStoreURL: confirmedStoreURL)
+    }
+
+    /// markConfirmed постит `.watchShotSyncFailed` наблюдателям на
+    /// queue: .main — доставка НЕ синхронна с постом (OperationQueue.main
+    /// планирует блок, а не выполняет инлайн, даже если пост случился на
+    /// главном потоке). Заказываем ЕЩЁ ОДИН блок на main ПОСЛЕ поста и
+    /// ждём его — та же серийная очередь гарантирует FIFO, так что к
+    /// моменту его выполнения обработчик VM уже отработал.
+    private func drainMainQueue() {
+        let exp = expectation(description: "main queue drained")
+        DispatchQueue.main.async { exp.fulfill() }
+        wait(for: [exp], timeout: 1)
     }
 
     private func makeSnapshot(
@@ -468,5 +485,109 @@ final class WatchRoundViewModelTests: XCTestCase {
         let distanceHole4 = vm.greenDistanceMeters
         XCTAssertEqual(Double(distanceHole4 ?? 0), 222, accuracy: 3)
         XCTAssertNotEqual(distanceHole3, distanceHole4, "смена лунки меняет дистанцию до грина")
+    }
+
+    // MARK: - Fix 2 (живое ревью Task 4): квитанция, а не снимок, двигает
+    // confirmedCount — иначе устаревший снимок (телефон в кармане, экран
+    // закрыт) заставляет unsyncedShots() повторно отдать уже подтверждённый
+    // удар, и телефон дописывает его на сервере ВТОРОЙ раз.
+
+    func testConfirmedCountAdvancesFromReceiptEvenWithoutFreshSnapshot() {
+        let queue = makeQueue()
+        // Сервер уже подтвердил 2 удара на лунке 1 (сид placeholder-ами).
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes,
+                                   clubs: ["Driver", "7 Iron", "Putter"], activeHoleNumber: 1),
+            shotQueue: queue
+        )
+        XCTAssertEqual(vm.shots.count, 2, "2 плейсхолдера от seedIfNeeded")
+
+        vm.addShot()  // 3-й, реальный
+        XCTAssertEqual(vm.unsyncedShots(forHole: 1).count, 1)
+
+        // Телефон принял этот батч и прислал квитанцию — ИМИТИРУЕМ
+        // напрямую через queue (в проде приходит через
+        // PhoneBridge.session(_:didReceiveUserInfo:)). Снимок на часах
+        // НЕ обновился (myShots в vm.snapshot всё ещё 2) — телефон лежит
+        // в кармане, sendWatchSnapshot() не вызывался.
+        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 1)
+
+        vm.addShot()  // 4-й
+        XCTAssertEqual(vm.shots.count, 4)
+        XCTAssertEqual(
+            vm.unsyncedShots(forHole: 1).count, 1,
+            "без фикса confirmedCount остался бы 2 (из устаревшего снимка), unsyncedShots вернул бы 2 элемента — телефон дописал бы 3-й удар второй раз"
+        )
+    }
+
+    func testConfirmedCountUsesMaxOfSnapshotAndReceipt() {
+        // Снимок ВСЁ ЖЕ обновился и оказался ВПЕРЕДИ локального счётчика
+        // квитанций (например, кто-то другой записал удар за игрока на
+        // телефоне) — confirmedCount не должен откатываться назад.
+        let queue = makeQueue()
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 5)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
+            shotQueue: queue
+        )
+        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 1)
+        XCTAssertEqual(vm.pendingCount, 0, "snapshot.myShots(5) > shotQueue.confirmedCount(1) — берём максимум")
+    }
+
+    func testConfirmedCountResetsOnRoundChange() {
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "round-A", holeNumber: 1, acceptedCount: 3)
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A"), shotQueue: queue)
+        vm.apply(snapshot: makeSnapshot(roundId: "round-B"))
+        XCTAssertEqual(queue.confirmedCount(roundId: "round-A", holeNumber: 1), 0, "счётчики старого раунда очищены (гигиена)")
+    }
+
+    // MARK: - Fix 3 (живое ревью Task 4): окончательный отказ сервера
+    // показывает явную ошибку вместо бесконечного "не синхронизировано".
+
+    func testSyncFailedNotificationMarksCurrentHoleAsFailed() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", activeHoleNumber: 2), shotQueue: queue)
+        XCTAssertFalse(vm.currentHoleSyncFailed)
+
+        queue.markConfirmed(roundId: "round-1", holeNumber: 2, acceptedCount: 1, accepted: false)
+        drainMainQueue()
+
+        XCTAssertTrue(vm.currentHoleSyncFailed)
+    }
+
+    func testSyncFailedIgnoresNotificationForDifferentRound() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", activeHoleNumber: 2), shotQueue: queue)
+
+        queue.markConfirmed(roundId: "round-OTHER", holeNumber: 2, acceptedCount: 1, accepted: false)
+        drainMainQueue()
+
+        XCTAssertFalse(vm.currentHoleSyncFailed, "квитанция чужого раунда не должна помечать текущую лунку")
+    }
+
+    func testAddShotClearsSyncFailedOnRetry() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", clubs: ["Driver"], activeHoleNumber: 2), shotQueue: queue)
+        queue.markConfirmed(roundId: "round-1", holeNumber: 2, acceptedCount: 1, accepted: false)
+        drainMainQueue()
+        XCTAssertTrue(vm.currentHoleSyncFailed)
+
+        vm.addShot()
+
+        XCTAssertFalse(vm.currentHoleSyncFailed, "новая попытка на лунке — чистый старт для индикатора ошибки")
+    }
+
+    func testSyncFailedResetsOnRoundChange() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", activeHoleNumber: 2), shotQueue: queue)
+        queue.markConfirmed(roundId: "round-A", holeNumber: 2, acceptedCount: 1, accepted: false)
+        drainMainQueue()
+        XCTAssertTrue(vm.currentHoleSyncFailed)
+
+        vm.apply(snapshot: makeSnapshot(roundId: "round-B", activeHoleNumber: 2))
+
+        XCTAssertFalse(vm.currentHoleSyncFailed)
     }
 }
