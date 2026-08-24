@@ -195,14 +195,20 @@ final class WatchRoundViewModel {
         guard let club = selectedClub ?? lastUsedClub ?? clubs.first else { return }
         shotsByHole[holeNumber, default: []].append(club)
         lastUsedClub = club
-        syncQueue()
+        // allowClear: false (Fix 7, живое ревью Task 4) — addShot() ТОЛЬКО
+        // добавляет, никогда не должен привести к УДАЛЕНИЮ существующего
+        // durable-хвоста как побочный эффект. См. syncQueue().
+        syncQueue(allowClear: false)
     }
 
     func removeShot() {
         guard var holeShots = shotsByHole[holeNumber], !holeShots.isEmpty else { return }
         holeShots.removeLast()
         shotsByHole[holeNumber] = holeShots
-        syncQueue()
+        // allowClear: true — снятие хвоста ДО подтверждённого остатка
+        // (пустой unsyncedShots) здесь легитимно: игрок сам убрал
+        // непосредственно то, что было в очереди.
+        syncQueue(allowClear: true)
     }
 
     /// Держит WatchShotQueue синхронной с реально введённым на часах хвостом
@@ -210,14 +216,28 @@ final class WatchRoundViewModel {
     /// unsyncedShots(forHole:) уже отфильтровывает плейсхолдеры seedIfNeeded
     /// (см. её комментарий) — поэтому в очередь никогда не попадают
     /// заглушки, только реально введённые на часах клюшки.
-    private func syncQueue() {
+    ///
+    /// `allowClear` (Fix 7, живое ревью Task 4): пустой unsyncedShots может
+    /// означать ДВЕ разные вещи — (а) игрок сам убрал все неподтверждённые
+    /// удары (removeShot — легитимно снять durable-хвост целиком) или
+    /// (б) рассогласование, при котором confirmedCount(forHole:) обогнал
+    /// локальный shotsByHole[hole] по причине, не связанной с ЭТИМ
+    /// действием игрока (например, свежий снимок телефона сообщил больше
+    /// подтверждённых ударов, чем часы успели узнать) — тогда пустой
+    /// `enqueue(clubs: [])` молча стёр бы РЕАЛЬНЫЙ durable-хвост, ещё не
+    /// подтверждённый телефоном. addShot() зовёт с `allowClear: false` —
+    /// он только ДОБАВЛЯЕТ, значит опустошение хвоста здесь не может быть
+    /// намерением игрока; если пусто — просто не трогаем очередь.
+    private func syncQueue(allowClear: Bool) {
         guard let snapshot else { return }
         // Новая локальная попытка (добавили/убрали удар) на лунке,
         // помеченной как "не удалось синхронизировать" — даём чистый
         // старт, а не оставляем зависший индикатор ошибки поверх нового
         // хвоста, который ещё даже не отправлялся.
         syncFailedHoles.remove(holeNumber)
-        shotQueue.enqueue(roundId: snapshot.roundId, holeNumber: holeNumber, clubs: unsyncedShots(forHole: holeNumber))
+        let tail = unsyncedShots(forHole: holeNumber)
+        guard !tail.isEmpty || allowClear else { return }
+        shotQueue.enqueue(roundId: snapshot.roundId, holeNumber: holeNumber, clubs: tail)
     }
 
     func nextHole() {
@@ -278,10 +298,40 @@ final class WatchRoundViewModel {
     /// без этого markConfirmed прибавлял бы квитанции к нулю, а не к уже
     /// подтверждённому сервером количеству (Fix 2, живое ревью Task 4, см.
     /// WatchShotQueue.seedConfirmedCountIfHigher).
+    ///
+    /// Fix 7 (живое ревью Task 4) — ВОССТАНОВЛЕНИЕ после выгрузки процесса
+    /// часов: `shotsByHole` живёт ТОЛЬКО в памяти, watchOS штатно убивает
+    /// приложение между запусками. Без рехидратации первый посев лунки
+    /// после перезапуска брал только `hole.myShots` (снимок телефона) —
+    /// РЕАЛЬНЫЙ, ещё не подтверждённый удар, уже лежащий на диске в
+    /// `shotQueue` (батч мог уйти до выгрузки), терялся из вида: локальный
+    /// счёт занижался, а следующий unsyncedShots() у уже "полного" по
+    /// confirmedCount состояния возвращал бы [] — и `enqueue(clubs: [])`
+    /// стёр бы durable-хвост вместо того, чтобы поставить в очередь НОВЫЙ
+    /// удар игрока (см. syncQueue/allowClear). Здесь — тот же принцип
+    /// "durable-очередь — более полное состояние", что уже применён на
+    /// телефоне в WatchBridge.baseState: префикс длиной
+    /// max(hole.myShots, durable confirmedCount) заглушками, ПЛЮС реальный
+    /// хвост из shotQueue.pending для этого слота, если он там ещё есть
+    /// (квитанция могла не дойти/не обработаться до перезапуска).
     private func seedIfNeeded(from snapshot: WatchRoundSnapshot) {
         let placeholder = snapshot.clubs.first ?? "?"
-        for hole in snapshot.holes where shotsByHole[hole.number] == nil {
-            shotsByHole[hole.number] = Array(repeating: placeholder, count: max(0, hole.myShots))
+        let holesToSeed = snapshot.holes.filter { shotsByHole[$0.number] == nil }
+        guard !holesToSeed.isEmpty else { return }
+
+        let pendingByHole = Dictionary(
+            uniqueKeysWithValues: shotQueue.pending
+                .filter { $0.roundId == snapshot.roundId }
+                .map { ($0.holeNumber, $0) }
+        )
+
+        for hole in holesToSeed {
+            let confirmedFloor = max(hole.myShots, shotQueue.confirmedCount(roundId: snapshot.roundId, holeNumber: hole.number))
+            var seeded = Array(repeating: placeholder, count: max(0, confirmedFloor))
+            if let pendingEntry = pendingByHole[hole.number] {
+                seeded += pendingEntry.clubs
+            }
+            shotsByHole[hole.number] = seeded
             shotQueue.seedConfirmedCountIfHigher(roundId: snapshot.roundId, holeNumber: hole.number, count: hole.myShots)
         }
     }

@@ -1,17 +1,18 @@
 // ios/SmartGolfCaddyTests/WatchBridgeTests.swift
 // Тесты WatchBridge.applyBatch — это код, который пишет на сервер, и три
-// из четырёх CRITICAL/IMPORTANT живого ревью Task 4 (Fix 1, Fix 3, Fix 5)
-// живут именно в нём. Зависимости инжектируются через init (как
-// ShotRangefinder.init(storeURL:fixProvider:)) — без реального
-// Firebase/WatchConnectivity.
+// из четырёх CRITICAL/IMPORTANT живого ревью Task 4 (Fix 1, Fix 3, Fix 5,
+// плюс Fix 8 поверх Fix 5) живут именно в нём. Зависимости инжектируются
+// через init (как ShotRangefinder.init(storeURL:fixProvider:)) — без
+// реального Firebase/WatchConnectivity.
 //
 // lastAppliedSequenceProvider/sequenceRecorder ВСЕГДА инжектируются явно
 // (никогда не дефолт, который бьёт в WatchBatchSequenceLedger.shared) —
 // дефолт делит один файл на диске со ВСЕМИ тестами процесса; большинство
-// тестов здесь используют один и тот же roundId/holeNumber/uid/sequence
-// по умолчанию (makeBatch), и общий файл дал бы одному тесту увидеть
-// "уже применено" из-за состояния, оставленного другим. noOpSequenceLedger
-// (везде, кроме тестов на сам Fix 5) — всегда "ничего ещё не применялось".
+// тестов здесь используют один и тот же roundId/holeNumber/uid/sequence/
+// installId по умолчанию (makeBatch), и общий файл дал бы одному тесту
+// увидеть "уже применено" из-за состояния, оставленного другим.
+// noOpLastApplied/noOpSequenceRecorder (везде, кроме тестов на сам Fix 5/8)
+// — всегда "ничего ещё не применялось".
 import XCTest
 @testable import SmartGolfCaddy
 
@@ -20,23 +21,25 @@ final class WatchBridgeTests: XCTestCase {
     /// Всегда "ничего не применялось" и никогда ничего не запоминает —
     /// безопасный дефолт для тестов, не проверяющих сам механизм sequence-
     /// дедупликации (Fix 1/Fix 3/общий Fix 4).
-    private let noOpLastApplied: (String, Int, String) -> Int? = { _, _, _ in nil }
-    private let noOpSequenceRecorder: (String, Int, String, Int) -> Void = { _, _, _, _ in }
+    private let noOpLastApplied: (String, Int, String, String) -> Int? = { _, _, _, _ in nil }
+    private let noOpSequenceRecorder: (String, Int, String, String, Int) -> Void = { _, _, _, _, _ in }
 
     /// Простой in-memory журнал sequence — для тестов, которые САМИ
-    /// проверяют Fix 5 (нужно реальное состояние между двумя вызовами
-    /// applyBatch, но БЕЗ файла на диске и БЕЗ общего .shared).
+    /// проверяют Fix 5/Fix 8 (нужно реальное состояние между двумя
+    /// вызовами applyBatch, но БЕЗ файла на диске и БЕЗ общего .shared).
     private final class FakeSequenceLedger: @unchecked Sendable {
         private var applied: [String: Int] = [:]
         private let lock = NSLock()
-        private func key(_ roundId: String, _ holeIndex: Int, _ uid: String) -> String { "\(roundId):\(holeIndex):\(uid)" }
-        func lastApplied(_ roundId: String, _ holeIndex: Int, _ uid: String) -> Int? {
-            lock.lock(); defer { lock.unlock() }
-            return applied[key(roundId, holeIndex, uid)]
+        private func key(_ roundId: String, _ holeIndex: Int, _ uid: String, _ installId: String) -> String {
+            "\(roundId):\(holeIndex):\(uid):\(installId)"
         }
-        func recordApplied(_ roundId: String, _ holeIndex: Int, _ uid: String, _ sequence: Int) {
+        func lastApplied(_ roundId: String, _ holeIndex: Int, _ uid: String, _ installId: String) -> Int? {
             lock.lock(); defer { lock.unlock() }
-            applied[key(roundId, holeIndex, uid)] = sequence
+            return applied[key(roundId, holeIndex, uid, installId)]
+        }
+        func recordApplied(_ roundId: String, _ holeIndex: Int, _ uid: String, _ installId: String, _ sequence: Int) {
+            lock.lock(); defer { lock.unlock() }
+            applied[key(roundId, holeIndex, uid, installId)] = sequence
         }
     }
 
@@ -67,8 +70,8 @@ final class WatchBridgeTests: XCTestCase {
         ])!
     }
 
-    private func makeBatch(roundId: String = "r1", holeNumber: Int = 1, clubs: [String], sequence: Int = 1) -> WatchShotBatch {
-        WatchShotBatch(roundId: roundId, entries: [WatchShotEntry(holeNumber: holeNumber, clubs: clubs, recordedAt: Date(), sequence: sequence)])
+    private func makeBatch(roundId: String = "r1", holeNumber: Int = 1, clubs: [String], sequence: Int = 1, installId: String = "install-A") -> WatchShotBatch {
+        WatchShotBatch(roundId: roundId, entries: [WatchShotEntry(holeNumber: holeNumber, clubs: clubs, recordedAt: Date(), sequence: sequence, installId: installId)])
     }
 
     /// Простой захватываемый по ссылке контейнер для тестов, которым нужно
@@ -184,8 +187,8 @@ final class WatchBridgeTests: XCTestCase {
             sequenceRecorder: noOpSequenceRecorder
         )
         let batch = WatchShotBatch(roundId: "r1", entries: [
-            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date(), sequence: 1),
-            WatchShotEntry(holeNumber: 2, clubs: ["Putter"], recordedAt: Date(), sequence: 1),
+            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date(), sequence: 1, installId: "install-A"),
+            WatchShotEntry(holeNumber: 2, clubs: ["Putter"], recordedAt: Date(), sequence: 1, installId: "install-A"),
         ])
         await bridge.applyBatch(batch)
         let byHole = Dictionary(uniqueKeysWithValues: (sentReceipt?.entries ?? []).map { ($0.holeNumber, $0.accepted) })
@@ -251,8 +254,8 @@ final class WatchBridgeTests: XCTestCase {
             sequenceRecorder: noOpSequenceRecorder
         )
         let batch = WatchShotBatch(roundId: "r1", entries: [
-            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date(), sequence: 1),
-            WatchShotEntry(holeNumber: 99, clubs: ["Putter"], recordedAt: Date(), sequence: 1),
+            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date(), sequence: 1, installId: "install-A"),
+            WatchShotEntry(holeNumber: 99, clubs: ["Putter"], recordedAt: Date(), sequence: 1, installId: "install-A"),
         ])
         await bridge.applyBatch(batch)
         XCTAssertEqual(recordedHoleIndices, [0], "лунка за пределами раунда пропущена, а не роняет весь батч")
@@ -274,8 +277,8 @@ final class WatchBridgeTests: XCTestCase {
             roundProvider: { _ in self.makeRound(clubsForUser: store.clubs.isEmpty ? [:] : [1: store.clubs]) },
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced },
-            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2) },
-            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3) }
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2, $3) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3, $4) }
         )
 
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 1))
@@ -295,8 +298,8 @@ final class WatchBridgeTests: XCTestCase {
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced },
             receiptSender: { _ in receiptCount += 1 },
-            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2) },
-            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3) }
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2, $3) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3, $4) }
         )
         let batch = makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 1)
 
@@ -319,13 +322,80 @@ final class WatchBridgeTests: XCTestCase {
             roundProvider: { _ in self.makeRound() },
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced },
-            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2) },
-            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3) }
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2, $3) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3, $4) }
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"], sequence: 5))
         recorderCalled = false
 
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 3))
         XCTAssertFalse(recorderCalled, "sequence 3 <= последнего применённого (5) — не применяем")
+    }
+
+    // MARK: - Fix 8 (живое ревью): переустановка часов — новый installId —
+    // не коллизирует с sequence прежней установки.
+
+    func testSameSequenceButDifferentInstallIdIsApplied() async {
+        let ledger = FakeSequenceLedger()
+        var recordedClubs: [String]?
+        let bridge = WatchBridge(
+            currentUserIdProvider: { "user-1" },
+            roundProvider: { _ in self.makeRound() },
+            pendingShotProvider: { _, _, _ in nil },
+            shotRecorder: { _, _, _, clubs, _ in recordedClubs = clubs; return .synced },
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2, $3) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3, $4) }
+        )
+        // Прежняя установка часов уже применила sequence: 5.
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"], sequence: 5, installId: "install-OLD"))
+        recordedClubs = nil
+
+        // Часы переустановлены — новый installId, счётчик sequence на них
+        // тоже обнулился: первый настоящий удар новой установки несёт
+        // sequence: 1. Без Fix 8 это выглядело бы как "уже применённый"
+        // (1 <= 5 из прежней установки) и молча пропало бы.
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 1, installId: "install-NEW"))
+
+        XCTAssertNotNil(recordedClubs, "новая установка должна применяться независимо от sequence прежней")
+    }
+
+    // MARK: - Fix 4: идемпотентность/рост при переиспользовании round-провайдера
+
+    func testRepeatingSameBatchIsIdempotentAgainstUpdatedServerState() async {
+        let ledger = FakeSequenceLedger()
+        let store = FakeServerState()
+        let bridge = WatchBridge(
+            currentUserIdProvider: { "user-1" },
+            roundProvider: { _ in self.makeRound(clubsForUser: store.clubs.isEmpty ? [:] : [1: store.clubs]) },
+            pendingShotProvider: { _, _, _ in nil },
+            shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced },
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2, $3) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3, $4) }
+        )
+        let batch = makeBatch(holeNumber: 1, clubs: ["Driver"], sequence: 1)
+
+        await bridge.applyBatch(batch)
+        XCTAssertEqual(store.clubs, ["Driver"])
+
+        await bridge.applyBatch(batch)
+        XCTAssertEqual(store.clubs, ["Driver"], "повтор одного и того же батча (тот же sequence) не должен плодить дубликат")
+    }
+
+    func testGrowingTailAfterPreviousBatchAppendsOnlyNewPortion() async {
+        let ledger = FakeSequenceLedger()
+        let store = FakeServerState()
+        let bridge = WatchBridge(
+            currentUserIdProvider: { "user-1" },
+            roundProvider: { _ in self.makeRound(clubsForUser: store.clubs.isEmpty ? [:] : [1: store.clubs]) },
+            pendingShotProvider: { _, _, _ in nil },
+            shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced },
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2, $3) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3, $4) }
+        )
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"], sequence: 1))
+        XCTAssertEqual(store.clubs, ["Driver"])
+
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["7 Iron"], sequence: 2))
+        XCTAssertEqual(store.clubs, ["Driver", "7 Iron"], "новый (не повторяющийся) хвост дописывается как обычно")
     }
 }

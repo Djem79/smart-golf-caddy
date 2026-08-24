@@ -38,13 +38,17 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private let pendingShotProvider: (String, Int, String) -> PendingShot?
     private let shotRecorder: (String, Int, String, [String], [Int]) async -> RecordOutcome
     private let receiptSender: (WatchShotReceipt) -> Void
-    /// Fix 5 (живое ревью Task 4): последний применённый sequence на слот
-    /// round:holeIndex:uid — см. WatchBatchSequenceLedger. Заменяет
-    /// suffix-эвристику по содержимому клюшек (первая версия Fix 4),
-    /// которая молча теряла повторный удар той же клюшкой (второй патт
-    /// подряд ошибочно считался "уже применённым батчем").
-    private let lastAppliedSequenceProvider: (String, Int, String) -> Int?
-    private let sequenceRecorder: (String, Int, String, Int) -> Void
+    /// Fix 5+8 (живое ревью Task 4): последний применённый sequence на
+    /// слот round:holeIndex:uid:installId — см. WatchBatchSequenceLedger.
+    /// Заменяет suffix-эвристику по содержимому клюшек (первая версия
+    /// Fix 4), которая молча теряла повторный удар той же клюшкой (второй
+    /// патт подряд ошибочно считался "уже применённым батчем").
+    /// installId (Fix 8) — идентификатор УСТАНОВКИ приложения часов,
+    /// приславшей батч: без него переустановка часов (sequence-счётчик
+    /// на них обнуляется вместе с файлом) коллизировала бы с sequence
+    /// прежней установки в этом журнале.
+    private let lastAppliedSequenceProvider: (String, Int, String, String) -> Int?
+    private let sequenceRecorder: (String, Int, String, String, Int) -> Void
 
     init(
         currentUserIdProvider: @escaping () async -> String? = { await AuthService.currentUserId },
@@ -56,11 +60,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             await ShotQueue.shared.recordShotQueued(roundId: roundId, holeIndex: holeIndex, targetUid: uid, clubs: clubs, distances: distances)
         },
         receiptSender: @escaping (WatchShotReceipt) -> Void = { WatchBridge.transferReceipt($0) },
-        lastAppliedSequenceProvider: @escaping (String, Int, String) -> Int? = { roundId, holeIndex, uid in
-            WatchBatchSequenceLedger.shared.lastApplied(roundId: roundId, holeIndex: holeIndex, uid: uid)
+        lastAppliedSequenceProvider: @escaping (String, Int, String, String) -> Int? = { roundId, holeIndex, uid, installId in
+            WatchBatchSequenceLedger.shared.lastApplied(roundId: roundId, holeIndex: holeIndex, uid: uid, installId: installId)
         },
-        sequenceRecorder: @escaping (String, Int, String, Int) -> Void = { roundId, holeIndex, uid, sequence in
-            WatchBatchSequenceLedger.shared.recordApplied(roundId: roundId, holeIndex: holeIndex, uid: uid, sequence: sequence)
+        sequenceRecorder: @escaping (String, Int, String, String, Int) -> Void = { roundId, holeIndex, uid, installId, sequence in
+            WatchBatchSequenceLedger.shared.recordApplied(roundId: roundId, holeIndex: holeIndex, uid: uid, installId: installId, sequence: sequence)
         }
     ) {
         self.currentUserIdProvider = currentUserIdProvider
@@ -190,7 +194,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             // теряла реальный новый удар. sequence — детерминированный номер
             // конкретной "поимки" хвоста на часах (WatchShotQueue.enqueue),
             // однозначно отличающий повтор от новой отправки.
-            let lastApplied = lastAppliedSequenceProvider(batch.roundId, holeIndex, uid) ?? 0
+            let lastApplied = lastAppliedSequenceProvider(batch.roundId, holeIndex, uid, entry.installId) ?? 0
             guard entry.sequence > lastApplied else {
                 // Уже применено раньше (повторная доставка того же sequence —
                 // throttle-ретрай на часах, гонка с запоздавшей оригинальной
@@ -210,7 +214,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
                 // Обе ветки означают, что удар ДУРАБЕЛЬНО осел на
                 // телефоне (ShotQueue пишет на диск ДО попытки сети) —
                 // фиксируем sequence как применённый и подтверждаем часам.
-                sequenceRecorder(batch.roundId, holeIndex, uid, entry.sequence)
+                sequenceRecorder(batch.roundId, holeIndex, uid, entry.installId, entry.sequence)
                 receiptEntries.append(WatchShotReceiptEntry(holeNumber: entry.holeNumber, acceptedCount: entry.clubs.count, accepted: true))
             case .rejected:
                 // Сервер ОКОНЧАТЕЛЬНО отверг запись (permanent error) —

@@ -157,27 +157,40 @@ struct WatchShotEntry: Equatable {
     /// уже применён" с "игрок ударил той же клюшкой ещё раз" (второй патт
     /// подряд, например) — см. живое ревью.
     let sequence: Int
+    /// Durable-идентификатор УСТАНОВКИ приложения часов, приславшей этот
+    /// батч (Fix 8, живое ревью Task 4) — см. WatchShotQueue.installId.
+    /// Без него переустановка приложения часов посреди раунда обнуляет
+    /// файл sequence-счётчика на часах, и новый настоящий удар с
+    /// sequence=1 совпал бы с уже применённым на телефоне sequence
+    /// ПРЕЖНЕЙ установки — телефон молча счёл бы его повтором.
+    /// WatchBatchSequenceLedger ключует "последний применённый sequence"
+    /// по (round:holeIndex:uid:installId), так что переустановка получает
+    /// собственное пространство sequence по построению.
+    let installId: String
 
     var payload: [String: Any] {
-        ["holeNumber": holeNumber, "clubs": clubs, "recordedAt": recordedAt.timeIntervalSince1970, "sequence": sequence]
+        ["holeNumber": holeNumber, "clubs": clubs, "recordedAt": recordedAt.timeIntervalSince1970, "sequence": sequence, "installId": installId]
     }
 
-    init(holeNumber: Int, clubs: [String], recordedAt: Date, sequence: Int) {
+    init(holeNumber: Int, clubs: [String], recordedAt: Date, sequence: Int, installId: String) {
         self.holeNumber = holeNumber
         self.clubs = clubs
         self.recordedAt = recordedAt
         self.sequence = sequence
+        self.installId = installId
     }
 
     init?(payload: [String: Any]) {
         guard let holeNumber = watchIntValue(payload["holeNumber"]),
               let clubs = payload["clubs"] as? [String],
               let recordedAtInterval = watchDoubleValue(payload["recordedAt"]),
-              let sequence = watchIntValue(payload["sequence"]) else { return nil }
+              let sequence = watchIntValue(payload["sequence"]),
+              let installId = payload["installId"] as? String, !installId.isEmpty else { return nil }
         self.holeNumber = holeNumber
         self.clubs = clubs
         self.recordedAt = Date(timeIntervalSince1970: recordedAtInterval)
         self.sequence = sequence
+        self.installId = installId
     }
 }
 

@@ -10,6 +10,7 @@ final class WatchShotQueueTests: XCTestCase {
     private var storeURL: URL!
     private var confirmedStoreURL: URL!
     private var sequenceStoreURL: URL!
+    private var installIdStoreURL: URL!
 
     override func setUp() {
         super.setUp()
@@ -20,17 +21,20 @@ final class WatchShotQueueTests: XCTestCase {
             .appendingPathComponent("watchshotqueue-confirmed-test-\(id).json")
         sequenceStoreURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("watchshotqueue-sequence-test-\(id).json")
+        installIdStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchshotqueue-installid-test-\(id).txt")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: storeURL)
         try? FileManager.default.removeItem(at: confirmedStoreURL)
         try? FileManager.default.removeItem(at: sequenceStoreURL)
+        try? FileManager.default.removeItem(at: installIdStoreURL)
         super.tearDown()
     }
 
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
+        WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
     }
 
     // MARK: - enqueue / pending
@@ -260,7 +264,7 @@ final class WatchShotQueueTests: XCTestCase {
     func testConfirmedCountSurvivesRestart() {
         let queue = makeQueue()
         queue.markConfirmed(roundId: "r", holeNumber: 2, acceptedCount: 3)
-        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
+        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
         XCTAssertEqual(reloaded.confirmedCount(roundId: "r", holeNumber: 2), 3)
     }
 
@@ -396,7 +400,7 @@ final class WatchShotQueueTests: XCTestCase {
         queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
         queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
 
-        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
+        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
         reloaded.enqueue(roundId: "r", holeNumber: 1, clubs: ["Putter"])
         XCTAssertEqual(reloaded.pending.first?.sequence, 2, "счётчик sequence пережил перезапуск (новый инстанс над тем же файлом)")
     }

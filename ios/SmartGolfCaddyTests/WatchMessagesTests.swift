@@ -129,8 +129,8 @@ final class WatchMessagesTests: XCTestCase {
         WatchShotBatch(
             roundId: "round-1",
             entries: [
-                WatchShotEntry(holeNumber: 1, clubs: ["driver", "7-iron"], recordedAt: Date(timeIntervalSince1970: 1_700_000_100), sequence: 1),
-                WatchShotEntry(holeNumber: 2, clubs: ["putter"], recordedAt: Date(timeIntervalSince1970: 1_700_000_200), sequence: 3),
+                WatchShotEntry(holeNumber: 1, clubs: ["driver", "7-iron"], recordedAt: Date(timeIntervalSince1970: 1_700_000_100), sequence: 1, installId: "install-A"),
+                WatchShotEntry(holeNumber: 2, clubs: ["putter"], recordedAt: Date(timeIntervalSince1970: 1_700_000_200), sequence: 3, installId: "install-A"),
             ]
         )
     }
@@ -167,6 +167,28 @@ final class WatchMessagesTests: XCTestCase {
         // Одна запись без sequence — весь батч невалиден (тот же строгий
         // инвариант entries.count == rawEntries.count, что и у остальных
         // обязательных полей контракта).
+        XCTAssertNil(WatchShotBatch(payload: payload))
+    }
+
+    func testBatchPreservesInstallId() throws {
+        let original = makeBatch()
+        let restored = try XCTUnwrap(WatchShotBatch(payload: original.payload))
+        XCTAssertEqual(restored.entries.map(\.installId), ["install-A", "install-A"])
+    }
+
+    func testBatchRejectsMissingInstallIdField() {
+        var payload = makeBatch().payload
+        var entries = payload["entries"] as! [[String: Any]]
+        entries[0].removeValue(forKey: "installId")
+        payload["entries"] = entries
+        XCTAssertNil(WatchShotBatch(payload: payload))
+    }
+
+    func testBatchRejectsEmptyInstallId() {
+        var payload = makeBatch().payload
+        var entries = payload["entries"] as! [[String: Any]]
+        entries[0]["installId"] = ""
+        payload["entries"] = entries
         XCTAssertNil(WatchShotBatch(payload: payload))
     }
 
@@ -211,6 +233,7 @@ final class WatchMessagesTests: XCTestCase {
         XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
         XCTAssertEqual(restored.entries.map(\.recordedAt), makeBatch().entries.map(\.recordedAt))
         XCTAssertEqual(restored.entries.map(\.sequence), makeBatch().entries.map(\.sequence))
+        XCTAssertEqual(restored.entries.map(\.installId), makeBatch().entries.map(\.installId))
     }
 
     // MARK: - WatchShotReceipt (телефон → часы, квитанция о приёме батча)

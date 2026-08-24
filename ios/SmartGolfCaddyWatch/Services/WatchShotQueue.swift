@@ -42,7 +42,8 @@ final class WatchShotQueue: @unchecked Sendable {
     static let shared = WatchShotQueue(
         storeURL: WatchShotQueue.defaultStoreURL(name: "watch-pending-shots-v1.json"),
         confirmedStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-confirmed-counts-v1.json"),
-        sequenceStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-sequence-v1.json")
+        sequenceStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-sequence-v1.json"),
+        installIdStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-install-id-v1.txt")
     )
 
     /// Сколько ждать квитанции, прежде чем считать батч потерянным и
@@ -64,6 +65,7 @@ final class WatchShotQueue: @unchecked Sendable {
     private let storeURL: URL
     private let confirmedStoreURL: URL
     private let sequenceStoreURL: URL
+    private let installIdStoreURL: URL
     private let ioQueue = DispatchQueue(label: "sgc.watchshotqueue.io")
     /// НЕ персистится: после перезапуска часов судьба предыдущей отправки
     /// неизвестна — разрешаем немедленный повтор при следующем flush(),
@@ -72,10 +74,43 @@ final class WatchShotQueue: @unchecked Sendable {
     /// записи, см. Fix 5).
     private var inFlightSince: [String: Date] = [:]
 
-    init(storeURL: URL, confirmedStoreURL: URL, sequenceStoreURL: URL) {
+    /// Durable-идентификатор ЭТОЙ установки приложения часов (Fix 8, живое
+    /// ревью Task 4) — создаётся один раз при первом обращении и живёт,
+    /// пока живут данные приложения: переживает обычный перезапуск
+    /// процесса (та же файловая система, что и остальные хранилища этого
+    /// класса), НЕ переживает удаление приложения (контейнер данных
+    /// стирается вместе с ним). Включается в WatchShotEntry, чтобы
+    /// переустановка (которая заодно обнуляет файл sequence-счётчика —
+    /// тоже стёрт) не коллизировала с уже применённым на телефоне
+    /// sequence прежней установки: WatchBatchSequenceLedger ключует запись
+    /// по (round:holeIndex:uid:installId), поэтому новая установка
+    /// автоматически получает собственное пространство sequence, а не
+    /// молча "видится телефону" как повтор старого удара.
+    /// Кэш прочитанного/сгенерированного значения — сам класс `@unchecked
+    /// Sendable`, поэтому доступ синхронизирован через ioQueue (обычный
+    /// `lazy var` не даёт такой гарантии при конкурентном обращении).
+    private var installIdCache: String?
+
+    var installId: String {
+        ioQueue.sync {
+            if let cached = installIdCache { return cached }
+            if let existing = try? String(contentsOf: installIdStoreURL, encoding: .utf8),
+               !existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                installIdCache = existing
+                return existing
+            }
+            let fresh = UUID().uuidString
+            try? fresh.write(to: installIdStoreURL, atomically: true, encoding: .utf8)
+            installIdCache = fresh
+            return fresh
+        }
+    }
+
+    init(storeURL: URL, confirmedStoreURL: URL, sequenceStoreURL: URL, installIdStoreURL: URL) {
         self.storeURL = storeURL
         self.confirmedStoreURL = confirmedStoreURL
         self.sequenceStoreURL = sequenceStoreURL
+        self.installIdStoreURL = installIdStoreURL
     }
 
     private func slotKey(_ roundId: String, _ holeNumber: Int) -> String {
@@ -334,7 +369,7 @@ final class WatchShotQueue: @unchecked Sendable {
         for roundId in byRound.keys.sorted() {
             let roundEntries = (byRound[roundId] ?? []).sorted { $0.holeNumber < $1.holeNumber }
             let batchEntries = roundEntries.map {
-                WatchShotEntry(holeNumber: $0.holeNumber, clubs: $0.clubs, recordedAt: Date(timeIntervalSince1970: $0.updatedAt), sequence: $0.sequence)
+                WatchShotEntry(holeNumber: $0.holeNumber, clubs: $0.clubs, recordedAt: Date(timeIntervalSince1970: $0.updatedAt), sequence: $0.sequence, installId: installId)
             }
             ioQueue.sync {
                 for entry in roundEntries {

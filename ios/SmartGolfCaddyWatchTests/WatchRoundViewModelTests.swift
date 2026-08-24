@@ -12,6 +12,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     private var queueStoreURL: URL!
     private var confirmedStoreURL: URL!
     private var sequenceStoreURL: URL!
+    private var installIdStoreURL: URL!
 
     override func setUp() {
         super.setUp()
@@ -22,19 +23,22 @@ final class WatchRoundViewModelTests: XCTestCase {
             .appendingPathComponent("watchroundvm-confirmed-test-\(id).json")
         sequenceStoreURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("watchroundvm-sequence-test-\(id).json")
+        installIdStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchroundvm-installid-test-\(id).txt")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: queueStoreURL)
         try? FileManager.default.removeItem(at: confirmedStoreURL)
         try? FileManager.default.removeItem(at: sequenceStoreURL)
+        try? FileManager.default.removeItem(at: installIdStoreURL)
         super.tearDown()
     }
 
     /// Изолированная (файл во временной директории) очередь для тестов,
     /// которые инспектируют её содержимое — не трогает WatchShotQueue.shared.
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: queueStoreURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
+        WatchShotQueue(storeURL: queueStoreURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
     }
 
     /// markConfirmed постит `.watchShotSyncFailed` наблюдателям на
@@ -75,7 +79,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     // MARK: - removeShot не уходит в минус
 
     func testRemoveShotDoesNotGoNegative() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot())
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(), shotQueue: makeQueue())
         XCTAssertEqual(vm.shots.count, 0)
         vm.removeShot()
         vm.removeShot()
@@ -83,7 +87,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     }
 
     func testAddThenRemoveShot() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot())
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
         XCTAssertEqual(vm.shots.count, 2)
@@ -97,7 +101,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     // MARK: - Удары сохраняются при переходе туда-обратно по лункам
 
     func testShotsPersistAcrossHoleNavigation() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(activeHoleNumber: 3))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(activeHoleNumber: 3), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
         XCTAssertEqual(vm.shots.count, 2)
@@ -121,14 +125,14 @@ final class WatchRoundViewModelTests: XCTestCase {
     // MARK: - Кламп границ лунки
 
     func testNextHoleClampsAtTotalHoles() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 3, activeHoleNumber: 3))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 3, activeHoleNumber: 3), shotQueue: makeQueue())
         vm.nextHole()
         vm.nextHole()
         XCTAssertEqual(vm.holeNumber, 3)
     }
 
     func testPreviousHoleClampsAtOne() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 18, activeHoleNumber: 1))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 18, activeHoleNumber: 1), shotQueue: makeQueue())
         vm.previousHole()
         vm.previousHole()
         XCTAssertEqual(vm.holeNumber, 1)
@@ -141,7 +145,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 0),
             WatchHole(number: 2, par: 3, distanceMeters: 150, myShots: 1),
         ]
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 2, holes: holes, activeHoleNumber: 2))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 2, holes: holes, activeHoleNumber: 2), shotQueue: makeQueue())
         // Лунка 2: сервер уже подтвердил 1 удар (сид placeholder-ом), pending 0.
         XCTAssertEqual(vm.shots.count, 1)
         XCTAssertEqual(vm.pendingCount, 0)
@@ -152,14 +156,14 @@ final class WatchRoundViewModelTests: XCTestCase {
     }
 
     func testPendingCountZeroWhenNoLocalShots() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot())
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(), shotQueue: makeQueue())
         XCTAssertEqual(vm.pendingCount, 0)
     }
 
     // MARK: - Применение снимка не теряет неподтверждённые локальные удары
 
     func testApplySnapshotDoesNotLoseUnconfirmedLocalShots() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(activeHoleNumber: 3))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(activeHoleNumber: 3), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
         XCTAssertEqual(vm.shots.count, 2)
@@ -173,7 +177,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     }
 
     func testApplySnapshotSeedsNewlySeenHoleFromServerCount() {
-        let vm = WatchRoundViewModel(snapshot: nil)
+        let vm = WatchRoundViewModel(snapshot: nil, shotQueue: makeQueue())
         XCTAssertNil(vm.currentHole)
 
         // activeHoleNumber НАРОЧНО != 1 (Fix 6, живое ревью Task 4) — до
@@ -195,14 +199,14 @@ final class WatchRoundViewModelTests: XCTestCase {
     // MARK: - addShot без выбранной клюшки берёт разумный дефолт
 
     func testAddShotWithoutSelectionUsesFirstBagClub() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "7 Iron", "Putter"]))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "7 Iron", "Putter"]), shotQueue: makeQueue())
         XCTAssertNil(vm.selectedClub)
         vm.addShot()
         XCTAssertEqual(vm.shots, ["Driver"])
     }
 
     func testAddShotWithoutSelectionReusesLastUsedClub() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "7 Iron", "Putter"]))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "7 Iron", "Putter"]), shotQueue: makeQueue())
         vm.selectedClub = "7 Iron"
         vm.addShot()
         XCTAssertEqual(vm.shots, ["7 Iron"])
@@ -213,7 +217,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     }
 
     func testAddShotWithEmptyBagIsNoOp() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: []))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: []), shotQueue: makeQueue())
         vm.addShot()
         XCTAssertEqual(vm.shots.count, 0)
     }
@@ -221,7 +225,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     // MARK: - currentHole / clubs
 
     func testCurrentHoleAndClubsReflectSnapshot() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "Putter"], activeHoleNumber: 5))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "Putter"], activeHoleNumber: 5), shotQueue: makeQueue())
         XCTAssertEqual(vm.currentHole?.number, 5)
         XCTAssertEqual(vm.clubs, ["Driver", "Putter"])
     }
@@ -232,7 +236,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         // Раунд A: на лунке 5 два неподтверждённых удара (телефон офлайн,
         // myShots всё ещё 0 — батч не долетел до сервера).
         let holesA = [WatchHole(number: 5, par: 4, distanceMeters: 300, myShots: 0)]
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", totalHoles: 5, holes: holesA, activeHoleNumber: 5))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", totalHoles: 5, holes: holesA, activeHoleNumber: 5), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
         XCTAssertEqual(vm.shots.count, 2)
@@ -249,7 +253,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     }
 
     func testApplySnapshotForNewRoundResetsHoleNumberToNewActiveHole() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", totalHoles: 18, activeHoleNumber: 3))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", totalHoles: 18, activeHoleNumber: 3), shotQueue: makeQueue())
         vm.nextHole()
         vm.nextHole()
         XCTAssertEqual(vm.holeNumber, 5)
@@ -260,7 +264,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     }
 
     func testApplySnapshotForNewRoundClearsSelectedAndLastUsedClub() {
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", clubs: ["Driver", "Putter"]))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", clubs: ["Driver", "Putter"]), shotQueue: makeQueue())
         vm.selectedClub = "Putter"
         vm.addShot()
         XCTAssertEqual(vm.selectedClub, "Putter")
@@ -275,7 +279,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     func testApplySnapshotForSameRoundDoesNotResetLocalState() {
         // Регрессия: убеждаемся, что фикс 1 не сломал исходное поведение —
         // тот же roundId по-прежнему НЕ сбрасывает локальные удары.
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", activeHoleNumber: 3))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", activeHoleNumber: 3), shotQueue: makeQueue())
         vm.addShot()
         vm.apply(snapshot: makeSnapshot(roundId: "round-A", activeHoleNumber: 3))
         XCTAssertEqual(vm.shots.count, 1)
@@ -288,7 +292,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         // seedIfNeeded подставит 3 плейсхолдера. На часах добавляем ЕЩЁ один
         // удар выбранной клюшкой.
         let holes = [WatchHole(number: 4, par: 5, distanceMeters: 480, myShots: 3)]
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 4, holes: holes, clubs: ["Driver", "3 Wood"], activeHoleNumber: 4))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 4, holes: holes, clubs: ["Driver", "3 Wood"], activeHoleNumber: 4), shotQueue: makeQueue())
         XCTAssertEqual(vm.shots.count, 3, "3 плейсхолдера от seedIfNeeded")
 
         vm.selectedClub = "3 Wood"
@@ -301,12 +305,12 @@ final class WatchRoundViewModelTests: XCTestCase {
 
     func testUnsyncedShotsEmptyWhenAllConfirmed() {
         let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 1, holes: holes, activeHoleNumber: 1))
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 1, holes: holes, activeHoleNumber: 1), shotQueue: makeQueue())
         XCTAssertEqual(vm.unsyncedShots(forHole: 1), [])
     }
 
     func testNoSnapshotYieldsEmptyState() {
-        let vm = WatchRoundViewModel(snapshot: nil)
+        let vm = WatchRoundViewModel(snapshot: nil, shotQueue: makeQueue())
         XCTAssertNil(vm.currentHole)
         XCTAssertEqual(vm.clubs, [])
         XCTAssertEqual(vm.holeNumber, 1)
@@ -410,7 +414,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 5, timestamp: Date())
         XCTAssertEqual(Double(vm.greenDistanceMeters ?? 0), 111, accuracy: 3)
     }
@@ -422,7 +426,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         XCTAssertNil(vm.greenDistanceMeters)
     }
 
@@ -433,7 +437,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 60, timestamp: Date())
         XCTAssertNil(vm.greenDistanceMeters, "точность хуже 25 м — недостоверно")
     }
@@ -445,7 +449,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 5, timestamp: Date().addingTimeInterval(-300))
         XCTAssertNil(vm.greenDistanceMeters, "фикс 5 минут назад — экран лежал заблокированным, трекинг стоял")
     }
@@ -457,7 +461,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: ["Driver"], greens: [:],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
         XCTAssertNil(vm.greenDistanceMeters, "поле не отмечено ни одним игроком — метки для лунки нет")
     }
@@ -471,7 +475,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.710000, lng: 37.400000)],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
         XCTAssertNil(vm.greenDistanceMeters, "больше 800 м — чужое поле или мусорная метка")
     }
@@ -487,7 +491,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             greens: [3: GreenMark(lat: 55.701000, lng: 37.400000), 4: GreenMark(lat: 55.702000, lng: 37.400000)],
             activeHoleNumber: 3, units: .m, updatedAt: Date()
         )
-        let vm = WatchRoundViewModel(snapshot: snapshot)
+        let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
 
         let distanceHole3 = vm.greenDistanceMeters
@@ -602,5 +606,96 @@ final class WatchRoundViewModelTests: XCTestCase {
         vm.apply(snapshot: makeSnapshot(roundId: "round-B", activeHoleNumber: 2))
 
         XCTAssertFalse(vm.currentHoleSyncFailed)
+    }
+
+    // MARK: - Fix 7 (живое ревью Task 4): рехидратация shotsByHole из
+    // durable-очереди после выгрузки процесса часов (watchOS штатно
+    // убивает приложение — не экзотика). Без этого фикса реальный, ещё не
+    // подтверждённый удар, лежащий на диске, "терялся из вида" при первом
+    // посеве лунки после перезапуска, и следующий тап на "+" молча стирал
+    // durable-хвост вместо постановки нового удара в очередь.
+
+    func testRehydratesUnconfirmedShotFromDurableQueueAfterRestart() {
+        let queue = makeQueue()
+        // Удар лунки 5 уже лежит в durable-очереди (батч ушёл), но
+        // квитанция ещё не пришла — ровно то состояние, в котором
+        // приложение часов может быть выгружено из памяти.
+        queue.enqueue(roundId: "round-1", holeNumber: 5, clubs: ["Driver"])
+
+        // "Перезапуск" — НОВАЯ VM, shotsByHole пуст в памяти; снимок ещё
+        // не в курсе (myShots: 0 — квитанция телефону тоже не долетела).
+        let holes = [WatchHole(number: 5, par: 4, distanceMeters: 300, myShots: 0)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 5, holes: holes, clubs: ["Driver", "7 Iron"], activeHoleNumber: 5),
+            shotQueue: queue
+        )
+        XCTAssertEqual(vm.shots, ["Driver"], "неподтверждённый удар восстановлен из durable-очереди, а не потерян")
+
+        // Квитанция доезжает УЖЕ ПОСЛЕ пересоздания VM.
+        queue.markConfirmed(roundId: "round-1", holeNumber: 5, acceptedCount: 1)
+
+        vm.selectedClub = "7 Iron"
+        vm.addShot()
+
+        XCTAssertEqual(vm.shots, ["Driver", "7 Iron"])
+        XCTAssertEqual(
+            queue.pending.first { $0.roundId == "round-1" && $0.holeNumber == 5 }?.clubs, ["7 Iron"],
+            "новый удар должен оказаться в очереди, а не исчезнуть"
+        )
+    }
+
+    func testRehydratesFromDurableConfirmedCountWhenReceiptAlreadyProcessedBeforeRestart() {
+        // Другой порядок: квитанция дошла и обработалась ДО того, как
+        // пользователь снова открыл приложение (фоновый wake на
+        // transferUserInfo) — durable-хвост уже снят, confirmedCount уже
+        // продвинут. Рехидратация обязана взять это из confirmedCount, а
+        // не только из hole.myShots снимка (который может ещё отставать).
+        let queue = makeQueue()
+        queue.enqueue(roundId: "round-1", holeNumber: 5, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "round-1", holeNumber: 5, acceptedCount: 1)
+        XCTAssertTrue(queue.pending.isEmpty)
+
+        let holes = [WatchHole(number: 5, par: 4, distanceMeters: 300, myShots: 0)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 5, holes: holes, activeHoleNumber: 5),
+            shotQueue: queue
+        )
+        XCTAssertEqual(vm.pendingCount, 0, "confirmedCount восстановлен из durable-счётчика — неподтверждённого не осталось")
+
+        vm.addShot()
+        XCTAssertEqual(
+            queue.pending.first { $0.holeNumber == 5 }?.clubs.count, 1,
+            "новый удар корректно поставлен в очередь поверх рехидратированного состояния"
+        )
+    }
+
+    func testAddShotNeverClearsExistingQueueSlotEvenWhenTailAppearsEmpty() {
+        // allowClear-защита: addShot() никогда не должен ОПУСТОШИТЬ
+        // существующую durable-запись как побочный эффект рассогласования
+        // (formally-"всё подтверждено" из-за независимо подросшего
+        // snapshot.myShots), только реальный removeShot() может это сделать.
+        let queue = makeQueue()
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 0)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, clubs: ["Driver"], activeHoleNumber: 1),
+            shotQueue: queue
+        )
+        vm.addShot()
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"])
+
+        // Свежий снимок сообщает намного больше подтверждённых ударов
+        // лунки, чем локально известно часам (contrived, но защита должна
+        // держаться независимо от причины рассинхрона).
+        let inflatedHoles = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 5)]
+        vm.apply(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: inflatedHoles, clubs: ["Driver"], activeHoleNumber: 1))
+        XCTAssertEqual(vm.unsyncedShots(forHole: 1), [], "формально ничего 'нового' с точки зрения confirmedCount")
+
+        vm.addShot()  // второй тап — рассинхрон уже есть
+
+        XCTAssertNotNil(
+            queue.pending.first { $0.roundId == "round-1" && $0.holeNumber == 1 },
+            "addShot() не должен молча стереть существующий durable-хвост как побочный эффект рассинхрона"
+        )
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"], "существующая запись сохранена как есть, а не заменена на []")
     }
 }
