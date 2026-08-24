@@ -89,7 +89,78 @@ Services → Firebase SDK; Models — чистые структуры. `import F
 `functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
 во всех трёх — при правке схемы на одной стороне обновлять остальные
 две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
-`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 3b (метки гринов): коллекция `courses/{courseKey}/greenMarks/{uid}` —
+`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 3c (Apple Watch companion): отдельный watch-таргет
+`ios/SmartGolfCaddyWatch/` (WKApplication, компаньон iOS-приложения).
+Общий код подключён **ссылкой** (не копией) через `sources:` в
+`project.yml`: `Models/` (Foundation-only домен, включая
+`WatchMessages.swift`) и `DesignSystem/` + `Resources/Fonts` (Playfair
+Display). На часах **НЕТ Firebase/GoogleSignIn** — эти SDK не собираются
+под watchOS (проверено в Package.swift), поэтому часы принципиально не
+могут напрямую читать/писать Firestore или логиниться: вся связь с
+сервером идёт транзитом через телефон по WatchConnectivity. `import
+WatchConnectivity` разрешён РОВНО в двух файлах-мостах —
+`Services/WatchBridge.swift` (телефон) и
+`SmartGolfCaddyWatch/Services/PhoneBridge.swift` (часы); `import
+CoreLocation` на часах — только в `SmartGolfCaddyWatch/Services/
+WatchLocationService.swift` (вью и вью-модели знают только Foundation-тип
+`GeoFix` из `Models/Geo.swift`). Активация: `WatchBridge.shared.activate()`
+из `AppDelegate` на телефоне, `PhoneBridge.shared` через `.task` в
+`WatchRootView` на часах.
+
+Контракт сообщений — `Models/WatchMessages.swift`, корневые структуры
+несут `"v": 1` (приёмник отбрасывает payload другой версии вместо
+угадывания схемы). `updateApplicationContext`/`transferUserInfo` гоняют
+payload через property-list/XPC — числа по ту сторону приходят как
+`NSNumber`, поэтому строгий `as? Int`/`as? Double` может дать `nil` даже
+для валидных данных; декодирование всюду идёт через `NSNumber`-распаковку
+(канон паттерна, как и `Club.swift`/`GreenMarks.swift` на телефоне), а
+одна битая метка грина в снимке пропускается поэлементно, не проваливая
+весь payload.
+
+Модель синхронизации гибридная, по направлениям:
+- **Снимок раунда телефон→часы** — `updateApplicationContext`
+  (`WatchBridge.send(snapshot:)`), последнее состояние всегда актуально
+  (старые снимки перезаписываются, очередь не копится). Шлётся из
+  `HoleTrackerViewModel.sendWatchSnapshot()` — **только пока на телефоне
+  открыт экран лунки**; это ограничение, не баг (см. бэклог в
+  `tasks/todo.md`) — в основном сценарии игры с часов телефон лежит в
+  кармане с закрытым экраном, и снимок НЕ обновляется до следующего
+  открытия экрана.
+- **Удары часы→телефон** — `transferUserInfo`
+  (`WatchShotQueue`/`PhoneBridge.flushShotQueue()`), гарантированная
+  доставка, переживает недоступность телефона. Телефон подтверждает
+  приём квитанцией (`WatchShotReceipt`) через тот же канал в обратную
+  сторону.
+
+Инварианты, которые нельзя нарушать:
+1. **Посеянные заглушки никогда не уходят на сервер.** При первом
+   появлении лунки в снимке `WatchRoundViewModel.seedIfNeeded` подставляет
+   плейсхолдеры (`clubs.first`) по числу уже подтверждённых сервером
+   ударов — это ВЫДУМАННЫЕ названия клюшек чужих (телефонных) ударов.
+   Отправляется ТОЛЬКО хвост сверх подтверждённого
+   (`unsyncedShots(forHole:)`), иначе `recordShot` (пишет весь массив
+   `clubs` лунки) затёр бы реальные клюшки плейсхолдерами.
+2. **Источник истины «что подтверждено» на часах — квитанция, а не
+   снимок.** `confirmedCount(forHole:)` берёт `max(snapshot.myShots,
+   shotQueue.confirmedCount(...))`: снимок обновляется только при
+   открытом экране лунки на телефоне (см. выше), поэтому квитанция,
+   продвигающая durable-счётчик сразу по приёму, — единственный
+   источник, не отстающий от реальности.
+3. **Идемпотентность повторной доставки батча — по монотонному
+   `sequence` на слот (`WatchShotEntry.sequence`), НЕ по совпадению
+   содержимого клюшек.** Суффиксная эвристика по клюшкам путала «этот
+   батч уже применён» с «игрок ударил той же клюшкой ещё раз» — два
+   патта подряд (обычный случай) с ней молча теряли второй удар.
+   `WatchBatchSequenceLedger` на телефоне хранит durable последний
+   применённый `sequence` на слот `roundId:holeIndex:uid`.
+4. **Приём батча (`WatchBridge.applyBatch`) берёт базовое состояние
+   клюшек лунки из `ShotQueue.pendingShot` (если для слота есть локальная
+   офлайн-запись телефона), иначе — из свежепрочитанного раунда.**
+   `RoundsService.getRound` читает строго `source: .server` (не кэш) —
+   иначе устаревший локальный снимок раунда мог бы затереть реальные
+   клюшки при мердже часового хвоста.
+
+Фаза 3b (метки гринов): коллекция `courses/{courseKey}/greenMarks/{uid}` —
 документ на пользователя (`holes: { "1": {lat, lng} }`). Правила: читают
 все аутентифицированные, пишет ТОЛЬКО владелец → одна ошибочная метка не
 портит поле остальным; усреднение по всем игрокам делает клиент
