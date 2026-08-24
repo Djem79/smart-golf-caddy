@@ -176,6 +176,18 @@ enum RoundsService {
         return { listener.remove() }
     }
 
+    /// Разовое (не подписка) чтение раунда. Нужно WatchBridge при приёме
+    /// батча ударов с часов: чтобы дописать unsyncedShots-хвост к уже
+    /// известным телефону клюшкам лунки, а не затереть их (критический
+    /// инвариант — см. комментарий в WatchBridge.swift). nil, если раунд не
+    /// найден.
+    static func getRound(roundId: String) async throws -> Round? {
+        let snapshot = try await FirebaseService.db.collection("rounds").document(roundId).getDocument()
+        guard snapshot.exists, let raw = snapshot.data() else { return nil }
+        let data = FirebaseService.normalizedDates(raw) as? [String: Any] ?? raw
+        return Round(id: snapshot.documentID, data: data)
+    }
+
     static func getUserRounds(userId: String, limitTo: Int = 50) async throws -> [Round] {
         let snapshot = try await FirebaseService.db.collection("rounds")
             .whereField("playerIds", arrayContains: userId)

@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         #endif
         FirebaseApp.configure()
         ShotQueue.shared.initSync()
+        WatchBridge.shared.activate()
         return true
     }
 }

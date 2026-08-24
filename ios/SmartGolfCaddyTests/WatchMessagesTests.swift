@@ -193,4 +193,88 @@ final class WatchMessagesTests: XCTestCase {
         XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
         XCTAssertEqual(restored.entries.map(\.recordedAt), makeBatch().entries.map(\.recordedAt))
     }
+
+    // MARK: - WatchShotReceipt (телефон → часы, квитанция о приёме батча)
+
+    private func makeReceipt() -> WatchShotReceipt {
+        WatchShotReceipt(
+            roundId: "round-1",
+            entries: [
+                WatchShotReceiptEntry(holeNumber: 1, acceptedCount: 2),
+                WatchShotReceiptEntry(holeNumber: 2, acceptedCount: 1),
+            ]
+        )
+    }
+
+    func testReceiptRoundTrip() throws {
+        let original = makeReceipt()
+        let restored = try XCTUnwrap(WatchShotReceipt(payload: original.payload))
+        XCTAssertEqual(restored, original)
+    }
+
+    func testReceiptPayloadHasVersion1() {
+        let payload = makeReceipt().payload
+        XCTAssertEqual(payload["v"] as? Int, 1)
+    }
+
+    func testReceiptPreservesEntryOrder() throws {
+        let original = makeReceipt()
+        let restored = try XCTUnwrap(WatchShotReceipt(payload: original.payload))
+        XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
+        XCTAssertEqual(restored.entries.map(\.acceptedCount), [2, 1])
+    }
+
+    func testReceiptRejectsWrongVersion() {
+        var payload = makeReceipt().payload
+        payload["v"] = 2
+        XCTAssertNil(WatchShotReceipt(payload: payload))
+    }
+
+    func testReceiptRejectsMissingRequiredField() {
+        var payload = makeReceipt().payload
+        payload.removeValue(forKey: "entries")
+        XCTAssertNil(WatchShotReceipt(payload: payload))
+    }
+
+    func testReceiptRejectsGarbage() {
+        XCTAssertNil(WatchShotReceipt(payload: ["v": 1, "roundId": 1]))
+        XCTAssertNil(WatchShotReceipt(payload: [:]))
+        XCTAssertNil(WatchShotReceipt(payload: ["garbage": "value"]))
+    }
+
+    func testReceiptAcceptsEmptyEntries() throws {
+        var payload = makeReceipt().payload
+        payload["entries"] = [[String: Any]]()
+        let restored = try XCTUnwrap(WatchShotReceipt(payload: payload))
+        XCTAssertTrue(restored.entries.isEmpty)
+    }
+
+    func testReceiptRoundTripsFieldsEncodedAsNSNumber() throws {
+        // Та же XPC-гигиена, что и у WatchShotBatch — числа могут прийти как
+        // NSNumber с иным внутренним типом.
+        var payload = makeReceipt().payload
+        payload["v"] = NSNumber(value: 1.0)
+        let entries = (payload["entries"] as! [[String: Any]]).map { entry -> [String: Any] in
+            var e = entry
+            e["holeNumber"] = NSNumber(value: Double(e["holeNumber"] as! Int))
+            e["acceptedCount"] = NSNumber(value: Double(e["acceptedCount"] as! Int))
+            return e
+        }
+        payload["entries"] = entries
+
+        let restored = try XCTUnwrap(WatchShotReceipt(payload: payload))
+        XCTAssertEqual(restored, makeReceipt())
+    }
+
+    func testReceiptDropsMalformedEntryButKeepsRest() throws {
+        var payload = makeReceipt().payload
+        var entries = payload["entries"] as! [[String: Any]]
+        entries.append(["holeNumber": "not-a-number", "acceptedCount": 1])
+        payload["entries"] = entries
+        // Целиком невалидная запись внутри массива — как и в WatchShotBatch,
+        // весь массив компактится через compactMap с проверкой count ==
+        // rawCount, поэтому здесь ожидаем провал ИМЕННО из-за строгости
+        // инварианта "entries.count == rawEntries.count" (см. WatchShotBatch).
+        XCTAssertNil(WatchShotReceipt(payload: payload))
+    }
 }

@@ -1,11 +1,32 @@
 // ios/SmartGolfCaddyWatchTests/WatchRoundViewModelTests.swift
 // Тесты WatchRoundViewModel (Task 3, Phase 3c) — чистая логика без
 // WatchConnectivity: снимок подаётся конструктором/apply(snapshot:).
+// Task 4 добавляет проверку интеграции с WatchShotQueue: addShot()/
+// removeShot() обязаны держать очередь синхронной с unsyncedShots(forHole:).
 import XCTest
 @testable import SmartGolfCaddyWatch
 
 @MainActor
 final class WatchRoundViewModelTests: XCTestCase {
+
+    private var queueStoreURL: URL!
+
+    override func setUp() {
+        super.setUp()
+        queueStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchroundvm-queue-test-\(UUID().uuidString).json")
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: queueStoreURL)
+        super.tearDown()
+    }
+
+    /// Изолированная (файл во временной директории) очередь для тестов,
+    /// которые инспектируют её содержимое — не трогает WatchShotQueue.shared.
+    private func makeQueue() -> WatchShotQueue {
+        WatchShotQueue(storeURL: queueStoreURL)
+    }
 
     private func makeSnapshot(
         roundId: String = "round-1",
@@ -261,5 +282,87 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertEqual(vm.holeNumber, 1)
         vm.nextHole()
         XCTAssertEqual(vm.holeNumber, 1, "без снимка навигация не двигается")
+    }
+
+    // MARK: - addShot() кладёт удар в WatchShotQueue (Task 4)
+
+    func testAddShotEnqueuesUnsyncedTailIntoWatchQueue() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", activeHoleNumber: 3), shotQueue: queue)
+
+        vm.addShot()
+
+        XCTAssertEqual(queue.pending.count, 1)
+        XCTAssertEqual(queue.pending.first?.roundId, "round-1")
+        XCTAssertEqual(queue.pending.first?.holeNumber, 3)
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"])
+    }
+
+    func testRepeatedAddShotGrowsQueueTailWithoutDuplicatingSlot() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", activeHoleNumber: 3), shotQueue: queue)
+
+        vm.addShot()
+        vm.addShot()
+
+        XCTAssertEqual(queue.pending.count, 1, "один слот на лунку, не история отдельных ударов")
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver", "Driver"])
+    }
+
+    // КРИТИЧЕСКИЙ ИНВАРИАНТ задачи: заглушки seedIfNeeded (плейсхолдеры по
+    // уже подтверждённым сервером ударам) НИКОГДА не должны попасть в
+    // очередь на отправку телефону — иначе recordShot затрёт настоящие
+    // клюшки, записанные на телефоне, заглушками.
+    func testPlaceholdersFromSeedNeverEnterTheQueue() {
+        let queue = makeQueue()
+        // Сервер уже подтвердил 3 удара на лунке 4 — seedIfNeeded подставит
+        // 3 плейсхолдера ("Driver" — первая клюшка сумки).
+        let holes = [WatchHole(number: 4, par: 5, distanceMeters: 480, myShots: 3)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 4, holes: holes, clubs: ["Driver", "3 Wood"], activeHoleNumber: 4),
+            shotQueue: queue
+        )
+        XCTAssertTrue(queue.pending.isEmpty, "сам факт появления снимка (init/seed) ничего не шлёт в очередь")
+
+        vm.selectedClub = "3 Wood"
+        vm.addShot()
+
+        XCTAssertEqual(queue.pending.count, 1)
+        XCTAssertEqual(queue.pending.first?.clubs, ["3 Wood"], "только реально введённый на часах удар, БЕЗ плейсхолдеров-префикса")
+    }
+
+    func testRemoveShotSyncsQueueDownToShrunkTail() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", activeHoleNumber: 3), shotQueue: queue)
+        vm.addShot()
+        vm.addShot()
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver", "Driver"])
+
+        vm.removeShot()
+
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"], "удаление удара на часах отражается в очереди")
+    }
+
+    func testRemoveShotDownToFullyConfirmedClearsQueueSlot() {
+        let queue = makeQueue()
+        // Сервер уже подтвердил 1 удар — локально это плейсхолдер.
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 1)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
+            shotQueue: queue
+        )
+        vm.addShot()
+        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"])
+
+        vm.removeShot()  // возвращаемся ровно к подтверждённому серверу состоянию
+
+        XCTAssertTrue(queue.pending.isEmpty, "хвост пуст — нечего слать, слот снят")
+    }
+
+    func testAddShotWithoutSnapshotDoesNotTouchQueue() {
+        let queue = makeQueue()
+        let vm = WatchRoundViewModel(snapshot: nil, shotQueue: queue)
+        vm.addShot()
+        XCTAssertTrue(queue.pending.isEmpty)
     }
 }

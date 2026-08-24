@@ -1,7 +1,10 @@
 // ios/SmartGolfCaddyWatch/Views/WatchRootView.swift
 // Маршрутизация: нет снимка раунда с телефона → плейсхолдер; есть →
-// WatchHoleView. Снимок читается из PhoneBridge.latestSnapshot (реальная
-// синхронизация/AppDelegate wiring — Task 4, здесь только чтение).
+// WatchHoleView. Снимок читается из PhoneBridge.latestSnapshot. Здесь же
+// (Task 4) — активация моста и отправка очереди ударов телефону: root-вью
+// живёт весь жизненный цикл приложения часов, поэтому это естественная
+// точка для активации сессии и подписки на изменения WatchShotQueue —
+// WatchHoleView и WatchRoundViewModel остаются без WatchConnectivity.
 // WatchRoundViewModel держится в @State, чтобы новый снимок применялся
 // через apply(snapshot:) (не теряя локальные несинхронизированные удары),
 // а не пересоздавал VM с нуля при каждом обновлении.
@@ -11,6 +14,7 @@ struct WatchRootView: View {
     private let bridge = PhoneBridge.shared
 
     @State private var viewModel: WatchRoundViewModel?
+    @State private var queueObserver: NSObjectProtocol?
 
     var body: some View {
         NavigationStack {
@@ -25,6 +29,23 @@ struct WatchRootView: View {
         .onAppear { syncViewModel(with: bridge.latestSnapshot) }
         .onChange(of: bridge.latestSnapshot) { _, newSnapshot in
             syncViewModel(with: newSnapshot)
+        }
+        .task {
+            bridge.activate()
+            // Хвосты, оставшиеся с прошлого запуска (durable-очередь
+            // переживает перезапуск часов) — пробуем отправить сразу.
+            bridge.flushShotQueue()
+            if queueObserver == nil {
+                // queue: .main гарантирует исполнение на главном потоке, но
+                // компилятору об этом неизвестно — assumeIsolated явно
+                // подтверждает MainActor-контекст (тот же приём, что и в
+                // HoleTrackerViewModel.start() для .shotQueueDidChange).
+                queueObserver = NotificationCenter.default.addObserver(
+                    forName: .watchShotQueueDidChange, object: nil, queue: .main
+                ) { _ in
+                    MainActor.assumeIsolated { bridge.flushShotQueue() }
+                }
+            }
         }
     }
 

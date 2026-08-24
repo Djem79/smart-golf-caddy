@@ -51,8 +51,27 @@ final class WatchRoundViewModel {
     /// подряд одной клюшкой) не требуют повторного выбора.
     var selectedClub: String?
 
-    init(snapshot: WatchRoundSnapshot?) {
+    /// Durable-очередь ударов на отправку телефону (Task 4). Инжектируется
+    /// для тестов (временный файл) — вью продолжают вызывать init без
+    /// изменений, дефолт .shared. НЕ WatchConnectivity — только файловая
+    /// очередь, реальная отправка (flush) — забота вью-слоя.
+    ///
+    /// pendingCount ниже сознательно считается ЛОКАЛЬНО (shots vs
+    /// confirmedCount), а не читает shotQueue.pending напрямую: очередь —
+    /// источник истины для ТОГО, что уйдёт на телефон, но не для дисплея —
+    /// она может отставать/опережать локальный confirmedCount на доли
+    /// секунды между квитанцией и следующим снимком, а прямое чтение файла
+    /// из @Observable-свойства не дало бы SwiftUI знать, когда перерисовать
+    /// (без ручного трекинга через NotificationCenter, что усложнило бы
+    /// тестовую изоляцию — shotQueue.pending для .shared делится между
+    /// тестами). Оба значения синхронизированы в момент addShot()/
+    /// removeShot() (see syncQueue()) — расхождение самокорректируется со
+    /// следующим снимком с телефона.
+    private let shotQueue: WatchShotQueue
+
+    init(snapshot: WatchRoundSnapshot?, shotQueue: WatchShotQueue = .shared) {
         self.snapshot = snapshot
+        self.shotQueue = shotQueue
         if let snapshot {
             holeNumber = Self.clampHole(snapshot.activeHoleNumber, totalHoles: snapshot.totalHoles)
             seedIfNeeded(from: snapshot)
@@ -97,7 +116,8 @@ final class WatchRoundViewModel {
     }
 
     /// Сколько ударов текущей лунки ещё не подтверждено телефоном (введено
-    /// на часах, но сервер/снимок ещё не отразил это в myShots).
+    /// на часах, но сервер/снимок ещё не отразил это в myShots). См.
+    /// комментарий у shotQueue про то, почему это НЕ прямое чтение очереди.
     var pendingCount: Int {
         max(0, shots.count - confirmedCount(forHole: holeNumber))
     }
@@ -121,12 +141,24 @@ final class WatchRoundViewModel {
         guard let club = selectedClub ?? lastUsedClub ?? clubs.first else { return }
         shotsByHole[holeNumber, default: []].append(club)
         lastUsedClub = club
+        syncQueue()
     }
 
     func removeShot() {
         guard var holeShots = shotsByHole[holeNumber], !holeShots.isEmpty else { return }
         holeShots.removeLast()
         shotsByHole[holeNumber] = holeShots
+        syncQueue()
+    }
+
+    /// Держит WatchShotQueue синхронной с реально введённым на часах хвостом
+    /// текущей лунки — вызывается после КАЖДОГО addShot()/removeShot().
+    /// unsyncedShots(forHole:) уже отфильтровывает плейсхолдеры seedIfNeeded
+    /// (см. её комментарий) — поэтому в очередь никогда не попадают
+    /// заглушки, только реально введённые на часах клюшки.
+    private func syncQueue() {
+        guard let snapshot else { return }
+        shotQueue.enqueue(roundId: snapshot.roundId, holeNumber: holeNumber, clubs: unsyncedShots(forHole: holeNumber))
     }
 
     func nextHole() {

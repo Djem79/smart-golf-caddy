@@ -90,7 +90,15 @@ struct HoleTrackerView: View {
             selectedClub = store.lastClubUsed
             let ids = pickerClubs.map(\.id)
             if !ids.contains(selectedClub) && selectedClub != Clubs.penaltyId { selectedClub = ids.first ?? "Driver" }
+            model.updateWatchContext(clubs: ids, units: session.profile?.units ?? .m)
             model.start()
+        }
+        .onChange(of: session.profile) { _, profile in
+            // Профиль (сумка/единицы) мог ещё не загрузиться к моменту
+            // .task выше — как только он приходит, пересылаем часам
+            // актуальный контекст (иначе часы застряли бы на дефолтной
+            // сумке до следующего изменения раунда).
+            model.updateWatchContext(clubs: pickerClubs.map(\.id), units: profile?.units ?? .m)
         }
         .onChange(of: model.round?.status) { _, status in
             // Заменяем только когда трекер наверху: если поверх открыта

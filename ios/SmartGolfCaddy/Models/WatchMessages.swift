@@ -192,3 +192,61 @@ struct WatchShotBatch: Equatable {
         self.entries = entries
     }
 }
+
+/// Одна квитанция по лунке: часть `WatchShotReceipt`.
+struct WatchShotReceiptEntry: Equatable {
+    let holeNumber: Int
+    /// Сколько клюшек ИЗ ЭТОГО хвоста телефон только что принял и записал
+    /// (= entries[i].clubs.count обработанного WatchShotBatch, не общий
+    /// счёт ударов лунки). Часы срезают ровно этот префикс своей очереди
+    /// (WatchShotQueue.markConfirmed) — остаток, если пользователь успел
+    /// добавить удар, пока квитанция была в пути, остаётся в очереди.
+    let acceptedCount: Int
+
+    var payload: [String: Any] {
+        ["holeNumber": holeNumber, "acceptedCount": acceptedCount]
+    }
+
+    init(holeNumber: Int, acceptedCount: Int) {
+        self.holeNumber = holeNumber
+        self.acceptedCount = acceptedCount
+    }
+
+    init?(payload: [String: Any]) {
+        guard let holeNumber = watchIntValue(payload["holeNumber"]),
+              let acceptedCount = watchIntValue(payload["acceptedCount"]) else { return nil }
+        self.holeNumber = holeNumber
+        self.acceptedCount = acceptedCount
+    }
+}
+
+/// Квитанция о приёме батча ударов: телефон → часы, через `transferUserInfo`
+/// (тот же гарантированный канал, что и WatchShotBatch, в обратную
+/// сторону). Означает "recordShot успешно отработал на телефоне для этих
+/// клюшек" — НЕ просто факт получения WCSession-сообщения. Часы по ней
+/// чистят/подрезают WatchShotQueue (см. WatchShotQueue.markConfirmed).
+struct WatchShotReceipt: Equatable {
+    let roundId: String
+    let entries: [WatchShotReceiptEntry]
+
+    init(roundId: String, entries: [WatchShotReceiptEntry]) {
+        self.roundId = roundId
+        self.entries = entries
+    }
+
+    var payload: [String: Any] {
+        ["v": 1, "roundId": roundId, "entries": entries.map(\.payload)]
+    }
+
+    init?(payload: [String: Any]) {
+        guard let version = watchIntValue(payload["v"]), version == 1,
+              let roundId = payload["roundId"] as? String,
+              let rawEntries = payload["entries"] as? [[String: Any]] else { return nil }
+
+        let entries = rawEntries.compactMap(WatchShotReceiptEntry.init(payload:))
+        guard entries.count == rawEntries.count else { return nil }
+
+        self.roundId = roundId
+        self.entries = entries
+    }
+}
