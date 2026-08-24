@@ -14,6 +14,7 @@ options:
   bundleIdPrefix: com.dzhambulat
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
 configFiles:
   Debug: Config/Local.xcconfig
@@ -62,6 +63,8 @@ targets:
         product: FirebaseAppCheck
       - package: GoogleSignIn
         product: GoogleSignIn
+      - target: SmartGolfCaddyWatch
+        embed: true
   SmartGolfCaddyTests:
     type: bundle.unit-test
     platform: iOS
@@ -71,6 +74,44 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SmartGolfCaddy
+  # Watch companion (Phase 3c). Никакого Firebase/GoogleSignIn — эти SDK не
+  # собираются под watchOS. Sources ссылаются на общий Foundation-only
+  # домен (Models/) и чисто-SwiftUI дизайн-токены (DesignSystem/) —
+  # подключение по пути, не копия.
+  SmartGolfCaddyWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - SmartGolfCaddyWatch
+      - path: SmartGolfCaddy/Models          # общий домен, Foundation-only
+      - path: SmartGolfCaddy/DesignSystem    # цвета/шрифты/токены
+      - path: SmartGolfCaddy/Resources/Fonts # Playfair Display — ресурс, не код iOS-таргета
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dzhambulat.smartgolfcaddy.watchkitapp
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: $(DEV_TEAM)
+        GENERATE_INFOPLIST_FILE: NO
+        WATCHOS_DEPLOYMENT_TARGET: "10.0"
+    info:
+      path: SmartGolfCaddyWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Golf Caddy
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.dzhambulat.smartgolfcaddy
+        NSLocationWhenInUseUsageDescription: "Геолокация нужна, чтобы показывать дистанцию до грина и мерить длину ударов."
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIAppFonts: ["PlayfairDisplay-Regular.ttf", "PlayfairDisplay-Medium.ttf", "PlayfairDisplay-SemiBold.ttf", "PlayfairDisplay-Bold.ttf"]
+  SmartGolfCaddyWatchTests:
+    type: bundle.unit-test
+    platform: watchOS
+    sources: [SmartGolfCaddyWatchTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: SmartGolfCaddyWatch
 schemes:
   SmartGolfCaddy:
     build:
@@ -79,3 +120,10 @@ schemes:
         SmartGolfCaddyTests: [test]
     test:
       targets: [SmartGolfCaddyTests]
+  SmartGolfCaddyWatch:
+    build:
+      targets:
+        SmartGolfCaddyWatch: all
+        SmartGolfCaddyWatchTests: [test]
+    test:
+      targets: [SmartGolfCaddyWatchTests]
