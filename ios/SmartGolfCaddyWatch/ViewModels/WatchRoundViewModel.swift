@@ -13,11 +13,17 @@ final class WatchRoundViewModel {
 
     /// Номер активной на часах лунки. Управляется ТОЛЬКО навигацией на
     /// часах (nextHole/previousHole) — apply(snapshot:) намеренно НЕ
-    /// перескакивает сюда за activeHoleNumber телефона: игрок может листать
-    /// лунки на часах (посмотреть пар/дистанцию), не двигая прогресс на
-    /// телефоне, и это не должно дёргать текущий экран из-под пальца.
-    /// Стартовое значение — единственное место, где activeHoleNumber снимка
-    /// используется.
+    /// перескакивает сюда за activeHoleNumber телефона В ПРЕДЕЛАХ ОДНОГО
+    /// раунда: игрок может листать лунки на часах (посмотреть пар/
+    /// дистанцию), не двигая прогресс на телефоне, и это не должно дёргать
+    /// текущий экран из-под пальца. Стартовое значение — единственное место
+    /// (наравне со сменой раунда, см. apply(snapshot:)), где
+    /// activeHoleNumber снимка используется.
+    ///
+    /// Это правило НЕ действует при смене раунда (snapshot.roundId
+    /// меняется) — тогда holeNumber пересчитывается заново из
+    /// activeHoleNumber нового раунда, т.к. номер лунки прошлого раунда
+    /// бессмысленен в контексте нового.
     private(set) var holeNumber: Int = 1
 
     /// Клюшки ударов по лункам — ЛОКАЛЬНОЕ состояние часов, ключ — номер
@@ -56,7 +62,23 @@ final class WatchRoundViewModel {
     /// Применяет новый снимок с телефона. См. комментарий у shotsByHole —
     /// локальные удары уже виденных лунок сохраняются поверх, независимо от
     /// того, что пришло в снимке.
+    ///
+    /// ИСКЛЮЧЕНИЕ — смена раунда (snapshot.roundId != текущего): весь
+    /// локальный прогресс раунда А бессмысленен (и ОПАСЕН) в контексте
+    /// раунда Б — без сброса лунка N раунда Б унаследовала бы
+    /// неподтверждённые удары лунки N раунда А (seedIfNeeded пропустил бы
+    /// её как уже виденную), а lastUsedClub/selectedClub протекли бы из
+    /// прошлого раунда. Поэтому при смене roundId стираем shotsByHole,
+    /// lastUsedClub, selectedClub и заново выводим holeNumber из
+    /// activeHoleNumber нового снимка — тем же путём, что в init — ПЕРЕД
+    /// посевом.
     func apply(snapshot: WatchRoundSnapshot) {
+        if self.snapshot?.roundId != snapshot.roundId {
+            shotsByHole = [:]
+            lastUsedClub = nil
+            selectedClub = nil
+            holeNumber = Self.clampHole(snapshot.activeHoleNumber, totalHoles: snapshot.totalHoles)
+        }
         self.snapshot = snapshot
         seedIfNeeded(from: snapshot)
     }
@@ -78,6 +100,21 @@ final class WatchRoundViewModel {
     /// на часах, но сервер/снимок ещё не отразил это в myShots).
     var pendingCount: Int {
         max(0, shots.count - confirmedCount(forHole: holeNumber))
+    }
+
+    /// Удары указанной лунки, которые ДЕЙСТВИТЕЛЬНО были введены на часах и
+    /// ещё не подтверждены телефоном — единственное безопасное для отправки
+    /// (Task 4, WatchShotBatch) подмножество shotsByHole[hole]. Возвращает
+    /// хвост массива ЗА пределами confirmedCount(forHole:) — префикс до
+    /// этой границы состоит из плейсхолдеров, посеянных seedIfNeeded по
+    /// чужим (введённым на телефоне) ударам, и НЕ должен уходить на сервер:
+    /// recordShot пишет весь массив клюшек лунки целиком, поэтому отправка
+    /// префикса затёрла бы настоящие клюшки заглушками "clubs.first"/"?".
+    func unsyncedShots(forHole hole: Int) -> [String] {
+        let holeShots = shotsByHole[hole] ?? []
+        let confirmed = confirmedCount(forHole: hole)
+        guard holeShots.count > confirmed else { return [] }
+        return Array(holeShots[confirmed...])
     }
 
     func addShot() {
@@ -108,6 +145,10 @@ final class WatchRoundViewModel {
         snapshot?.holes.first { $0.number == hole }?.myShots ?? 0
     }
 
+    /// ВАЖНО: посеянный префикс — это ЗАГЛУШКИ (clubs.first/"?"), не
+    /// реальные названия клюшек чужих (телефонных) ударов. Отправлять его
+    /// на телефон НЕЛЬЗЯ — используй unsyncedShots(forHole:), который режет
+    /// именно этот префикс.
     private func seedIfNeeded(from snapshot: WatchRoundSnapshot) {
         let placeholder = snapshot.clubs.first ?? "?"
         for hole in snapshot.holes where shotsByHole[hole.number] == nil {

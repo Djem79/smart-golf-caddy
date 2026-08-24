@@ -140,6 +140,7 @@ struct WatchHoleView: View {
                     .foregroundStyle(DSColor.onPrimary)
             }
             .buttonStyle(.plain)
+            .disabled(viewModel.clubs.isEmpty)
             .accessibilityLabel("Добавить удар")
         }
     }
