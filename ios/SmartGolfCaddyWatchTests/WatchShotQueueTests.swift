@@ -9,6 +9,7 @@ import XCTest
 final class WatchShotQueueTests: XCTestCase {
     private var storeURL: URL!
     private var confirmedStoreURL: URL!
+    private var sequenceStoreURL: URL!
 
     override func setUp() {
         super.setUp()
@@ -17,16 +18,19 @@ final class WatchShotQueueTests: XCTestCase {
             .appendingPathComponent("watchshotqueue-test-\(id).json")
         confirmedStoreURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("watchshotqueue-confirmed-test-\(id).json")
+        sequenceStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchshotqueue-sequence-test-\(id).json")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: storeURL)
         try? FileManager.default.removeItem(at: confirmedStoreURL)
+        try? FileManager.default.removeItem(at: sequenceStoreURL)
         super.tearDown()
     }
 
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL)
+        WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
     }
 
     // MARK: - enqueue / pending
@@ -256,7 +260,7 @@ final class WatchShotQueueTests: XCTestCase {
     func testConfirmedCountSurvivesRestart() {
         let queue = makeQueue()
         queue.markConfirmed(roundId: "r", holeNumber: 2, acceptedCount: 3)
-        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL)
+        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
         XCTAssertEqual(reloaded.confirmedCount(roundId: "r", holeNumber: 2), 3)
     }
 
@@ -341,5 +345,75 @@ final class WatchShotQueueTests: XCTestCase {
         queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
         queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
         XCTAssertFalse(failedFired)
+    }
+
+    // MARK: - sequence (Fix 5, живое ревью Task 4) — присваивается ОДИН
+    // РАЗ на реальное изменение содержимого (enqueue), НЕ на каждую
+    // отправку (flush) — переотправка того же объекта несёт тот же
+    // sequence, что и раньше.
+
+    func testFirstEnqueueGetsSequenceOne() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        XCTAssertEqual(queue.pending.first?.sequence, 1)
+    }
+
+    func testEachEnqueueWithNewContentGetsIncreasingSequence() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver", "PW"])
+        XCTAssertEqual(queue.pending.first?.sequence, 2)
+    }
+
+    func testFlushSendsTheStoredSequence() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver", "PW"])  // sequence становится 2
+        var sentSequence: Int?
+        queue.flush { batch in sentSequence = batch.entries.first?.sequence }
+        XCTAssertEqual(sentSequence, 2, "flush шлёт ТЕКУЩИЙ сохранённый sequence, не пересчитывает его заново")
+    }
+
+    func testSequenceKeepsIncrementingAcrossSlotClearAndReEnqueue() {
+        // Критично для Fix 5: после markConfirmed (слот снят) следующий
+        // enqueue НЕ должен начинать нумерацию заново — иначе новый
+        // sequence мог бы совпасть с уже применённым на телефоне и
+        // заставить его молча ПРОПУСТИТЬ реально новый удар (тот самый
+        // сценарий "второй патт", который ловит живое ревью).
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Putter"])
+        XCTAssertEqual(queue.pending.first?.sequence, 1)
+
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+        XCTAssertTrue(queue.pending.isEmpty)
+
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Putter"])
+        XCTAssertEqual(queue.pending.first?.sequence, 2, "нумерация продолжается, а не начинается заново с 1")
+    }
+
+    func testSequenceSurvivesRestart() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "r", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "r", holeNumber: 1, acceptedCount: 1)
+
+        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
+        reloaded.enqueue(roundId: "r", holeNumber: 1, clubs: ["Putter"])
+        XCTAssertEqual(reloaded.pending.first?.sequence, 2, "счётчик sequence пережил перезапуск (новый инстанс над тем же файлом)")
+    }
+
+    func testClearSequencesRemovesOnlyGivenRound() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "round-A", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "round-A", holeNumber: 1, acceptedCount: 1)
+        queue.enqueue(roundId: "round-B", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "round-B", holeNumber: 1, acceptedCount: 1)
+
+        queue.clearSequences(roundId: "round-A")
+
+        queue.enqueue(roundId: "round-A", holeNumber: 1, clubs: ["Putter"])
+        XCTAssertEqual(queue.pending.first?.sequence, 1, "счётчик round-A сброшен")
+
+        queue.enqueue(roundId: "round-B", holeNumber: 1, clubs: ["Putter"])
+        XCTAssertEqual(queue.pending.first { $0.roundId == "round-B" }?.sequence, 2, "round-B не задет")
     }
 }

@@ -11,6 +11,7 @@ final class WatchRoundViewModelTests: XCTestCase {
 
     private var queueStoreURL: URL!
     private var confirmedStoreURL: URL!
+    private var sequenceStoreURL: URL!
 
     override func setUp() {
         super.setUp()
@@ -19,18 +20,21 @@ final class WatchRoundViewModelTests: XCTestCase {
             .appendingPathComponent("watchroundvm-queue-test-\(id).json")
         confirmedStoreURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("watchroundvm-confirmed-test-\(id).json")
+        sequenceStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchroundvm-sequence-test-\(id).json")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: queueStoreURL)
         try? FileManager.default.removeItem(at: confirmedStoreURL)
+        try? FileManager.default.removeItem(at: sequenceStoreURL)
         super.tearDown()
     }
 
     /// Изолированная (файл во временной директории) очередь для тестов,
     /// которые инспектируют её содержимое — не трогает WatchShotQueue.shared.
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: queueStoreURL, confirmedStoreURL: confirmedStoreURL)
+        WatchShotQueue(storeURL: queueStoreURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL)
     }
 
     /// markConfirmed постит `.watchShotSyncFailed` наблюдателям на
@@ -172,11 +176,20 @@ final class WatchRoundViewModelTests: XCTestCase {
         let vm = WatchRoundViewModel(snapshot: nil)
         XCTAssertNil(vm.currentHole)
 
-        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
-        vm.apply(snapshot: makeSnapshot(totalHoles: 1, holes: holes, activeHoleNumber: 1))
+        // activeHoleNumber НАРОЧНО != 1 (Fix 6, живое ревью Task 4) — до
+        // фикса apply() на nil-стартовой VM пропускала пересчёт holeNumber
+        // из activeHoleNumber нового снимка, и этот тест проходил "по
+        // совпадению" только потому, что дефолт holeNumber и старая
+        // фикстура (activeHoleNumber: 1) случайно совпадали.
+        let holes = [
+            WatchHole(number: 1, par: 3, distanceMeters: 150, myShots: 0),
+            WatchHole(number: 2, par: 4, distanceMeters: 300, myShots: 0),
+            WatchHole(number: 3, par: 5, distanceMeters: 480, myShots: 2),
+        ]
+        vm.apply(snapshot: makeSnapshot(totalHoles: 3, holes: holes, activeHoleNumber: 3))
 
-        XCTAssertEqual(vm.holeNumber, 1)
-        XCTAssertEqual(vm.currentHole?.par, 4)
+        XCTAssertEqual(vm.holeNumber, 3, "holeNumber обязан пересчитаться из activeHoleNumber нового снимка даже на nil-стартовой VM")
+        XCTAssertEqual(vm.currentHole?.par, 5)
     }
 
     // MARK: - addShot без выбранной клюшки берёт разумный дефолт

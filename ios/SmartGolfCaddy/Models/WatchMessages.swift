@@ -145,24 +145,39 @@ struct WatchShotEntry: Equatable {
     let holeNumber: Int
     let clubs: [String]
     let recordedAt: Date
+    /// Монотонный номер отправки для слота "roundId:holeNumber" (Fix 5,
+    /// живое ревью Task 4) — присваивается часами при enqueue() и
+    /// сохраняется durable рядом с очередью (WatchShotQueue), НЕ
+    /// пересчитывается на пустом месте при повторной отправке того же
+    /// слота. Телефон сверяет с последним применённым sequence для этого
+    /// слота (WatchBatchSequenceLedger): sequence ≤ последнего
+    /// применённого — батч уже применён, писать НЕ нужно (но квитанцию
+    /// всё равно шлём, иначе слот на часах зависнет). Заменяет
+    /// suffix-эвристику по содержимому клюшек, которая путала "этот батч
+    /// уже применён" с "игрок ударил той же клюшкой ещё раз" (второй патт
+    /// подряд, например) — см. живое ревью.
+    let sequence: Int
 
     var payload: [String: Any] {
-        ["holeNumber": holeNumber, "clubs": clubs, "recordedAt": recordedAt.timeIntervalSince1970]
+        ["holeNumber": holeNumber, "clubs": clubs, "recordedAt": recordedAt.timeIntervalSince1970, "sequence": sequence]
     }
 
-    init(holeNumber: Int, clubs: [String], recordedAt: Date) {
+    init(holeNumber: Int, clubs: [String], recordedAt: Date, sequence: Int) {
         self.holeNumber = holeNumber
         self.clubs = clubs
         self.recordedAt = recordedAt
+        self.sequence = sequence
     }
 
     init?(payload: [String: Any]) {
         guard let holeNumber = watchIntValue(payload["holeNumber"]),
               let clubs = payload["clubs"] as? [String],
-              let recordedAtInterval = watchDoubleValue(payload["recordedAt"]) else { return nil }
+              let recordedAtInterval = watchDoubleValue(payload["recordedAt"]),
+              let sequence = watchIntValue(payload["sequence"]) else { return nil }
         self.holeNumber = holeNumber
         self.clubs = clubs
         self.recordedAt = Date(timeIntervalSince1970: recordedAtInterval)
+        self.sequence = sequence
     }
 }
 

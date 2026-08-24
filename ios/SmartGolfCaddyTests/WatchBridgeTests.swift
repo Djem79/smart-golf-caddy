@@ -1,13 +1,44 @@
 // ios/SmartGolfCaddyTests/WatchBridgeTests.swift
-// Тесты WatchBridge.applyBatch (Fix 4, живое ревью Task 4) — это код,
-// который пишет на сервер, и оба CRITICAL живого ревью (Fix 1, Fix 3)
+// Тесты WatchBridge.applyBatch — это код, который пишет на сервер, и три
+// из четырёх CRITICAL/IMPORTANT живого ревью Task 4 (Fix 1, Fix 3, Fix 5)
 // живут именно в нём. Зависимости инжектируются через init (как
 // ShotRangefinder.init(storeURL:fixProvider:)) — без реального
 // Firebase/WatchConnectivity.
+//
+// lastAppliedSequenceProvider/sequenceRecorder ВСЕГДА инжектируются явно
+// (никогда не дефолт, который бьёт в WatchBatchSequenceLedger.shared) —
+// дефолт делит один файл на диске со ВСЕМИ тестами процесса; большинство
+// тестов здесь используют один и тот же roundId/holeNumber/uid/sequence
+// по умолчанию (makeBatch), и общий файл дал бы одному тесту увидеть
+// "уже применено" из-за состояния, оставленного другим. noOpSequenceLedger
+// (везде, кроме тестов на сам Fix 5) — всегда "ничего ещё не применялось".
 import XCTest
 @testable import SmartGolfCaddy
 
 final class WatchBridgeTests: XCTestCase {
+
+    /// Всегда "ничего не применялось" и никогда ничего не запоминает —
+    /// безопасный дефолт для тестов, не проверяющих сам механизм sequence-
+    /// дедупликации (Fix 1/Fix 3/общий Fix 4).
+    private let noOpLastApplied: (String, Int, String) -> Int? = { _, _, _ in nil }
+    private let noOpSequenceRecorder: (String, Int, String, Int) -> Void = { _, _, _, _ in }
+
+    /// Простой in-memory журнал sequence — для тестов, которые САМИ
+    /// проверяют Fix 5 (нужно реальное состояние между двумя вызовами
+    /// applyBatch, но БЕЗ файла на диске и БЕЗ общего .shared).
+    private final class FakeSequenceLedger: @unchecked Sendable {
+        private var applied: [String: Int] = [:]
+        private let lock = NSLock()
+        private func key(_ roundId: String, _ holeIndex: Int, _ uid: String) -> String { "\(roundId):\(holeIndex):\(uid)" }
+        func lastApplied(_ roundId: String, _ holeIndex: Int, _ uid: String) -> Int? {
+            lock.lock(); defer { lock.unlock() }
+            return applied[key(roundId, holeIndex, uid)]
+        }
+        func recordApplied(_ roundId: String, _ holeIndex: Int, _ uid: String, _ sequence: Int) {
+            lock.lock(); defer { lock.unlock() }
+            applied[key(roundId, holeIndex, uid)] = sequence
+        }
+    }
 
     private func makeRound(
         totalHoles: Int = 4,
@@ -36,13 +67,13 @@ final class WatchBridgeTests: XCTestCase {
         ])!
     }
 
-    private func makeBatch(roundId: String = "r1", holeNumber: Int = 1, clubs: [String]) -> WatchShotBatch {
-        WatchShotBatch(roundId: roundId, entries: [WatchShotEntry(holeNumber: holeNumber, clubs: clubs, recordedAt: Date())])
+    private func makeBatch(roundId: String = "r1", holeNumber: Int = 1, clubs: [String], sequence: Int = 1) -> WatchShotBatch {
+        WatchShotBatch(roundId: roundId, entries: [WatchShotEntry(holeNumber: holeNumber, clubs: clubs, recordedAt: Date(), sequence: sequence)])
     }
 
     /// Простой захватываемый по ссылке контейнер для тестов, которым нужно
     /// смоделировать эволюцию "серверного" состояния между двумя вызовами
-    /// applyBatch (идемпотентность повторной доставки).
+    /// applyBatch.
     private final class FakeServerState: @unchecked Sendable {
         var clubs: [String] = []
     }
@@ -66,7 +97,9 @@ final class WatchBridgeTests: XCTestCase {
                 recordedClubs = clubs
                 recordedDistances = distances
                 return .synced
-            }
+            },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["7 Iron"]))
         XCTAssertEqual(recordedClubs, ["Driver", "7 Iron"], "Driver из ShotQueue.pendingShot не должен быть потерян")
@@ -79,7 +112,9 @@ final class WatchBridgeTests: XCTestCase {
             currentUserIdProvider: { "user-1" },
             roundProvider: { _ in self.makeRound(clubsForUser: [1: ["Driver"]]) },
             pendingShotProvider: { _, _, _ in nil },
-            shotRecorder: { _, _, _, clubs, _ in recordedClubs = clubs; return .synced }
+            shotRecorder: { _, _, _, clubs, _ in recordedClubs = clubs; return .synced },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["7 Iron"]))
         XCTAssertEqual(recordedClubs, ["Driver", "7 Iron"], "без pending-записи используется серверный resolvedClubs")
@@ -96,7 +131,9 @@ final class WatchBridgeTests: XCTestCase {
             pendingShotProvider: { roundId, holeIndex, uid in
                 PendingShot(roundId: roundId, holeIndex: holeIndex, targetUid: uid, clubs: ["Driver", "3 Wood"], distances: [230], updatedAt: 0)
             },
-            shotRecorder: { _, _, _, _, distances in recordedDistances = distances; return .synced }
+            shotRecorder: { _, _, _, _, distances in recordedDistances = distances; return .synced },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"]))
         XCTAssertEqual(recordedDistances, [230, 0, 0], "distances дополнены нулём до длины pending.clubs, затем ещё нулём под хвост")
@@ -111,7 +148,9 @@ final class WatchBridgeTests: XCTestCase {
             roundProvider: { _ in self.makeRound() },
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, _, _, _, _ in .rejected(NSError(domain: "test", code: 1)) },
-            receiptSender: { sentReceipt = $0 }
+            receiptSender: { sentReceipt = $0 },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
         XCTAssertEqual(sentReceipt?.entries.first?.accepted, false)
@@ -125,7 +164,9 @@ final class WatchBridgeTests: XCTestCase {
             roundProvider: { _ in self.makeRound() },
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, _, _, _, _ in .synced },
-            receiptSender: { sentReceipt = $0 }
+            receiptSender: { sentReceipt = $0 },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
         XCTAssertEqual(sentReceipt?.entries.first?.accepted, true)
@@ -138,11 +179,13 @@ final class WatchBridgeTests: XCTestCase {
             roundProvider: { _ in self.makeRound(totalHoles: 2) },
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, holeIndex, _, _, _ in holeIndex == 0 ? .synced : .rejected(NSError(domain: "t", code: 1)) },
-            receiptSender: { sentReceipt = $0 }
+            receiptSender: { sentReceipt = $0 },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         let batch = WatchShotBatch(roundId: "r1", entries: [
-            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date()),
-            WatchShotEntry(holeNumber: 2, clubs: ["Putter"], recordedAt: Date()),
+            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date(), sequence: 1),
+            WatchShotEntry(holeNumber: 2, clubs: ["Putter"], recordedAt: Date(), sequence: 1),
         ])
         await bridge.applyBatch(batch)
         let byHole = Dictionary(uniqueKeysWithValues: (sentReceipt?.entries ?? []).map { ($0.holeNumber, $0.accepted) })
@@ -160,7 +203,9 @@ final class WatchBridgeTests: XCTestCase {
             roundProvider: { _ in nil },
             pendingShotProvider: { _, _, _ in nil },
             shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced },
-            receiptSender: { sentReceipt = $0 }
+            receiptSender: { sentReceipt = $0 },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
         XCTAssertFalse(recorderCalled, "без знания текущего состояния раунда писать нельзя")
@@ -173,7 +218,9 @@ final class WatchBridgeTests: XCTestCase {
             currentUserIdProvider: { "user-1" },
             roundProvider: { _ in throw NSError(domain: "offline", code: -1) },
             pendingShotProvider: { _, _, _ in nil },
-            shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced }
+            shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
         XCTAssertFalse(recorderCalled)
@@ -185,7 +232,9 @@ final class WatchBridgeTests: XCTestCase {
             currentUserIdProvider: { nil },
             roundProvider: { _ in self.makeRound() },
             pendingShotProvider: { _, _, _ in nil },
-            shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced }
+            shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
         XCTAssertFalse(recorderCalled)
@@ -197,54 +246,86 @@ final class WatchBridgeTests: XCTestCase {
             currentUserIdProvider: { "user-1" },
             roundProvider: { _ in self.makeRound(totalHoles: 2) },
             pendingShotProvider: { _, _, _ in nil },
-            shotRecorder: { _, holeIndex, _, _, _ in recordedHoleIndices.append(holeIndex); return .synced }
+            shotRecorder: { _, holeIndex, _, _, _ in recordedHoleIndices.append(holeIndex); return .synced },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
         )
         let batch = WatchShotBatch(roundId: "r1", entries: [
-            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date()),
-            WatchShotEntry(holeNumber: 99, clubs: ["Putter"], recordedAt: Date()),
+            WatchShotEntry(holeNumber: 1, clubs: ["Driver"], recordedAt: Date(), sequence: 1),
+            WatchShotEntry(holeNumber: 99, clubs: ["Putter"], recordedAt: Date(), sequence: 1),
         ])
         await bridge.applyBatch(batch)
         XCTAssertEqual(recordedHoleIndices, [0], "лунка за пределами раунда пропущена, а не роняет весь батч")
     }
 
-    // MARK: - Fix 4: идемпотентность повторной доставки одного батча
+    // MARK: - Fix 5 (живое ревью): идемпотентность по sequence, НЕ по
+    // содержимому клюшек. Прежняя suffix-эвристика путала "этот батч уже
+    // применён" с "игрок ударил той же клюшкой ещё раз" (второй патт на
+    // том же грине — рутинный случай в гольфе) и молча теряла удар.
 
-    func testRepeatingSameBatchIsIdempotentAgainstUpdatedServerState() async {
+    func testSameClubHitTwiceWithDifferentSequenceIsAppliedTwice() async {
+        // Именно сценарий, который ломала suffix-эвристика: два путта
+        // ПОДРЯД одной и той же клюшкой на одной лунке — РАЗНЫЕ sequence
+        // (реально новый удар каждый раз), должны оба попасть на сервер.
+        let ledger = FakeSequenceLedger()
         let store = FakeServerState()
         let bridge = WatchBridge(
             currentUserIdProvider: { "user-1" },
             roundProvider: { _ in self.makeRound(clubsForUser: store.clubs.isEmpty ? [:] : [1: store.clubs]) },
             pendingShotProvider: { _, _, _ in nil },
-            shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced }
+            shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced },
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3) }
         )
-        let batch = makeBatch(holeNumber: 1, clubs: ["Driver"])
 
-        await bridge.applyBatch(batch)
-        XCTAssertEqual(store.clubs, ["Driver"])
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 1))
+        XCTAssertEqual(store.clubs, ["Putter"])
 
-        // Повторная доставка ТОГО ЖЕ батча (throttle-таймаут на часах гонится
-        // с запоздавшей оригинальной отправкой — см. WatchShotQueue.inFlightTimeout) —
-        // суффиксная проверка узнаёт, что хвост уже применён, и не дублирует.
-        await bridge.applyBatch(batch)
-        XCTAssertEqual(store.clubs, ["Driver"], "повтор одного и того же батча не должен плодить дубликат")
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 2))
+        XCTAssertEqual(store.clubs, ["Putter", "Putter"], "второй патт той же клюшкой — реальный новый удар, не дубль")
     }
 
-    func testGrowingTailAfterPreviousBatchAppendsOnlyNewPortion() async {
-        // Нормальный (НЕ дублирующий) случай: второй батч содержит РОВНО
-        // новый хвост (как его строит WatchShotQueue после того, как
-        // markConfirmed срезал подтверждённый префикс) — суффиксная
-        // проверка не должна ложно сработать и потерять новый удар.
+    func testSameSequenceDeliveredTwiceIsAppliedOnceButAcknowledgedTwice() async {
+        let ledger = FakeSequenceLedger()
         let store = FakeServerState()
+        var receiptCount = 0
         let bridge = WatchBridge(
             currentUserIdProvider: { "user-1" },
             roundProvider: { _ in self.makeRound(clubsForUser: store.clubs.isEmpty ? [:] : [1: store.clubs]) },
             pendingShotProvider: { _, _, _ in nil },
-            shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced }
+            shotRecorder: { _, _, _, clubs, _ in store.clubs = clubs; return .synced },
+            receiptSender: { _ in receiptCount += 1 },
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3) }
         )
-        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
-        XCTAssertEqual(store.clubs, ["Driver"])
+        let batch = makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 1)
 
-        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["7 Iron"]))
-        XCTAssertEqual(store.clubs, ["Driver", "7 Iron"], "новый (не повторяющийся) хвост дописывается как обычно")
+        await bridge.applyBatch(batch)
+        XCTAssertEqual(store.clubs, ["Putter"])
+
+        // Повторная доставка ТОГО ЖЕ sequence (throttle-ретрай на часах,
+        // гонка с запоздавшей оригинальной отправкой — см.
+        // WatchShotQueue.inFlightTimeout).
+        await bridge.applyBatch(batch)
+        XCTAssertEqual(store.clubs, ["Putter"], "применено только ОДИН раз — не дубль")
+        XCTAssertEqual(receiptCount, 2, "но квитанция уходит на КАЖДУЮ доставку — иначе слот на часах зависнет")
+    }
+
+    func testOlderSequenceThanLastAppliedIsSkipped() async {
+        let ledger = FakeSequenceLedger()
+        var recorderCalled = false
+        let bridge = WatchBridge(
+            currentUserIdProvider: { "user-1" },
+            roundProvider: { _ in self.makeRound() },
+            pendingShotProvider: { _, _, _ in nil },
+            shotRecorder: { _, _, _, _, _ in recorderCalled = true; return .synced },
+            lastAppliedSequenceProvider: { ledger.lastApplied($0, $1, $2) },
+            sequenceRecorder: { ledger.recordApplied($0, $1, $2, $3) }
+        )
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"], sequence: 5))
+        recorderCalled = false
+
+        await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Putter"], sequence: 3))
+        XCTAssertFalse(recorderCalled, "sequence 3 <= последнего применённого (5) — не применяем")
     }
 }

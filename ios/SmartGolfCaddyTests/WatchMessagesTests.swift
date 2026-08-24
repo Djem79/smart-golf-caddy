@@ -129,8 +129,8 @@ final class WatchMessagesTests: XCTestCase {
         WatchShotBatch(
             roundId: "round-1",
             entries: [
-                WatchShotEntry(holeNumber: 1, clubs: ["driver", "7-iron"], recordedAt: Date(timeIntervalSince1970: 1_700_000_100)),
-                WatchShotEntry(holeNumber: 2, clubs: ["putter"], recordedAt: Date(timeIntervalSince1970: 1_700_000_200)),
+                WatchShotEntry(holeNumber: 1, clubs: ["driver", "7-iron"], recordedAt: Date(timeIntervalSince1970: 1_700_000_100), sequence: 1),
+                WatchShotEntry(holeNumber: 2, clubs: ["putter"], recordedAt: Date(timeIntervalSince1970: 1_700_000_200), sequence: 3),
             ]
         )
     }
@@ -151,6 +151,23 @@ final class WatchMessagesTests: XCTestCase {
         let restored = try XCTUnwrap(WatchShotBatch(payload: original.payload))
         XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
         XCTAssertEqual(restored.entries[0].clubs, ["driver", "7-iron"])
+    }
+
+    func testBatchPreservesSequence() throws {
+        let original = makeBatch()
+        let restored = try XCTUnwrap(WatchShotBatch(payload: original.payload))
+        XCTAssertEqual(restored.entries.map(\.sequence), [1, 3])
+    }
+
+    func testBatchRejectsMissingSequenceField() {
+        var payload = makeBatch().payload
+        var entries = payload["entries"] as! [[String: Any]]
+        entries[0].removeValue(forKey: "sequence")
+        payload["entries"] = entries
+        // Одна запись без sequence — весь батч невалиден (тот же строгий
+        // инвариант entries.count == rawEntries.count, что и у остальных
+        // обязательных полей контракта).
+        XCTAssertNil(WatchShotBatch(payload: payload))
     }
 
     func testBatchRejectsWrongVersion() {
@@ -185,6 +202,7 @@ final class WatchMessagesTests: XCTestCase {
             var e = entry
             e["holeNumber"] = NSNumber(value: Double(e["holeNumber"] as! Int))
             e["recordedAt"] = NSNumber(value: Int((e["recordedAt"] as! TimeInterval)))
+            e["sequence"] = NSNumber(value: Double(e["sequence"] as! Int))
             return e
         }
         payload["entries"] = entries
@@ -192,6 +210,7 @@ final class WatchMessagesTests: XCTestCase {
         let restored = try XCTUnwrap(WatchShotBatch(payload: payload))
         XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
         XCTAssertEqual(restored.entries.map(\.recordedAt), makeBatch().entries.map(\.recordedAt))
+        XCTAssertEqual(restored.entries.map(\.sequence), makeBatch().entries.map(\.sequence))
     }
 
     // MARK: - WatchShotReceipt (телефон → часы, квитанция о приёме батча)

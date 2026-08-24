@@ -124,16 +124,32 @@ final class WatchRoundViewModel {
     /// lastUsedClub, selectedClub и заново выводим holeNumber из
     /// activeHoleNumber нового снимка — тем же путём, что в init — ПЕРЕД
     /// посевом.
+    /// ПРЕДУСЛОВИЕ: не полагается на то, вызывался ли уже init(snapshot:) с
+    /// непустым снимком — ветка ниже срабатывает и когда self.snapshot ==
+    /// nil (VM создана как `WatchRoundViewModel(snapshot: nil)`), не только
+    /// при смене roundId (Fix 6, живое ревью Task 4: старая версия условия
+    /// `if let oldRoundId = self.snapshot?.roundId, ...` требовала
+    /// НЕПУСТОГО старого снимка и на nil-старте молча пропускала
+    /// пересчёт holeNumber из activeHoleNumber нового снимка — в проде это
+    /// сегодня недостижимо, `WatchRootView.syncViewModel` в этом случае
+    /// создаёт VM заново, а не вызывает apply на nil-VM, но сама VM не
+    /// должна полагаться на дисциплину вызывающей стороны).
     func apply(snapshot: WatchRoundSnapshot) {
-        if let oldRoundId = self.snapshot?.roundId, oldRoundId != snapshot.roundId {
+        if self.snapshot?.roundId != snapshot.roundId {
+            let oldRoundId = self.snapshot?.roundId
             shotsByHole = [:]
             lastUsedClub = nil
             selectedClub = nil
             syncFailedHoles = []
-            // Гигиена, не корректность (см. WatchShotQueue.clearConfirmedCounts) —
-            // ключи confirmedCount уже несут roundId, поэтому счётчики
-            // старого раунда физически не читаются для нового и без этого.
-            shotQueue.clearConfirmedCounts(roundId: oldRoundId)
+            if let oldRoundId {
+                // Гигиена, не корректность (см. WatchShotQueue.clearConfirmedCounts/
+                // clearSequences) — ключи confirmedCount/sequence уже несут
+                // roundId, поэтому записи старого раунда физически не
+                // читаются для нового и без этой очистки. Пропускается,
+                // когда oldRoundId нет (nil-старт — чистить нечего).
+                shotQueue.clearConfirmedCounts(roundId: oldRoundId)
+                shotQueue.clearSequences(roundId: oldRoundId)
+            }
             holeNumber = Self.clampHole(snapshot.activeHoleNumber, totalHoles: snapshot.totalHoles)
         }
         self.snapshot = snapshot

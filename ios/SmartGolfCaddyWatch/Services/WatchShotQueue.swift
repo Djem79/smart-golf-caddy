@@ -19,6 +19,12 @@ struct PendingWatchShot: Codable, Equatable {
     var holeNumber: Int
     var clubs: [String]
     var updatedAt: TimeInterval
+    /// Монотонный номер этой конкретной "поимки" хвоста для слота — см.
+    /// WatchShotEntry.sequence (Fix 5, живое ревью Task 4). Присваивается
+    /// ОДИН РАЗ при enqueue(); переотправка ЭТОГО ЖЕ объекта (flush-ретрай
+    /// по таймауту) несёт то же значение, новый enqueue (реально новый
+    /// удар/изменение) — большее.
+    var sequence: Int
 }
 
 extension Notification.Name {
@@ -35,7 +41,8 @@ final class WatchShotQueue: @unchecked Sendable {
 
     static let shared = WatchShotQueue(
         storeURL: WatchShotQueue.defaultStoreURL(name: "watch-pending-shots-v1.json"),
-        confirmedStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-confirmed-counts-v1.json")
+        confirmedStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-confirmed-counts-v1.json"),
+        sequenceStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-sequence-v1.json")
     )
 
     /// Сколько ждать квитанции, прежде чем считать батч потерянным и
@@ -44,30 +51,31 @@ final class WatchShotQueue: @unchecked Sendable {
     /// поддерживается на этом устройстве), остался бы помеченным "в пути"
     /// навсегда и никогда не переотправился бы.
     ///
-    /// ВАЖНО (принятый компромисс): таймаут открывает узкое окно, где
-    /// оригинальная отправка ВСЁ ЖЕ доходит позже (например, после
-    /// восстановления Bluetooth) одновременно с повторной. Живое ревью
-    /// Task 4 закрыло основной риск этого окна на стороне телефона —
-    /// WatchBridge.applyBatch теперь распознаёт "этот хвост уже дописан
-    /// ровно таким же" (суффиксная проверка) и не дублирует повторно
-    /// присланный батч. Остаётся не полностью идемпотентным только более
-    /// экзотический случай (растущий хвост между двумя доставками одного
-    /// поколения) — некритичные последствия (лишний удар в счёте),
-    /// поправимо вручную.
+    /// ВАЖНО: таймаут открывает узкое окно, где оригинальная отправка ВСЁ
+    /// ЖЕ доходит позже (например, после восстановления Bluetooth)
+    /// одновременно с повторной. Это БЕЗОПАСНО с Fix 5 (живое ревью
+    /// Task 4): применение на телефоне теперь идёт по монотонному
+    /// `sequence` (WatchBatchSequenceLedger), а не по совпадению
+    /// содержимого клюшек — повторная доставка того же sequence
+    /// пропускается (но подтверждается), настоящая новая отправка несёт
+    /// больший sequence и применяется как обычно.
     static let inFlightTimeout: TimeInterval = 30
 
     private let storeURL: URL
     private let confirmedStoreURL: URL
+    private let sequenceStoreURL: URL
     private let ioQueue = DispatchQueue(label: "sgc.watchshotqueue.io")
     /// НЕ персистится: после перезапуска часов судьба предыдущей отправки
     /// неизвестна — разрешаем немедленный повтор при следующем flush(),
-    /// это безопасно (markConfirmed всегда триммит по ТЕКУЩЕМУ содержимому
-    /// слота, а не по тому, что было отправлено раньше).
+    /// это безопасно (повторная отправка несёт тот же sequence, что и
+    /// раньше — телефон его уже видел и просто подтвердит без повторной
+    /// записи, см. Fix 5).
     private var inFlightSince: [String: Date] = [:]
 
-    init(storeURL: URL, confirmedStoreURL: URL) {
+    init(storeURL: URL, confirmedStoreURL: URL, sequenceStoreURL: URL) {
         self.storeURL = storeURL
         self.confirmedStoreURL = confirmedStoreURL
+        self.sequenceStoreURL = sequenceStoreURL
     }
 
     private func slotKey(_ roundId: String, _ holeNumber: Int) -> String {
@@ -171,6 +179,48 @@ final class WatchShotQueue: @unchecked Sendable {
         }
     }
 
+    // MARK: хранилище — монотонный sequence на слот (Fix 5, живое ревью Task 4)
+
+    /// Ещё один отдельный файл: "последний присвоенный sequence" на слот.
+    /// НЕ совпадает с PendingWatchShot.sequence самого текущего хвоста —
+    /// этот счётчик переживает markConfirmed-очистку слота (иначе новый
+    /// enqueue после полной очистки начал бы нумерацию заново с 1,
+    /// что задом наперёд совпало бы с уже применённым на телефоне
+    /// sequence и заставило бы телефон молча ПРОПУСТИТЬ реально новый
+    /// удар как "уже применённый").
+    private func loadSequencesLocked() -> [String: Int] {
+        guard let data = try? Data(contentsOf: sequenceStoreURL) else { return [:] }
+        return (try? JSONDecoder().decode([String: Int].self, from: data)) ?? [:]
+    }
+
+    private func persistSequencesLocked(_ map: [String: Int]) {
+        if let data = try? JSONEncoder().encode(map) {
+            try? data.write(to: sequenceStoreURL, options: .atomic)
+        }
+    }
+
+    /// Выделяет и сохраняет следующий sequence для слота — вызывается
+    /// ТОЛЬКО из enqueue() (см. её комментарий).
+    private func allocateSequence(for key: String) -> Int {
+        ioQueue.sync {
+            var sequences = loadSequencesLocked()
+            let next = (sequences[key] ?? 0) + 1
+            sequences[key] = next
+            persistSequencesLocked(sequences)
+            return next
+        }
+    }
+
+    /// Стирает счётчики sequence УКАЗАННОГО раунда — гигиена при смене
+    /// раунда, тем же обоснованием, что и clearConfirmedCounts.
+    func clearSequences(roundId: String) {
+        ioQueue.sync {
+            let prefix = "\(roundId):"
+            let map = loadSequencesLocked().filter { !$0.key.hasPrefix(prefix) }
+            persistSequencesLocked(map)
+        }
+    }
+
     // MARK: публичный интерфейс — pending-хвосты
 
     /// Все ожидающие подтверждения записи — источник для «не синхронизировано»
@@ -187,14 +237,20 @@ final class WatchShotQueue: @unchecked Sendable {
     /// Слот "roundId:holeNumber" — last-write-wins: повторный enqueue той же
     /// лунки перезаписывает значение, а не накапливает историю, поэтому
     /// повтор не плодит записи. Пустой хвост снимает слот целиком.
+    ///
+    /// Каждый непустой вызов выделяет НОВЫЙ sequence (allocateSequence) —
+    /// это единственное место, где sequence растёт. Флаш того же
+    /// объекта (throttle-ретрай) sequence НЕ меняет — только повторный
+    /// enqueue (addShot/removeShot реально изменили содержимое хвоста).
     func enqueue(roundId: String, holeNumber: Int, clubs: [String]) {
         let key = slotKey(roundId, holeNumber)
         guard !clubs.isEmpty else {
             withMap { $0.removeValue(forKey: key) }
             return
         }
+        let sequence = allocateSequence(for: key)
         let entry = PendingWatchShot(roundId: roundId, holeNumber: holeNumber, clubs: clubs,
-                                     updatedAt: Date().timeIntervalSince1970)
+                                     updatedAt: Date().timeIntervalSince1970, sequence: sequence)
         withMap { $0[key] = entry }
     }
 
@@ -278,7 +334,7 @@ final class WatchShotQueue: @unchecked Sendable {
         for roundId in byRound.keys.sorted() {
             let roundEntries = (byRound[roundId] ?? []).sorted { $0.holeNumber < $1.holeNumber }
             let batchEntries = roundEntries.map {
-                WatchShotEntry(holeNumber: $0.holeNumber, clubs: $0.clubs, recordedAt: Date(timeIntervalSince1970: $0.updatedAt))
+                WatchShotEntry(holeNumber: $0.holeNumber, clubs: $0.clubs, recordedAt: Date(timeIntervalSince1970: $0.updatedAt), sequence: $0.sequence)
             }
             ioQueue.sync {
                 for entry in roundEntries {

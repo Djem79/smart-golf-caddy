@@ -38,6 +38,13 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private let pendingShotProvider: (String, Int, String) -> PendingShot?
     private let shotRecorder: (String, Int, String, [String], [Int]) async -> RecordOutcome
     private let receiptSender: (WatchShotReceipt) -> Void
+    /// Fix 5 (живое ревью Task 4): последний применённый sequence на слот
+    /// round:holeIndex:uid — см. WatchBatchSequenceLedger. Заменяет
+    /// suffix-эвристику по содержимому клюшек (первая версия Fix 4),
+    /// которая молча теряла повторный удар той же клюшкой (второй патт
+    /// подряд ошибочно считался "уже применённым батчем").
+    private let lastAppliedSequenceProvider: (String, Int, String) -> Int?
+    private let sequenceRecorder: (String, Int, String, Int) -> Void
 
     init(
         currentUserIdProvider: @escaping () async -> String? = { await AuthService.currentUserId },
@@ -48,13 +55,21 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         shotRecorder: @escaping (String, Int, String, [String], [Int]) async -> RecordOutcome = { roundId, holeIndex, uid, clubs, distances in
             await ShotQueue.shared.recordShotQueued(roundId: roundId, holeIndex: holeIndex, targetUid: uid, clubs: clubs, distances: distances)
         },
-        receiptSender: @escaping (WatchShotReceipt) -> Void = { WatchBridge.transferReceipt($0) }
+        receiptSender: @escaping (WatchShotReceipt) -> Void = { WatchBridge.transferReceipt($0) },
+        lastAppliedSequenceProvider: @escaping (String, Int, String) -> Int? = { roundId, holeIndex, uid in
+            WatchBatchSequenceLedger.shared.lastApplied(roundId: roundId, holeIndex: holeIndex, uid: uid)
+        },
+        sequenceRecorder: @escaping (String, Int, String, Int) -> Void = { roundId, holeIndex, uid, sequence in
+            WatchBatchSequenceLedger.shared.recordApplied(roundId: roundId, holeIndex: holeIndex, uid: uid, sequence: sequence)
+        }
     ) {
         self.currentUserIdProvider = currentUserIdProvider
         self.roundProvider = roundProvider
         self.pendingShotProvider = pendingShotProvider
         self.shotRecorder = shotRecorder
         self.receiptSender = receiptSender
+        self.lastAppliedSequenceProvider = lastAppliedSequenceProvider
+        self.sequenceRecorder = sequenceRecorder
         super.init()
     }
 
@@ -166,41 +181,44 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         for entry in batch.entries {
             let holeIndex = entry.holeNumber - 1
             guard round.holes.indices.contains(holeIndex) else { continue }
-            let base = baseState(round: round, holeIndex: holeIndex, uid: uid)
 
-            let fullClubs: [String]
-            let fullDistances: [Int]
-            if base.clubs.count >= entry.clubs.count, !entry.clubs.isEmpty,
-               Array(base.clubs.suffix(entry.clubs.count)) == entry.clubs {
-                // Идемпотентность повторной доставки (Fix 4, живое ревью):
-                // хвост этого entry уже виден в конце базового состояния —
-                // значит этот ЖЕ батч уже был применён раньше (повторная
-                // доставка с часов, например по таймауту throttle'а,
-                // гонка с запоздавшей оригинальной отправкой — см.
-                // WatchShotQueue.inFlightTimeout). Дописывать НЕ надо,
-                // иначе получим дубль; используем базу as-is и всё равно
-                // подтверждаем часам (иначе слот навсегда останется
-                // непризнанным на часах).
-                fullClubs = base.clubs
-                fullDistances = base.distances
-            } else {
-                fullClubs = base.clubs + entry.clubs
-                fullDistances = base.distances + Array(repeating: 0, count: entry.clubs.count)
+            // Fix 5 (живое ревью Task 4): идемпотентность повторной доставки
+            // ЧЕРЕЗ sequence, НЕ через совпадение содержимого клюшек — суффиксная
+            // эвристика (первая версия Fix 4) путала "этот батч уже применён" с
+            // "игрок ударил той же клюшкой ещё раз" (второй патт подряд, тот же
+            // клуб — база УЖЕ заканчивалась на него до всякого повтора) и молча
+            // теряла реальный новый удар. sequence — детерминированный номер
+            // конкретной "поимки" хвоста на часах (WatchShotQueue.enqueue),
+            // однозначно отличающий повтор от новой отправки.
+            let lastApplied = lastAppliedSequenceProvider(batch.roundId, holeIndex, uid) ?? 0
+            guard entry.sequence > lastApplied else {
+                // Уже применено раньше (повторная доставка того же sequence —
+                // throttle-ретрай на часах, гонка с запоздавшей оригинальной
+                // отправкой). НЕ применяем повторно (иначе дубль), но всё
+                // равно подтверждаем — иначе слот на часах зависнет навсегда.
+                receiptEntries.append(WatchShotReceiptEntry(holeNumber: entry.holeNumber, acceptedCount: entry.clubs.count, accepted: true))
+                continue
             }
+
+            let base = baseState(round: round, holeIndex: holeIndex, uid: uid)
+            let fullClubs = base.clubs + entry.clubs
+            let fullDistances = base.distances + Array(repeating: 0, count: entry.clubs.count)
 
             let outcome = await shotRecorder(batch.roundId, holeIndex, uid, fullClubs, fullDistances)
             switch outcome {
             case .synced, .queued:
                 // Обе ветки означают, что удар ДУРАБЕЛЬНО осел на
                 // телефоне (ShotQueue пишет на диск ДО попытки сети) —
-                // подтверждаем часам.
+                // фиксируем sequence как применённый и подтверждаем часам.
+                sequenceRecorder(batch.roundId, holeIndex, uid, entry.sequence)
                 receiptEntries.append(WatchShotReceiptEntry(holeNumber: entry.holeNumber, acceptedCount: entry.clubs.count, accepted: true))
             case .rejected:
                 // Сервер ОКОНЧАТЕЛЬНО отверг запись (permanent error) —
-                // повтор с тем же payload даст ту же ошибку. Всё равно
-                // подтверждаем (accepted: false) — часы снимут слот и
-                // покажут "не удалось синхронизировать" вместо вечного
-                // "не синхронизировано" (Fix 3, живое ревью).
+                // повтор с тем же payload даст ту же ошибку. sequence НЕ
+                // фиксируем (запись реально не удалась), но подтверждаем
+                // (accepted: false) — часы снимут слот и покажут "не удалось
+                // синхронизировать" вместо вечного "не синхронизировано"
+                // (Fix 3, живое ревью).
                 #if DEBUG
                 print("WatchBridge: recordShot отклонён сервером для лунки \(entry.holeNumber)")
                 #endif
