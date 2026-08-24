@@ -669,6 +669,48 @@ final class WatchRoundViewModelTests: XCTestCase {
         )
     }
 
+    // MARK: - Fix 9 (живое ревью, поверх Fix 7): рехидратация не должна
+    // засчитывать один и тот же удар ДВАЖДЫ, когда снимок (myShots, через
+    // updateApplicationContext) обгоняет квитанцию (через transferUserInfo)
+    // — это два независимых канала, они могут описывать одно и то же
+    // событие в любом порядке.
+
+    func testRehydrationDoesNotDoubleCountWhenSnapshotOutrunsReceipt() {
+        // Удар поставлен в очередь (батч ушёл), квитанция ЕЩЁ не обработана
+        // на часах — durable confirmedCount всё ещё 0, pending всё ещё
+        // содержит "Driver". Но телефон УЖЕ записал этот удар и успел
+        // прислать обновлённый снимок (myShots: 1) раньше, чем квитанция
+        // добралась/обработалась на часах.
+        let queue = makeQueue()
+        queue.enqueue(roundId: "round-1", holeNumber: 1, clubs: ["Driver"])
+
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 1)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
+            shotQueue: queue
+        )
+
+        XCTAssertEqual(vm.shots.count, 1, "снимок и pending-запись описывают ОДИН и тот же удар — не два")
+    }
+
+    func testRehydrationCombinesConfirmedPhoneShotsWithWatchPendingWithoutDoubleCounting() {
+        // 3 удара уже подтверждены (например, введены на телефоне, старые
+        // квитанции по ним давно обработаны — durable confirmedCount = 3,
+        // снимок тоже это подтверждает: myShots = 3) — и ОТДЕЛЬНО, поверх
+        // них, 1 реальный удар введён на часах и ждёт своей квитанции.
+        let queue = makeQueue()
+        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 3)
+        queue.enqueue(roundId: "round-1", holeNumber: 1, clubs: ["Driver"])
+
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 3)]
+        let vm = WatchRoundViewModel(
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
+            shotQueue: queue
+        )
+
+        XCTAssertEqual(vm.shots.count, 4, "3 подтверждённых + 1 в очереди — 4, не 5 (слепое сложение) и не 3 (потеря watch-pending)")
+    }
+
     func testAddShotNeverClearsExistingQueueSlotEvenWhenTailAppearsEmpty() {
         // allowClear-защита: addShot() никогда не должен ОПУСТОШИТЬ
         // существующую durable-запись как побочный эффект рассогласования

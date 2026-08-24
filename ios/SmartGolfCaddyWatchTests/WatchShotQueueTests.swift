@@ -420,4 +420,39 @@ final class WatchShotQueueTests: XCTestCase {
         queue.enqueue(roundId: "round-B", holeNumber: 1, clubs: ["Putter"])
         XCTAssertEqual(queue.pending.first { $0.roundId == "round-B" }?.sequence, 2, "round-B не задет")
     }
+
+    // MARK: - installId (Fix 8/10, живое ревью Task 4) — durable-идентификатор
+    // установки, генерируется один раз, переживает "перезапуск".
+
+    func testInstallIdIsStable() {
+        let queue = makeQueue()
+        let first = queue.installId
+        let second = queue.installId
+        XCTAssertEqual(first, second, "повторное обращение не генерирует новый id")
+        XCTAssertFalse(first.isEmpty)
+    }
+
+    func testInstallIdSurvivesRestart() {
+        let queue = makeQueue()
+        let original = queue.installId
+
+        // "Перезапуск" — новый инстанс над тем же файлом (НЕ переустановка
+        // приложения, которая стёрла бы контейнер данных целиком).
+        let reloaded = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
+        XCTAssertEqual(reloaded.installId, original, "два инстанса над одним файлом дают ОДИН И ТОТ ЖЕ id")
+    }
+
+    func testFreshInstallGetsANewInstallId() {
+        // "Переустановка" — файл installId отсутствует (стёрт вместе с
+        // остальным контейнером данных) — новый инстанс над НОВЫМ путём
+        // должен сгенерировать НОВЫЙ id, отличный от прежнего.
+        let queue = makeQueue()
+        let original = queue.installId
+
+        let freshInstallIdURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchshotqueue-installid-fresh-\(UUID().uuidString).txt")
+        defer { try? FileManager.default.removeItem(at: freshInstallIdURL) }
+        let freshInstall = WatchShotQueue(storeURL: storeURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: freshInstallIdURL)
+        XCTAssertNotEqual(freshInstall.installId, original)
+    }
 }

@@ -308,12 +308,24 @@ final class WatchRoundViewModel {
     /// счёт занижался, а следующий unsyncedShots() у уже "полного" по
     /// confirmedCount состояния возвращал бы [] — и `enqueue(clubs: [])`
     /// стёр бы durable-хвост вместо того, чтобы поставить в очередь НОВЫЙ
-    /// удар игрока (см. syncQueue/allowClear). Здесь — тот же принцип
-    /// "durable-очередь — более полное состояние", что уже применён на
-    /// телефоне в WatchBridge.baseState: префикс длиной
-    /// max(hole.myShots, durable confirmedCount) заглушками, ПЛЮС реальный
-    /// хвост из shotQueue.pending для этого слота, если он там ещё есть
-    /// (квитанция могла не дойти/не обработаться до перезапуска).
+    /// удар игрока (см. syncQueue/allowClear).
+    ///
+    /// Fix 9 (живое ревью, поверх Fix 7) — ОБЩИЙ РАЗМЕР лунки, а не сумма
+    /// слагаемых вслепую. `confirmedCount` и `pendingClubs.count`
+    /// дизъюнктны МЕЖДУ СОБОЙ (markConfirmed срезает подтверждённый
+    /// префикс из pending) — но `hole.myShots` дизъюнктен с
+    /// `confirmedCount + pendingClubs.count` НЕ гарантированно: это два
+    /// НЕЗАВИСИМЫХ канала (снимок едет через updateApplicationContext,
+    /// квитанция — через transferUserInfo) и могут описывать ОДНО И ТО ЖЕ
+    /// событие, обогнав друг друга в любую сторону. Первая версия Fix 7
+    /// складывала `max(myShots, confirmedCount)` заглушками ПЛЮС
+    /// `pending.clubs` — если снимок уже обогнал квитанцию (myShots уже
+    /// учёл удар, который confirmedCount ещё не видел, а pending его ещё
+    /// не срезал), один и тот же удар засчитывался ДВАЖДЫ. Правильная
+    /// формула берёт максимум по ОБЩЕМУ РАЗМЕРУ лунки:
+    /// `total = max(hole.myShots, confirmedCount + pendingClubs.count)`,
+    /// число заглушек — `total - pendingClubs.count`, хвост — сам
+    /// `pendingClubs` (он всегда реальный, не выдумывается).
     private func seedIfNeeded(from snapshot: WatchRoundSnapshot) {
         let placeholder = snapshot.clubs.first ?? "?"
         let holesToSeed = snapshot.holes.filter { shotsByHole[$0.number] == nil }
@@ -326,12 +338,11 @@ final class WatchRoundViewModel {
         )
 
         for hole in holesToSeed {
-            let confirmedFloor = max(hole.myShots, shotQueue.confirmedCount(roundId: snapshot.roundId, holeNumber: hole.number))
-            var seeded = Array(repeating: placeholder, count: max(0, confirmedFloor))
-            if let pendingEntry = pendingByHole[hole.number] {
-                seeded += pendingEntry.clubs
-            }
-            shotsByHole[hole.number] = seeded
+            let confirmedCount = shotQueue.confirmedCount(roundId: snapshot.roundId, holeNumber: hole.number)
+            let pendingClubs = pendingByHole[hole.number]?.clubs ?? []
+            let total = max(hole.myShots, confirmedCount + pendingClubs.count)
+            let placeholderCount = max(0, total - pendingClubs.count)
+            shotsByHole[hole.number] = Array(repeating: placeholder, count: placeholderCount) + pendingClubs
             shotQueue.seedConfirmedCountIfHigher(roundId: snapshot.roundId, holeNumber: hole.number, count: hole.myShots)
         }
     }
