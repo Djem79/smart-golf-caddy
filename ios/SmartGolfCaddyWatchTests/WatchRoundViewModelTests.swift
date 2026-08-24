@@ -1,8 +1,14 @@
 // ios/SmartGolfCaddyWatchTests/WatchRoundViewModelTests.swift
-// Тесты WatchRoundViewModel (Task 3, Phase 3c) — чистая логика без
-// WatchConnectivity: снимок подаётся конструктором/apply(snapshot:).
-// Task 4 добавляет проверку интеграции с WatchShotQueue: addShot()/
-// removeShot() обязаны держать очередь синхронной с unsyncedShots(forHole:).
+// Тесты WatchRoundViewModel — чистая логика без WatchConnectivity: снимок
+// подаётся конструктором/apply(snapshot:).
+//
+// МОДЕЛЬ (см. заголовок WatchRoundViewModel.swift): НЕТ in-memory кэша
+// клюшек по лункам и НЕТ confirmedCount. `pendingClubs`/`unsyncedShots`
+// читают WatchShotQueue.pending напрямую при каждом обращении;
+// `shotCount` = snapshot.myShots + pendingClubs.count. addShot() всегда
+// дописывает в durable-очередь (никогда не no-op), removeShot() снимает
+// только из локального хвоста (no-op, если он пуст — не трогает
+// серверные удары).
 import XCTest
 @testable import SmartGolfCaddyWatch
 
@@ -10,7 +16,6 @@ import XCTest
 final class WatchRoundViewModelTests: XCTestCase {
 
     private var queueStoreURL: URL!
-    private var confirmedStoreURL: URL!
     private var sequenceStoreURL: URL!
     private var installIdStoreURL: URL!
 
@@ -19,8 +24,6 @@ final class WatchRoundViewModelTests: XCTestCase {
         let id = UUID().uuidString
         queueStoreURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("watchroundvm-queue-test-\(id).json")
-        confirmedStoreURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("watchroundvm-confirmed-test-\(id).json")
         sequenceStoreURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("watchroundvm-sequence-test-\(id).json")
         installIdStoreURL = FileManager.default.temporaryDirectory
@@ -29,7 +32,6 @@ final class WatchRoundViewModelTests: XCTestCase {
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: queueStoreURL)
-        try? FileManager.default.removeItem(at: confirmedStoreURL)
         try? FileManager.default.removeItem(at: sequenceStoreURL)
         try? FileManager.default.removeItem(at: installIdStoreURL)
         super.tearDown()
@@ -38,7 +40,7 @@ final class WatchRoundViewModelTests: XCTestCase {
     /// Изолированная (файл во временной директории) очередь для тестов,
     /// которые инспектируют её содержимое — не трогает WatchShotQueue.shared.
     private func makeQueue() -> WatchShotQueue {
-        WatchShotQueue(storeURL: queueStoreURL, confirmedStoreURL: confirmedStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
+        WatchShotQueue(storeURL: queueStoreURL, sequenceStoreURL: sequenceStoreURL, installIdStoreURL: installIdStoreURL)
     }
 
     /// markConfirmed постит `.watchShotSyncFailed` наблюдателям на
@@ -76,50 +78,51 @@ final class WatchRoundViewModelTests: XCTestCase {
         )
     }
 
-    // MARK: - removeShot не уходит в минус
+    // MARK: - removeShot не уходит в минус (и не трогает сервер)
 
     func testRemoveShotDoesNotGoNegative() {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(), shotQueue: makeQueue())
-        XCTAssertEqual(vm.shots.count, 0)
+        XCTAssertEqual(vm.pendingClubs.count, 0)
         vm.removeShot()
         vm.removeShot()
-        XCTAssertEqual(vm.shots.count, 0)
+        XCTAssertEqual(vm.pendingClubs.count, 0)
     }
 
     func testAddThenRemoveShot() {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 2)
+        XCTAssertEqual(vm.pendingClubs.count, 2)
         vm.removeShot()
-        XCTAssertEqual(vm.shots.count, 1)
+        XCTAssertEqual(vm.pendingClubs.count, 1)
         vm.removeShot()
         vm.removeShot()
-        XCTAssertEqual(vm.shots.count, 0)
+        XCTAssertEqual(vm.pendingClubs.count, 0)
     }
 
-    // MARK: - Удары сохраняются при переходе туда-обратно по лункам
+    // MARK: - Хвост лунки сохраняется при переходе туда-обратно (durable,
+    // не зависит от того, какая лунка сейчас "активна" на экране)
 
     func testShotsPersistAcrossHoleNavigation() {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(activeHoleNumber: 3), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 2)
+        XCTAssertEqual(vm.pendingClubs.count, 2)
 
         vm.nextHole()
         XCTAssertEqual(vm.holeNumber, 4)
-        XCTAssertEqual(vm.shots.count, 0, "новая лунка начинается без ударов")
+        XCTAssertEqual(vm.pendingClubs.count, 0, "новая лунка начинается без ударов")
 
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 1)
+        XCTAssertEqual(vm.pendingClubs.count, 1)
 
         vm.previousHole()
         XCTAssertEqual(vm.holeNumber, 3)
-        XCTAssertEqual(vm.shots.count, 2, "удары лунки 3 не потерялись при уходе на лунку 4")
+        XCTAssertEqual(vm.pendingClubs.count, 2, "удары лунки 3 не потерялись при уходе на лунку 4")
 
         vm.nextHole()
         XCTAssertEqual(vm.holeNumber, 4)
-        XCTAssertEqual(vm.shots.count, 1, "удары лунки 4 тоже сохранились")
+        XCTAssertEqual(vm.pendingClubs.count, 1, "удары лунки 4 тоже сохранились")
     }
 
     // MARK: - Кламп границ лунки
@@ -138,21 +141,21 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertEqual(vm.holeNumber, 1)
     }
 
-    // MARK: - pendingCount
+    // MARK: - pendingCount / shotCount
 
-    func testPendingCountReflectsShotsBeyondConfirmed() {
+    func testPendingCountEqualsLocalTailLength() {
         let holes = [
             WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 0),
             WatchHole(number: 2, par: 3, distanceMeters: 150, myShots: 1),
         ]
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 2, holes: holes, activeHoleNumber: 2), shotQueue: makeQueue())
-        // Лунка 2: сервер уже подтвердил 1 удар (сид placeholder-ом), pending 0.
-        XCTAssertEqual(vm.shots.count, 1)
+        // Лунка 2: сервер подтвердил 1 удар, локального хвоста ещё нет.
         XCTAssertEqual(vm.pendingCount, 0)
+        XCTAssertEqual(vm.shotCount, 1, "1 сервер + 0 в очереди")
 
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 2)
-        XCTAssertEqual(vm.pendingCount, 1, "один удар сверх подтверждённого сервером")
+        XCTAssertEqual(vm.pendingCount, 1, "ровно длина локального хвоста — без вычитания confirmedCount")
+        XCTAssertEqual(vm.shotCount, 2, "1 сервер + 1 в очереди")
     }
 
     func testPendingCountZeroWhenNoLocalShots() {
@@ -160,31 +163,33 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pendingCount, 0)
     }
 
-    // MARK: - Применение снимка не теряет неподтверждённые локальные удары
+    // MARK: - apply(snapshot:) в пределах ОДНОГО раунда не трогает
+    // durable-хвост (он и так не в памяти — трогать там нечего)
 
     func testApplySnapshotDoesNotLoseUnconfirmedLocalShots() {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(activeHoleNumber: 3), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 2)
+        XCTAssertEqual(vm.pendingClubs.count, 2)
 
-        // Новый снимок с телефона — та же лунка, сервер ещё НЕ подтвердил удары
-        // (myShots всё ещё 0, например, батч ещё не долетел/не обработан).
+        // Новый снимок с телефона — та же лунка, сервер ещё НЕ подтвердил
+        // удары (myShots всё ещё 0).
         vm.apply(snapshot: makeSnapshot(activeHoleNumber: 3))
 
-        XCTAssertEqual(vm.shots.count, 2, "локальные неподтверждённые удары не должны исчезать")
+        XCTAssertEqual(vm.pendingClubs.count, 2, "локальные неподтверждённые удары не должны исчезать")
         XCTAssertEqual(vm.pendingCount, 2)
     }
 
-    func testApplySnapshotSeedsNewlySeenHoleFromServerCount() {
+    // MARK: - Fix 6 (живое ревью Task 4): apply() на nil-стартовой VM
+    // обязана пересчитать holeNumber, не полагаясь на дисциплину вызывающей
+    // стороны.
+
+    func testApplyOnNilStartVMRecomputesHoleNumberFromActiveHoleNumber() {
         let vm = WatchRoundViewModel(snapshot: nil, shotQueue: makeQueue())
         XCTAssertNil(vm.currentHole)
 
-        // activeHoleNumber НАРОЧНО != 1 (Fix 6, живое ревью Task 4) — до
-        // фикса apply() на nil-стартовой VM пропускала пересчёт holeNumber
-        // из activeHoleNumber нового снимка, и этот тест проходил "по
-        // совпадению" только потому, что дефолт holeNumber и старая
-        // фикстура (activeHoleNumber: 1) случайно совпадали.
+        // activeHoleNumber НАРОЧНО != 1 (дефолт holeNumber) — иначе тест
+        // проходил бы "по совпадению", а не проверял реальный пересчёт.
         let holes = [
             WatchHole(number: 1, par: 3, distanceMeters: 150, myShots: 0),
             WatchHole(number: 2, par: 4, distanceMeters: 300, myShots: 0),
@@ -202,24 +207,24 @@ final class WatchRoundViewModelTests: XCTestCase {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "7 Iron", "Putter"]), shotQueue: makeQueue())
         XCTAssertNil(vm.selectedClub)
         vm.addShot()
-        XCTAssertEqual(vm.shots, ["Driver"])
+        XCTAssertEqual(vm.pendingClubs, ["Driver"])
     }
 
     func testAddShotWithoutSelectionReusesLastUsedClub() {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: ["Driver", "7 Iron", "Putter"]), shotQueue: makeQueue())
         vm.selectedClub = "7 Iron"
         vm.addShot()
-        XCTAssertEqual(vm.shots, ["7 Iron"])
+        XCTAssertEqual(vm.pendingClubs, ["7 Iron"])
 
         vm.selectedClub = nil
         vm.addShot()
-        XCTAssertEqual(vm.shots, ["7 Iron", "7 Iron"], "без явного выбора повторяем последнюю использованную клюшку")
+        XCTAssertEqual(vm.pendingClubs, ["7 Iron", "7 Iron"], "без явного выбора повторяем последнюю использованную клюшку")
     }
 
     func testAddShotWithEmptyBagIsNoOp() {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(clubs: []), shotQueue: makeQueue())
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 0)
+        XCTAssertEqual(vm.pendingClubs.count, 0)
     }
 
     // MARK: - currentHole / clubs
@@ -230,7 +235,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertEqual(vm.clubs, ["Driver", "Putter"])
     }
 
-    // MARK: - Смена раунда сбрасывает локальные удары (review fix 1)
+    // MARK: - Смена раунда
 
     func testApplySnapshotForNewRoundDoesNotLeakShotsFromPreviousRound() {
         // Раунд A: на лунке 5 два неподтверждённых удара (телефон офлайн,
@@ -239,15 +244,17 @@ final class WatchRoundViewModelTests: XCTestCase {
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", totalHoles: 5, holes: holesA, activeHoleNumber: 5), shotQueue: makeQueue())
         vm.addShot()
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 2)
+        XCTAssertEqual(vm.pendingClubs.count, 2)
         XCTAssertEqual(vm.pendingCount, 2)
 
         // Раунд A завершён, приходит снимок раунда B — та же лунка 5, но с
-        // myShots: 0 (новый раунд, ещё ничего не сыграно).
+        // myShots: 0 (новый раунд, ещё ничего не сыграно). Хвост раунда A
+        // физически лежит в очереди под ключом roundId:"round-A" — сюда он
+        // попасть не может: pendingClubs фильтрует по snapshot.roundId.
         let holesB = [WatchHole(number: 5, par: 3, distanceMeters: 150, myShots: 0)]
         vm.apply(snapshot: makeSnapshot(roundId: "round-B", totalHoles: 5, holes: holesB, activeHoleNumber: 5))
 
-        XCTAssertEqual(vm.shots.count, 0, "удары раунда A не должны быть видны в раунде B")
+        XCTAssertEqual(vm.pendingClubs.count, 0, "удары раунда A не должны быть видны в раунде B")
         XCTAssertEqual(vm.pendingCount, 0, "не должно быть фантомных неподтверждённых ударов")
         XCTAssertEqual(vm.currentHole?.par, 3, "текущая лунка теперь описывается снимком раунда B")
     }
@@ -273,37 +280,40 @@ final class WatchRoundViewModelTests: XCTestCase {
 
         XCTAssertNil(vm.selectedClub, "выбор клюшки прошлого раунда не должен переживать смену раунда")
         vm.addShot()
-        XCTAssertEqual(vm.shots, ["Driver"], "addShot() в новом раунде не должен унаследовать lastUsedClub старого")
+        XCTAssertEqual(vm.pendingClubs, ["Driver"], "addShot() в новом раунде не должен унаследовать lastUsedClub старого")
     }
 
-    func testApplySnapshotForSameRoundDoesNotResetLocalState() {
-        // Регрессия: убеждаемся, что фикс 1 не сломал исходное поведение —
-        // тот же roundId по-прежнему НЕ сбрасывает локальные удары.
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", activeHoleNumber: 3), shotQueue: makeQueue())
+    func testApplySnapshotForSameRoundDoesNotResetSelectedClub() {
+        // Тот же roundId НЕ сбрасывает выбор клюшки/lastUsedClub (в отличие
+        // от смены раунда) — durable-хвост в любом случае не тронут apply(),
+        // но тут важно именно поведение selectedClub/lastUsedClub.
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", clubs: ["Driver", "Putter"], activeHoleNumber: 3), shotQueue: makeQueue())
+        vm.selectedClub = "Putter"
         vm.addShot()
-        vm.apply(snapshot: makeSnapshot(roundId: "round-A", activeHoleNumber: 3))
-        XCTAssertEqual(vm.shots.count, 1)
+        vm.apply(snapshot: makeSnapshot(roundId: "round-A", clubs: ["Driver", "Putter"], activeHoleNumber: 3))
+        XCTAssertEqual(vm.selectedClub, "Putter")
+        XCTAssertEqual(vm.pendingClubs, ["Putter"])
     }
 
-    // MARK: - unsyncedShots(forHole:) — только реально введённый на часах хвост (review fix 2)
+    // MARK: - unsyncedShots(forHole:) — ровно durable-хвост, без плейсхолдеров
+    // структурно (нет механизма, который мог бы их туда положить)
 
-    func testUnsyncedShotsReturnsOnlyLocallyAddedTail() {
+    func testUnsyncedShotsReturnsExactlyTheDurableTail() {
         // Сервер уже подтвердил 3 удара на лунке 4 (введены на телефоне) —
-        // seedIfNeeded подставит 3 плейсхолдера. На часах добавляем ЕЩЁ один
-        // удар выбранной клюшкой.
+        // это НЕ должно порождать никаких заглушек в очереди. На часах
+        // добавляем ОДИН реальный удар.
         let holes = [WatchHole(number: 4, par: 5, distanceMeters: 480, myShots: 3)]
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 4, holes: holes, clubs: ["Driver", "3 Wood"], activeHoleNumber: 4), shotQueue: makeQueue())
-        XCTAssertEqual(vm.shots.count, 3, "3 плейсхолдера от seedIfNeeded")
+        XCTAssertEqual(vm.pendingClubs.count, 0, "сам факт myShots > 0 не кладёт НИЧЕГО в локальный хвост")
 
         vm.selectedClub = "3 Wood"
         vm.addShot()
-        XCTAssertEqual(vm.shots.count, 4)
 
-        let unsynced = vm.unsyncedShots(forHole: 4)
-        XCTAssertEqual(unsynced, ["3 Wood"], "только реально выбранная на часах клюшка, без плейсхолдеров")
+        XCTAssertEqual(vm.unsyncedShots(forHole: 4), ["3 Wood"], "только реально введённый на часах удар")
+        XCTAssertEqual(vm.shotCount, 4, "3 сервер + 1 в очереди")
     }
 
-    func testUnsyncedShotsEmptyWhenAllConfirmed() {
+    func testUnsyncedShotsEmptyWhenNothingQueuedLocally() {
         let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
         let vm = WatchRoundViewModel(snapshot: makeSnapshot(totalHoles: 1, holes: holes, activeHoleNumber: 1), shotQueue: makeQueue())
         XCTAssertEqual(vm.unsyncedShots(forHole: 1), [])
@@ -314,11 +324,12 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertNil(vm.currentHole)
         XCTAssertEqual(vm.clubs, [])
         XCTAssertEqual(vm.holeNumber, 1)
+        XCTAssertEqual(vm.pendingClubs, [])
         vm.nextHole()
         XCTAssertEqual(vm.holeNumber, 1, "без снимка навигация не двигается")
     }
 
-    // MARK: - addShot() кладёт удар в WatchShotQueue (Task 4)
+    // MARK: - addShot() кладёт удар в WatchShotQueue
 
     func testAddShotEnqueuesUnsyncedTailIntoWatchQueue() {
         let queue = makeQueue()
@@ -343,26 +354,24 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertEqual(queue.pending.first?.clubs, ["Driver", "Driver"])
     }
 
-    // КРИТИЧЕСКИЙ ИНВАРИАНТ задачи: заглушки seedIfNeeded (плейсхолдеры по
-    // уже подтверждённым сервером ударам) НИКОГДА не должны попасть в
-    // очередь на отправку телефону — иначе recordShot затрёт настоящие
-    // клюшки, записанные на телефоне, заглушками.
-    func testPlaceholdersFromSeedNeverEnterTheQueue() {
+    /// Регрессия структурной гарантии: раньше плейсхолдеры "сеялись" в
+    /// локальный кэш и приходилось следить, чтобы они не утекли в очередь.
+    /// Теперь сеять НЕЧЕГО и НЕЧЕМ — очередь пуста, пока игрок сам не
+    /// нажмёт "+", независимо от того, сколько ударов уже на сервере.
+    func testServerConfirmedShotsNeverAppearInTheQueue() {
         let queue = makeQueue()
-        // Сервер уже подтвердил 3 удара на лунке 4 — seedIfNeeded подставит
-        // 3 плейсхолдера ("Driver" — первая клюшка сумки).
         let holes = [WatchHole(number: 4, par: 5, distanceMeters: 480, myShots: 3)]
         let vm = WatchRoundViewModel(
             snapshot: makeSnapshot(roundId: "round-1", totalHoles: 4, holes: holes, clubs: ["Driver", "3 Wood"], activeHoleNumber: 4),
             shotQueue: queue
         )
-        XCTAssertTrue(queue.pending.isEmpty, "сам факт появления снимка (init/seed) ничего не шлёт в очередь")
+        XCTAssertTrue(queue.pending.isEmpty, "появление снимка с myShots > 0 ничего не кладёт в очередь")
 
         vm.selectedClub = "3 Wood"
         vm.addShot()
 
         XCTAssertEqual(queue.pending.count, 1)
-        XCTAssertEqual(queue.pending.first?.clubs, ["3 Wood"], "только реально введённый на часах удар, БЕЗ плейсхолдеров-префикса")
+        XCTAssertEqual(queue.pending.first?.clubs, ["3 Wood"], "только реально введённый на часах удар")
     }
 
     func testRemoveShotSyncsQueueDownToShrunkTail() {
@@ -377,9 +386,8 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertEqual(queue.pending.first?.clubs, ["Driver"], "удаление удара на часах отражается в очереди")
     }
 
-    func testRemoveShotDownToFullyConfirmedClearsQueueSlot() {
+    func testRemoveShotDownToEmptyClearsQueueSlot() {
         let queue = makeQueue()
-        // Сервер уже подтвердил 1 удар — локально это плейсхолдер.
         let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 1)]
         let vm = WatchRoundViewModel(
             snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
@@ -388,7 +396,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         vm.addShot()
         XCTAssertEqual(queue.pending.first?.clubs, ["Driver"])
 
-        vm.removeShot()  // возвращаемся ровно к подтверждённому серверу состоянию
+        vm.removeShot()  // убираем ровно тот удар, что сами добавили
 
         XCTAssertTrue(queue.pending.isEmpty, "хвост пуст — нечего слать, слот снят")
     }
@@ -504,62 +512,6 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertNotEqual(distanceHole3, distanceHole4, "смена лунки меняет дистанцию до грина")
     }
 
-    // MARK: - Fix 2 (живое ревью Task 4): квитанция, а не снимок, двигает
-    // confirmedCount — иначе устаревший снимок (телефон в кармане, экран
-    // закрыт) заставляет unsyncedShots() повторно отдать уже подтверждённый
-    // удар, и телефон дописывает его на сервере ВТОРОЙ раз.
-
-    func testConfirmedCountAdvancesFromReceiptEvenWithoutFreshSnapshot() {
-        let queue = makeQueue()
-        // Сервер уже подтвердил 2 удара на лунке 1 (сид placeholder-ами).
-        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
-        let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes,
-                                   clubs: ["Driver", "7 Iron", "Putter"], activeHoleNumber: 1),
-            shotQueue: queue
-        )
-        XCTAssertEqual(vm.shots.count, 2, "2 плейсхолдера от seedIfNeeded")
-
-        vm.addShot()  // 3-й, реальный
-        XCTAssertEqual(vm.unsyncedShots(forHole: 1).count, 1)
-
-        // Телефон принял этот батч и прислал квитанцию — ИМИТИРУЕМ
-        // напрямую через queue (в проде приходит через
-        // PhoneBridge.session(_:didReceiveUserInfo:)). Снимок на часах
-        // НЕ обновился (myShots в vm.snapshot всё ещё 2) — телефон лежит
-        // в кармане, sendWatchSnapshot() не вызывался.
-        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 1)
-
-        vm.addShot()  // 4-й
-        XCTAssertEqual(vm.shots.count, 4)
-        XCTAssertEqual(
-            vm.unsyncedShots(forHole: 1).count, 1,
-            "без фикса confirmedCount остался бы 2 (из устаревшего снимка), unsyncedShots вернул бы 2 элемента — телефон дописал бы 3-й удар второй раз"
-        )
-    }
-
-    func testConfirmedCountUsesMaxOfSnapshotAndReceipt() {
-        // Снимок ВСЁ ЖЕ обновился и оказался ВПЕРЕДИ локального счётчика
-        // квитанций (например, кто-то другой записал удар за игрока на
-        // телефоне) — confirmedCount не должен откатываться назад.
-        let queue = makeQueue()
-        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 5)]
-        let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
-            shotQueue: queue
-        )
-        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 1)
-        XCTAssertEqual(vm.pendingCount, 0, "snapshot.myShots(5) > shotQueue.confirmedCount(1) — берём максимум")
-    }
-
-    func testConfirmedCountResetsOnRoundChange() {
-        let queue = makeQueue()
-        queue.markConfirmed(roundId: "round-A", holeNumber: 1, acceptedCount: 3)
-        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A"), shotQueue: queue)
-        vm.apply(snapshot: makeSnapshot(roundId: "round-B"))
-        XCTAssertEqual(queue.confirmedCount(roundId: "round-A", holeNumber: 1), 0, "счётчики старого раунда очищены (гигиена)")
-    }
-
     // MARK: - Fix 3 (живое ревью Task 4): окончательный отказ сервера
     // показывает явную ошибку вместо бесконечного "не синхронизировано".
 
@@ -608,136 +560,116 @@ final class WatchRoundViewModelTests: XCTestCase {
         XCTAssertFalse(vm.currentHoleSyncFailed)
     }
 
-    // MARK: - Fix 7 (живое ревью Task 4): рехидратация shotsByHole из
-    // durable-очереди после выгрузки процесса часов (watchOS штатно
-    // убивает приложение — не экзотика). Без этого фикса реальный, ещё не
-    // подтверждённый удар, лежащий на диске, "терялся из вида" при первом
-    // посеве лунки после перезапуска, и следующий тап на "+" молча стирал
-    // durable-хвост вместо постановки нового удара в очередь.
+    // MARK: - Новая модель (живое ревью Task 4, пятый раунд правок):
+    // границу "confirmedCount vs myShots" убрали целиком. Ниже — трассы,
+    // которые эта граница ломала, и требуемое ревью поведение.
 
-    func testRehydratesUnconfirmedShotFromDurableQueueAfterRestart() {
+    /// Трасса 1: удар застрял в очереди часов (телефон вне связи), затем
+    /// игрок делает 2 удара НА ТЕЛЕФОНЕ той же лунки — снимок обгоняет
+    /// квитанцию с myShots: 2. Следующий addShot() на часах ОБЯЗАН попасть
+    /// в очередь — старая формула confirmedCount = max(myShots, durable)
+    /// делала unsyncedShots пустым, и addShot() молча становился no-op'ом.
+    func testAddShotAlwaysQueuesEvenWhenSnapshotMyShotsGrew() {
         let queue = makeQueue()
-        // Удар лунки 5 уже лежит в durable-очереди (батч ушёл), но
-        // квитанция ещё не пришла — ровно то состояние, в котором
-        // приложение часов может быть выгружено из памяти.
-        queue.enqueue(roundId: "round-1", holeNumber: 5, clubs: ["Driver"])
+        queue.enqueue(roundId: "round-1", holeNumber: 1, clubs: ["Driver"])  // застрял в очереди
 
-        // "Перезапуск" — НОВАЯ VM, shotsByHole пуст в памяти; снимок ещё
-        // не в курсе (myShots: 0 — квитанция телефону тоже не долетела).
-        let holes = [WatchHole(number: 5, par: 4, distanceMeters: 300, myShots: 0)]
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
         let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 5, holes: holes, clubs: ["Driver", "7 Iron"], activeHoleNumber: 5),
+            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, clubs: ["Driver", "Putter"], activeHoleNumber: 1),
             shotQueue: queue
         )
-        XCTAssertEqual(vm.shots, ["Driver"], "неподтверждённый удар восстановлен из durable-очереди, а не потерян")
+        XCTAssertEqual(vm.shotCount, 3, "2 сервер + 1 в очереди на часах")
 
-        // Квитанция доезжает УЖЕ ПОСЛЕ пересоздания VM.
-        queue.markConfirmed(roundId: "round-1", holeNumber: 5, acceptedCount: 1)
-
-        vm.selectedClub = "7 Iron"
+        vm.selectedClub = "Putter"
         vm.addShot()
 
-        XCTAssertEqual(vm.shots, ["Driver", "7 Iron"])
-        XCTAssertEqual(
-            queue.pending.first { $0.roundId == "round-1" && $0.holeNumber == 5 }?.clubs, ["7 Iron"],
-            "новый удар должен оказаться в очереди, а не исчезнуть"
-        )
+        XCTAssertEqual(vm.pendingClubs, ["Driver", "Putter"], "новый удар ОБЯЗАН попасть в очередь — addShot() никогда не no-op")
+        XCTAssertEqual(queue.pending.first { $0.holeNumber == 1 }?.clubs, ["Driver", "Putter"])
+        XCTAssertEqual(vm.shotCount, 4, "2 сервер + 2 в очереди")
     }
 
-    func testRehydratesFromDurableConfirmedCountWhenReceiptAlreadyProcessedBeforeRestart() {
-        // Другой порядок: квитанция дошла и обработалась ДО того, как
-        // пользователь снова открыл приложение (фоновый wake на
-        // transferUserInfo) — durable-хвост уже снят, confirmedCount уже
-        // продвинут. Рехидратация обязана взять это из confirmedCount, а
-        // не только из hole.myShots снимка (который может ещё отставать).
+    /// Трасса 2: параллельный ввод — 2 удара уже подтверждены сервером
+    /// (телефон), 1 удар введён на часах и ждёт квитанции. Отображаемый
+    /// счёт не должен ни задваивать, ни терять ни один из трёх. Реальное
+    /// отсутствие дубля НА СЕРВЕРЕ при мердже покрыто отдельно —
+    /// WatchBridgeTests (Fix 1, baseState берёт pendingShot/серверный
+    /// раунд как базу и дописывает хвост часов).
+    func testParallelInputPhoneAndWatchDoNotDoubleCountInDisplay() {
+        let queue = makeQueue()
+        queue.enqueue(roundId: "round-1", holeNumber: 1, clubs: ["Putter"])
+
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 2)]
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1), shotQueue: queue)
+
+        XCTAssertEqual(vm.shotCount, 3, "2 с телефона + 1 с часов = 3, не 2 и не 4")
+    }
+
+    /// Трасса 3 (регрессия Fix 7): удар застрял в очереди на часах,
+    /// приложение часов "выгружено" — здесь это буквально пересоздание
+    /// VM, поскольку никакого in-memory кэша, который мог бы разойтись с
+    /// диском, больше не существует.
+    func testUnconfirmedShotSurvivesSimulatedRestart() {
         let queue = makeQueue()
         queue.enqueue(roundId: "round-1", holeNumber: 5, clubs: ["Driver"])
-        queue.markConfirmed(roundId: "round-1", holeNumber: 5, acceptedCount: 1)
-        XCTAssertTrue(queue.pending.isEmpty)
 
         let holes = [WatchHole(number: 5, par: 4, distanceMeters: 300, myShots: 0)]
-        let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 5, holes: holes, activeHoleNumber: 5),
-            shotQueue: queue
-        )
-        XCTAssertEqual(vm.pendingCount, 0, "confirmedCount восстановлен из durable-счётчика — неподтверждённого не осталось")
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 5, holes: holes, activeHoleNumber: 5), shotQueue: queue)
 
+        XCTAssertEqual(vm.pendingClubs, ["Driver"], "неподтверждённый удар виден сразу после пересоздания VM")
+        XCTAssertEqual(vm.shotCount, 1)
+
+        // И он реально уходит — не застрял в никуда: следующий addShot()
+        // растит тот же durable-хвост.
         vm.addShot()
-        XCTAssertEqual(
-            queue.pending.first { $0.holeNumber == 5 }?.clubs.count, 1,
-            "новый удар корректно поставлен в очередь поверх рехидратированного состояния"
-        )
+        XCTAssertEqual(queue.pending.first { $0.holeNumber == 5 }?.clubs.count, 2)
     }
 
-    // MARK: - Fix 9 (живое ревью, поверх Fix 7): рехидратация не должна
-    // засчитывать один и тот же удар ДВАЖДЫ, когда снимок (myShots, через
-    // updateApplicationContext) обгоняет квитанцию (через transferUserInfo)
-    // — это два независимых канала, они могут описывать одно и то же
-    // событие в любом порядке.
-
-    func testRehydrationDoesNotDoubleCountWhenSnapshotOutrunsReceipt() {
-        // Удар поставлен в очередь (батч ушёл), квитанция ЕЩЁ не обработана
-        // на часах — durable confirmedCount всё ещё 0, pending всё ещё
-        // содержит "Driver". Но телефон УЖЕ записал этот удар и успел
-        // прислать обновлённый снимок (myShots: 1) раньше, чем квитанция
-        // добралась/обработалась на часах.
+    /// Трасса 4а: снимок обгоняет квитанцию — ОСОЗНАННЫЙ временный
+    /// компромисс (см. заголовок WatchRoundViewModel.swift): счёт на
+    /// экране кратковременно завышен (удар учтён и в myShots, и в ещё не
+    /// срезанном хвосте), пока квитанция не срежет хвост. Явно фиксируем
+    /// это ожидание тестом, а не спрятанным допущением.
+    func testTemporaryOvercountWindowWhenSnapshotArrivesBeforeReceiptTrimsQueue() {
         let queue = makeQueue()
         queue.enqueue(roundId: "round-1", holeNumber: 1, clubs: ["Driver"])
 
         let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 1)]
-        let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
-            shotQueue: queue
-        )
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1), shotQueue: queue)
+        XCTAssertEqual(vm.shotCount, 2, "временное завышение — тот же удар учтён и в myShots, и в хвосте")
 
-        XCTAssertEqual(vm.shots.count, 1, "снимок и pending-запись описывают ОДИН и тот же удар — не два")
+        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 1)
+
+        XCTAssertEqual(vm.shotCount, 1, "квитанция срезала хвост — окно закрылось, счёт снова верный")
     }
 
-    func testRehydrationCombinesConfirmedPhoneShotsWithWatchPendingWithoutDoubleCounting() {
-        // 3 удара уже подтверждены (например, введены на телефоне, старые
-        // квитанции по ним давно обработаны — durable confirmedCount = 3,
-        // снимок тоже это подтверждает: myShots = 3) — и ОТДЕЛЬНО, поверх
-        // них, 1 реальный удар введён на часах и ждёт своей квитанции.
+    /// Трасса 4б: обратный порядок — квитанция обгоняет снимок. Хвост уже
+    /// срезан к моменту, когда снимок наконец догоняет — задвоения не
+    /// возникает вовсе (окно из 4а даже не открывается).
+    func testNoOvercountWhenReceiptProcessedBeforeSnapshotCatchesUp() {
         let queue = makeQueue()
-        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 3)
         queue.enqueue(roundId: "round-1", holeNumber: 1, clubs: ["Driver"])
+        queue.markConfirmed(roundId: "round-1", holeNumber: 1, acceptedCount: 1)
 
-        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 3)]
-        let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1),
-            shotQueue: queue
-        )
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 1)]
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1), shotQueue: queue)
 
-        XCTAssertEqual(vm.shots.count, 4, "3 подтверждённых + 1 в очереди — 4, не 5 (слепое сложение) и не 3 (потеря watch-pending)")
+        XCTAssertEqual(vm.shotCount, 1, "квитанция обогнала снимок — задвоения нет вовсе")
     }
 
-    func testAddShotNeverClearsExistingQueueSlotEvenWhenTailAppearsEmpty() {
-        // allowClear-защита: addShot() никогда не должен ОПУСТОШИТЬ
-        // существующую durable-запись как побочный эффект рассогласования
-        // (formally-"всё подтверждено" из-за независимо подросшего
-        // snapshot.myShots), только реальный removeShot() может это сделать.
+    /// Трасса 5: removeShot() при пустом локальном хвосте — удар уже
+    /// записан на сервере, с часов его снять нельзя. По построению не
+    /// трогает серверные удары (нет отдельной защиты вида allowClear —
+    /// removeShot() физически не может тронуть ничего, кроме
+    /// shotQueue.pending).
+    func testRemoveShotDoesNothingWhenLocalTailIsEmpty() {
         let queue = makeQueue()
-        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 0)]
-        let vm = WatchRoundViewModel(
-            snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, clubs: ["Driver"], activeHoleNumber: 1),
-            shotQueue: queue
-        )
-        vm.addShot()
-        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"])
+        let holes = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 3)]
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: holes, activeHoleNumber: 1), shotQueue: queue)
+        XCTAssertEqual(vm.shotCount, 3)
 
-        // Свежий снимок сообщает намного больше подтверждённых ударов
-        // лунки, чем локально известно часам (contrived, но защита должна
-        // держаться независимо от причины рассинхрона).
-        let inflatedHoles = [WatchHole(number: 1, par: 4, distanceMeters: 300, myShots: 5)]
-        vm.apply(snapshot: makeSnapshot(roundId: "round-1", totalHoles: 1, holes: inflatedHoles, clubs: ["Driver"], activeHoleNumber: 1))
-        XCTAssertEqual(vm.unsyncedShots(forHole: 1), [], "формально ничего 'нового' с точки зрения confirmedCount")
+        vm.removeShot()
 
-        vm.addShot()  // второй тап — рассинхрон уже есть
-
-        XCTAssertNotNil(
-            queue.pending.first { $0.roundId == "round-1" && $0.holeNumber == 1 },
-            "addShot() не должен молча стереть существующий durable-хвост как побочный эффект рассинхрона"
-        )
-        XCTAssertEqual(queue.pending.first?.clubs, ["Driver"], "существующая запись сохранена как есть, а не заменена на []")
+        XCTAssertEqual(vm.shotCount, 3, "removeShot не может снять серверный удар с часов")
+        XCTAssertTrue(queue.pending.isEmpty)
     }
 }

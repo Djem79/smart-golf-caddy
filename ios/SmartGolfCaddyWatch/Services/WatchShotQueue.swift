@@ -8,6 +8,14 @@
 // подтвердит приём квитанцией (markConfirmed) — так удар не теряется, если
 // часы отправили батч и тут же перезапустились/потеряли связь.
 //
+// НЕТ понятия "confirmedCount" (было в Task 4 до живого ревью, удалено
+// целиком) — WatchRoundViewModel больше не пытается свести в одну границу
+// "сервер" и "часы": он читает snapshot.myShots и `pending` этого класса
+// как две отдельные, непересекающиеся по построению величины. Это durable-
+// хранилище отвечает ТОЛЬКО за сам хвост (`pending`/`enqueue`/
+// `markConfirmed`) и за монотонный `sequence`/`installId`, нужные для
+// идемпотентности доставки на телефон.
+//
 // import WatchConnectivity здесь ЗАПРЕЩЁН (см. CLAUDE.md) — канал передачи
 // инжектируется в flush(via:) closure'ом, реализация которого (PhoneBridge)
 // живёт в отдельном файле.
@@ -41,7 +49,6 @@ final class WatchShotQueue: @unchecked Sendable {
 
     static let shared = WatchShotQueue(
         storeURL: WatchShotQueue.defaultStoreURL(name: "watch-pending-shots-v1.json"),
-        confirmedStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-confirmed-counts-v1.json"),
         sequenceStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-sequence-v1.json"),
         installIdStoreURL: WatchShotQueue.defaultStoreURL(name: "watch-install-id-v1.txt")
     )
@@ -63,7 +70,6 @@ final class WatchShotQueue: @unchecked Sendable {
     static let inFlightTimeout: TimeInterval = 30
 
     private let storeURL: URL
-    private let confirmedStoreURL: URL
     private let sequenceStoreURL: URL
     private let installIdStoreURL: URL
     private let ioQueue = DispatchQueue(label: "sgc.watchshotqueue.io")
@@ -106,9 +112,8 @@ final class WatchShotQueue: @unchecked Sendable {
         }
     }
 
-    init(storeURL: URL, confirmedStoreURL: URL, sequenceStoreURL: URL, installIdStoreURL: URL) {
+    init(storeURL: URL, sequenceStoreURL: URL, installIdStoreURL: URL) {
         self.storeURL = storeURL
-        self.confirmedStoreURL = confirmedStoreURL
         self.sequenceStoreURL = sequenceStoreURL
         self.installIdStoreURL = installIdStoreURL
     }
@@ -151,78 +156,15 @@ final class WatchShotQueue: @unchecked Sendable {
         return result
     }
 
-    // MARK: хранилище — монотонный счётчик подтверждённых ударов (Fix 2)
-
-    /// Отдельный файл, отдельный от pending-хвостов: этот счётчик ТОЛЬКО
-    /// растёт (markConfirmed прибавляет к нему), пока pending-хвост
-    /// приходит и уходит. Источник истины для WatchRoundViewModel о том,
-    /// сколько ударов лунки телефон уже принял — см. живое ревью Task 4,
-    /// Fix 2: снимок с телефона (myShots) обновляется ТОЛЬКО когда там
-    /// открыт экран лунки; при закрытом телефоне (обычная игра с часов на
-    /// запястье) квитанция — единственный АКТУАЛЬНЫЙ сигнал.
-    private func loadConfirmedLocked() -> [String: Int] {
-        guard let data = try? Data(contentsOf: confirmedStoreURL) else { return [:] }
-        return (try? JSONDecoder().decode([String: Int].self, from: data)) ?? [:]
-    }
-
-    private func persistConfirmedLocked(_ map: [String: Int]) {
-        if let data = try? JSONEncoder().encode(map) {
-            try? data.write(to: confirmedStoreURL, options: .atomic)
-        }
-    }
-
-    /// Сколько ударов данной лунки телефон уже подтвердил — используется
-    /// WatchRoundViewModel как нижняя граница вместе со snapshot.myShots
-    /// (`max` двух источников, см. её confirmedCount). ВКЛЮЧАЕТ
-    /// seedConfirmedCountIfHigher-базу (см. ниже) — это НЕ просто сумма
-    /// одних markConfirmed-приращений с нуля.
-    func confirmedCount(roundId: String, holeNumber: Int) -> Int {
-        ioQueue.sync { loadConfirmedLocked()[slotKey(roundId, holeNumber)] ?? 0 }
-    }
-
-    /// Поднимает счётчик до `count`, если он сейчас ниже — НЕ прибавляет.
-    /// Вызывается WatchRoundViewModel.seedIfNeeded РОВНО ОДИН РАЗ на лунку
-    /// (тем же условием, что сеет плейсхолдеры) с snapshot.myShots этой
-    /// лунки НА МОМЕНТ первого появления. Без этой базы markConfirmed
-    /// прибавлял бы acceptedCount К НУЛЮ, а не к уже-подтверждённому
-    /// сервером количеству — confirmedCount(forHole:) занижался бы на
-    /// величину этой базы (см. живое ревью Task 4, Fix 2: тест
-    /// testConfirmedCountAdvancesFromReceiptEvenWithoutFreshSnapshot поймал
-    /// именно это на первой версии фикса). Монотонно — никогда не понижает.
-    func seedConfirmedCountIfHigher(roundId: String, holeNumber: Int, count: Int) {
-        guard count > 0 else { return }
-        ioQueue.sync {
-            let key = slotKey(roundId, holeNumber)
-            var confirmed = loadConfirmedLocked()
-            guard count > (confirmed[key] ?? 0) else { return }
-            confirmed[key] = count
-            persistConfirmedLocked(confirmed)
-        }
-    }
-
-    /// Стирает счётчики подтверждений УКАЗАННОГО раунда — вызывается
-    /// WatchRoundViewModel при смене раунда (та же ветка, что уже сбрасывает
-    /// shotsByHole). Корректность от этого не зависит — ключи уже несут
-    /// roundId, поэтому счётчики прошлого раунда физически не читаются в
-    /// контексте нового; это чисто гигиена, чтобы файл не рос бесконечно
-    /// за много раундов подряд.
-    func clearConfirmedCounts(roundId: String) {
-        ioQueue.sync {
-            let prefix = "\(roundId):"
-            let map = loadConfirmedLocked().filter { !$0.key.hasPrefix(prefix) }
-            persistConfirmedLocked(map)
-        }
-    }
-
     // MARK: хранилище — монотонный sequence на слот (Fix 5, живое ревью Task 4)
 
-    /// Ещё один отдельный файл: "последний присвоенный sequence" на слот.
-    /// НЕ совпадает с PendingWatchShot.sequence самого текущего хвоста —
-    /// этот счётчик переживает markConfirmed-очистку слота (иначе новый
-    /// enqueue после полной очистки начал бы нумерацию заново с 1,
-    /// что задом наперёд совпало бы с уже применённым на телефоне
-    /// sequence и заставило бы телефон молча ПРОПУСТИТЬ реально новый
-    /// удар как "уже применённый").
+    /// Отдельный файл: "последний присвоенный sequence" на слот. НЕ
+    /// совпадает с PendingWatchShot.sequence самого текущего хвоста — этот
+    /// счётчик переживает markConfirmed-очистку слота (иначе новый
+    /// enqueue после полной очистки начал бы нумерацию заново с 1, что
+    /// задом наперёд совпало бы с уже применённым на телефоне sequence и
+    /// заставило бы телефон молча ПРОПУСТИТЬ реально новый удар как "уже
+    /// применённый").
     private func loadSequencesLocked() -> [String: Int] {
         guard let data = try? Data(contentsOf: sequenceStoreURL) else { return [:] }
         return (try? JSONDecoder().decode([String: Int].self, from: data)) ?? [:]
@@ -246,8 +188,11 @@ final class WatchShotQueue: @unchecked Sendable {
         }
     }
 
-    /// Стирает счётчики sequence УКАЗАННОГО раунда — гигиена при смене
-    /// раунда, тем же обоснованием, что и clearConfirmedCounts.
+    /// Стирает счётчики sequence УКАЗАННОГО раунда — вызывается
+    /// WatchRoundViewModel при смене раунда. Корректность от этого не
+    /// зависит — ключи уже несут roundId, поэтому счётчики прошлого раунда
+    /// физически не читаются в контексте нового; это чисто гигиена, чтобы
+    /// файл не рос бесконечно за много раундов подряд.
     func clearSequences(roundId: String) {
         ioQueue.sync {
             let prefix = "\(roundId):"
@@ -258,20 +203,21 @@ final class WatchShotQueue: @unchecked Sendable {
 
     // MARK: публичный интерфейс — pending-хвосты
 
-    /// Все ожидающие подтверждения записи — источник для «не синхронизировано»
-    /// бейджа UI. Стабильный порядок (по номеру лунки) ради предсказуемых тестов.
+    /// Все ожидающие подтверждения записи — единственный источник истины
+    /// для WatchRoundViewModel.pendingClubs/unsyncedShots(forHole:) и для
+    /// «не синхронизировано» бейджа UI. Стабильный порядок (по номеру
+    /// лунки) ради предсказуемых тестов.
     var pending: [PendingWatchShot] {
         ioQueue.sync { loadLocked() }.values.sorted { $0.holeNumber < $1.holeNumber }
     }
 
-    /// Кладёт/перезаписывает хвост неподтверждённых ударов лунки. Вызывающая
-    /// сторона (WatchRoundViewModel.addShot/removeShot) обязана передавать
-    /// сюда ПОЛНЫЙ текущий unsyncedShots(forHole:) — заглушки seedIfNeeded
-    /// НИКОГДА не входят в этот хвост (см. комментарий у unsyncedShots в
-    /// WatchRoundViewModel), поэтому они физически не могут попасть сюда.
-    /// Слот "roundId:holeNumber" — last-write-wins: повторный enqueue той же
+    /// Кладёт/перезаписывает хвост неподтверждённых ударов лунки. Слот
+    /// "roundId:holeNumber" — last-write-wins: повторный enqueue той же
     /// лунки перезаписывает значение, а не накапливает историю, поэтому
-    /// повтор не плодит записи. Пустой хвост снимает слот целиком.
+    /// повтор не плодит записи. Пустой хвост снимает слот целиком —
+    /// вызывающая сторона (WatchRoundViewModel.removeShot) явно решает,
+    /// когда это уместно (addShot() всегда шлёт непустой хвост, снять
+    /// слот целиком отсюда не может).
     ///
     /// Каждый непустой вызов выделяет НОВЫЙ sequence (allocateSequence) —
     /// это единственное место, где sequence растёт. Флаш того же
@@ -291,19 +237,23 @@ final class WatchShotQueue: @unchecked Sendable {
 
     /// Квитанция с телефона (WatchShotReceiptEntry). `acceptedCount` —
     /// сколько клюшек ИЗ ТЕКУЩЕГО хвоста этого слота телефон только что
-    /// "закрыл" (см. `accepted` ниже для смысла этого закрытия).
+    /// "закрыл" (см. `accepted` ниже для смысла этого закрытия). Срезает
+    /// подтверждённый префикс из `pending` — это и есть механизм,
+    /// закрывающий "осознанный компромисс" WatchRoundViewModel (окно
+    /// временного завышения счёта между записью на сервере и приходом
+    /// квитанции): как только квитанция срезала хвост, myShots и pending
+    /// снова непересекающиеся.
     ///
-    /// `accepted: true` (дефолт) — реально записано на телефоне: срезаем
-    /// подтверждённый префикс (если пользователь успел добавить на часах
-    /// ещё ударов, пока квитанция была в пути, остаток остаётся в
-    /// очереди — уйдёт со следующим flush()) и продвигаем монотонный
-    /// confirmedCount на acceptedCount.
+    /// `accepted: true` (дефолт) — реально записано на телефоне. Если
+    /// пользователь успел добавить на часах ещё ударов, пока квитанция
+    /// была в пути, остаток остаётся в очереди — уйдёт со следующим
+    /// flush().
     ///
     /// `accepted: false` (Fix 3, живое ревью Task 4) — сервер ОКОНЧАТЕЛЬНО
     /// отклонил батч (повтор с тем же payload даст ту же ошибку) — тоже
-    /// продвигаем confirmedCount и срезаем хвост (ретраить бессмысленно,
-    /// а бесконечный "не синхронизировано" без объяснения — плохой UX),
-    /// но публикуем `.watchShotSyncFailed`, чтобы UI показал явную ошибку.
+    /// срезаем хвост (ретраить бессмысленно, а бесконечный "не
+    /// синхронизировано" без объяснения — плохой UX), но публикуем
+    /// `.watchShotSyncFailed`, чтобы UI показал явную ошибку.
     ///
     /// Снимает флаг "в пути" в любом случае, даже если сам слот уже был
     /// снят иначе (защита от утечки состояния throttle'а).
@@ -311,11 +261,6 @@ final class WatchShotQueue: @unchecked Sendable {
         let key = slotKey(roundId, holeNumber)
         ioQueue.sync { inFlightSince.removeValue(forKey: key) }
         if acceptedCount > 0 {
-            ioQueue.sync {
-                var confirmed = loadConfirmedLocked()
-                confirmed[key, default: 0] += acceptedCount
-                persistConfirmedLocked(confirmed)
-            }
             withMap { map in
                 guard let live = map[key] else { return }
                 if acceptedCount >= live.clubs.count {
@@ -326,13 +271,6 @@ final class WatchShotQueue: @unchecked Sendable {
                     map[key] = updated
                 }
             }
-            // confirmedCount продвинулся, но это отдельный файл от
-            // pending-хвостов — withMap выше постит уведомление, только
-            // если pending реально изменился (мог остаться прежним, если
-            // слота уже не было). Гарантируем уведомление в любом случае,
-            // иначе UI (pendingCount читает confirmedCount) не узнал бы о
-            // продвижении, когда pending-слот уже был снят раньше.
-            NotificationCenter.default.post(name: .watchShotQueueDidChange, object: nil)
         }
         if !accepted {
             NotificationCenter.default.post(

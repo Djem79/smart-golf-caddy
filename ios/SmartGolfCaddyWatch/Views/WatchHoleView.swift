@@ -71,10 +71,10 @@ struct WatchHoleView: View {
                     greenDistanceRow(greenDistanceLabel)
                 }
 
-                Text("\(viewModel.shots.count)")
+                Text("\(viewModel.shotCount)")
                     .font(DSFont.headlineLG)
                     .foregroundStyle(WatchColor.textPrimary)
-                    .accessibilityLabel("Ударов на лунке: \(viewModel.shots.count)")
+                    .accessibilityLabel("Ударов на лунке: \(viewModel.shotCount)")
 
                 shotButtonsRow
                 clubRow
@@ -167,7 +167,11 @@ struct WatchHoleView: View {
                     .foregroundStyle(WatchColor.textPrimary)
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.shots.isEmpty)
+            // Кнопка "-" снимает ТОЛЬКО ещё не подтверждённый (локальный)
+            // удар — серверный удар с часов не снять (см.
+            // WatchRoundViewModel.removeShot()), поэтому дизейблим, когда
+            // локального хвоста нет, а не когда счёт лунки равен нулю.
+            .disabled(viewModel.pendingClubs.isEmpty)
             .accessibilityLabel("Убрать удар")
 
             Button {
