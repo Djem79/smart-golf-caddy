@@ -47,7 +47,16 @@ final class WatchBridgeTests: XCTestCase {
         totalHoles: Int = 4,
         uid: String = "user-1",
         clubsForUser: [Int: [String]] = [:],
-        distancesForUser: [Int: [Int]] = [:]
+        distancesForUser: [Int: [Int]] = [:],
+        // Fix 12 (живое ревью Task 4): раньше всегда "active" — трасса
+        // "батч доехал ПОСЛЕ того, как телефон завершил раунд" не имела
+        // фикстуры вовсе. WatchBridge сам не читает status (решение —
+        // это сервер, .rejected приходит уже готовым исходом от
+        // shotRecorder), но параметр нужен, чтобы тест мог смоделировать
+        // раунд, каким его видит клиент В МОМЕНТ доставки запоздавшего
+        // батча — round.holes всё ещё валиден для baseState даже когда
+        // status уже "finished".
+        status: String = "active"
     ) -> Round {
         var holes: [[String: Any]] = []
         for n in 1...totalHoles {
@@ -63,7 +72,7 @@ final class WatchBridgeTests: XCTestCase {
         }
         return Round(id: "r1", data: [
             "courseId": "c", "courseName": "Test", "totalHoles": totalHoles,
-            "lobbyCode": "ABC234", "status": "active", "hostId": uid,
+            "lobbyCode": "ABC234", "status": status, "hostId": uid,
             "players": [uid: ["name": "A", "avatar": "", "totalScore": 0, "scoreDiff": 0]],
             "playerIds": [uid], "holes": holes,
             "startedAt": Date(), "createdAt": Date(),
@@ -158,6 +167,39 @@ final class WatchBridgeTests: XCTestCase {
         await bridge.applyBatch(makeBatch(holeNumber: 1, clubs: ["Driver"]))
         XCTAssertEqual(sentReceipt?.entries.first?.accepted, false)
         XCTAssertEqual(sentReceipt?.entries.first?.acceptedCount, 1, "часы всё равно снимают слот целиком — ретраить бессмысленно")
+    }
+
+    /// Fix 12 (живое ревью Task 4) — трасса: удар записан на часах на
+    /// последней лунке, батч не долетел (часы вне связи), игрок жмёт
+    /// "Завершить раунд" на телефоне (status: active → finished), связь
+    /// восстанавливается, батч доезжает ПОСЛЕ. Сервер отвергает recordShot
+    /// для неактивного раунда (functions/src/index.ts:273,
+    /// failed-precondition → ShotQueue.isPermanent → .rejected) — здесь
+    /// это смоделировано инжектированным shotRecorder. WatchBridge не
+    /// делает НИЧЕГО особенного для finished-раунда (нет своей проверки
+    /// status — раунд читается только ради baseState), поэтому путь
+    /// идентичен обычному .rejected: квитанция accepted: false всё равно
+    /// уходит. Слот срезается ею на часах (WatchShotQueueTests.
+    /// testRejectedReceiptClearsSlotLikeAccepted), а доставка сигнала
+    /// игроку (а не тихая фильтрация по устаревшему roundId) проверяется
+    /// отдельно в WatchRootViewTests — этот тест закрывает только
+    /// половину трассы, принадлежащую телефону/серверной границе.
+    func testFinishedRoundRejectionStillProducesUnacceptedReceipt() async {
+        var sentReceipt: WatchShotReceipt?
+        let bridge = WatchBridge(
+            currentUserIdProvider: { "user-1" },
+            roundProvider: { _ in self.makeRound(status: "finished") },
+            pendingShotProvider: { _, _, _ in nil },
+            shotRecorder: { _, _, _, _, _ in .rejected(NSError(domain: "test", code: 1)) },
+            receiptSender: { sentReceipt = $0 },
+            lastAppliedSequenceProvider: noOpLastApplied,
+            sequenceRecorder: noOpSequenceRecorder
+        )
+        await bridge.applyBatch(makeBatch(holeNumber: 4, clubs: ["Putter"]))
+        XCTAssertEqual(sentReceipt?.roundId, "r1")
+        XCTAssertEqual(sentReceipt?.entries.first?.holeNumber, 4)
+        XCTAssertEqual(sentReceipt?.entries.first?.accepted, false, "раунд уже finished — сервер отверг запись, квитанция обязана отразить это, а не молчать")
+        XCTAssertEqual(sentReceipt?.entries.first?.acceptedCount, 1, "срез слота на часах не зависит от status — иначе слот завис бы навсегда")
     }
 
     func testAcceptedOutcomesSendAcceptedReceipt() async {
