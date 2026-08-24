@@ -26,6 +26,17 @@ final class WatchLocationService: NSObject, CLLocationManagerDelegate, @unchecke
     /// Последний известный фикс. Публикуется ТОЛЬКО на main (см.
     /// locationManager(_:didUpdateLocations:)) — @Observable ожидает
     /// изменения на main, как и обновления PhoneBridge.latestSnapshot.
+    ///
+    /// ВАЖНО: в отличие от `GeolocationService.lastFix` на телефоне (там
+    /// запись/чтение серилизованы через `fixQueue` — читатели включают
+    /// `ShotRangefinder` со своего IO-потока), здесь никакой очереди-стража
+    /// нет. Это безопасно СЕЙЧАС ТОЛЬКО потому, что единственный читатель —
+    /// `WatchHoleView`/`WatchRoundViewModel.currentFix`, и оба живут на
+    /// main (@Observable/@MainActor). Если когда-нибудь появится читатель
+    /// с фонового потока (например, будущая часовая очередь-по-аналогии с
+    /// `fixQueue`), эта прямая запись без синхронизации станет гонкой —
+    /// её нужно будет завести по образцу телефонной реализации, а не
+    /// оставлять молча.
     private(set) var lastFix: GeoFix?
 
     override private init() {

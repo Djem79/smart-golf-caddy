@@ -240,33 +240,21 @@ final class WatchRoundViewModel {
     var currentFix: GeoFix?
 
     /// Дистанция до грина ТЕКУЩЕЙ лунки, метры. Гейты — ТЕ ЖЕ, что у
-    /// дальномера телефона (ShotRangefinder.isUsable): точность фикса
-    /// ≤25 м, возраст ≤90 с. Константы продублированы (isFixUsable ниже),
-    /// а не импортированы из ShotRangefinder — Services/ не подключён в
-    /// watch target (см. project.yml sources); при правке гейтов на
-    /// телефоне синхронизировать значения здесь.
+    /// дальномера телефона: `GeoGates` в Models/Geo.swift, единое место
+    /// для обеих платформ (Models/ подключён ссылкой в watch target, в
+    /// отличие от Services/ — см. project.yml sources).
     ///
     /// nil = недостоверно («—» в UI, а НЕ 0 и НЕ устаревшее значение) — при
     /// негодном фиксе, отсутствии метки грина для лунки в снимке ИЛИ
-    /// дистанции за пределами разумного (>800 м — чужое поле или мусорная
-    /// метка, тот же клэмп, что и в HoleTrackerViewModel.applyGreenMarks на
+    /// дистанции за пределами разумного (см. GeoGates.clampGreenDistance —
+    /// тот же клэмп, что и в HoleTrackerViewModel.applyGreenMarks на
     /// телефоне). Вычисляется заново при каждом обращении (не кэшируется) —
     /// так смена лунки или новый фикс подхватываются автоматически.
     var greenDistanceMeters: Int? {
-        guard let fix = currentFix, Self.isFixUsable(fix) else { return nil }
+        guard let fix = currentFix, GeoGates.isUsable(fix) else { return nil }
         guard let green = snapshot?.greens[holeNumber] else { return nil }
         let meters = Greens.distanceMeters(from: fix, to: green)
-        return (0...800).contains(meters) ? meters : nil
-    }
-
-    private enum FixGate {
-        static let accuracyLimitMeters = 25.0
-        static let maxAgeSeconds: TimeInterval = 90
-    }
-
-    private static func isFixUsable(_ fix: GeoFix) -> Bool {
-        guard Date().timeIntervalSince(fix.timestamp) <= FixGate.maxAgeSeconds else { return false }
-        return fix.accuracy > 0 && fix.accuracy <= FixGate.accuracyLimitMeters
+        return GeoGates.clampGreenDistance(meters)
     }
 
     // MARK: - Private

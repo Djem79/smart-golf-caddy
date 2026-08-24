@@ -184,9 +184,9 @@ final class HoleTrackerViewModel {
             greenDistanceMeters = nil
             return
         }
-        // Больше 800 м до грина не бывает: это чужое поле или мусорная метка.
+        // Клэмп и верхняя граница — GeoGates.maxGreenDistanceMeters (Models/Geo.swift).
         let meters = Greens.distanceMeters(from: fix, to: average)
-        greenDistanceMeters = (0...800).contains(meters) ? meters : nil
+        greenDistanceMeters = GeoGates.clampGreenDistance(meters)
     }
 
     /// Поставить метку грина текущей лункой по текущему GPS-фиксу. Метка —
