@@ -7,6 +7,15 @@
 // приёмник отбрасывает payload другой версии, а не пытается угадать схему.
 import Foundation
 
+// updateApplicationContext/transferUserInfo гоняют payload через
+// property-list/XPC — по ту сторону числа приходят как NSNumber, поэтому
+// строгий `as? Int`/`as? Double` может дать nil даже для валидных данных
+// (см. канон паттерна: Club.swift:29, GreenMarks.swift:24-25, Round.swift
+// HoleConfig). `as? NSNumber` бриджит и нативные Swift Int/Double/Bool
+// (round-trip в одном процессе, как в тестах), и настоящий NSNumber из XPC.
+private func watchIntValue(_ any: Any?) -> Int? { (any as? NSNumber)?.intValue }
+private func watchDoubleValue(_ any: Any?) -> Double? { (any as? NSNumber)?.doubleValue }
+
 /// Одна лунка в снимке раунда, отправляемом на часы.
 struct WatchHole: Equatable {
     let number: Int
@@ -26,10 +35,10 @@ struct WatchHole: Equatable {
     }
 
     init?(payload: [String: Any]) {
-        guard let number = payload["number"] as? Int,
-              let par = payload["par"] as? Int,
-              let distanceMeters = payload["distanceMeters"] as? Int,
-              let myShots = payload["myShots"] as? Int else { return nil }
+        guard let number = watchIntValue(payload["number"]),
+              let par = watchIntValue(payload["par"]),
+              let distanceMeters = watchIntValue(payload["distanceMeters"]),
+              let myShots = watchIntValue(payload["myShots"]) else { return nil }
         self.number = number
         self.par = par
         self.distanceMeters = distanceMeters
@@ -47,7 +56,7 @@ struct WatchRoundSnapshot: Equatable {
     let clubs: [String]
     let greens: [Int: GreenMark]
     let activeHoleNumber: Int
-    let unitsYards: Bool
+    let units: DistanceUnit
     let updatedAt: Date
 
     init(
@@ -58,7 +67,7 @@ struct WatchRoundSnapshot: Equatable {
         clubs: [String],
         greens: [Int: GreenMark],
         activeHoleNumber: Int,
-        unitsYards: Bool,
+        units: DistanceUnit,
         updatedAt: Date
     ) {
         self.roundId = roundId
@@ -68,7 +77,7 @@ struct WatchRoundSnapshot: Equatable {
         self.clubs = clubs
         self.greens = greens
         self.activeHoleNumber = activeHoleNumber
-        self.unitsYards = unitsYards
+        self.units = units
         self.updatedAt = updatedAt
     }
 
@@ -86,29 +95,35 @@ struct WatchRoundSnapshot: Equatable {
             "clubs": clubs,
             "greens": greensPayload,
             "activeHoleNumber": activeHoleNumber,
-            "unitsYards": unitsYards,
+            "units": units.rawValue,
             "updatedAt": updatedAt.timeIntervalSince1970,
         ]
     }
 
     init?(payload: [String: Any]) {
-        guard let version = payload["v"] as? Int, version == 1,
+        guard let version = watchIntValue(payload["v"]), version == 1,
               let roundId = payload["roundId"] as? String,
               let courseName = payload["courseName"] as? String,
-              let totalHoles = payload["totalHoles"] as? Int,
+              let totalHoles = watchIntValue(payload["totalHoles"]),
               let rawHoles = payload["holes"] as? [[String: Any]],
               let clubs = payload["clubs"] as? [String],
-              let rawGreens = payload["greens"] as? [String: [String: Double]],
-              let activeHoleNumber = payload["activeHoleNumber"] as? Int,
-              let unitsYards = payload["unitsYards"] as? Bool,
-              let updatedAtInterval = payload["updatedAt"] as? TimeInterval else { return nil }
+              let rawGreens = payload["greens"] as? [String: Any],
+              let activeHoleNumber = watchIntValue(payload["activeHoleNumber"]),
+              let unitsRaw = payload["units"] as? String,
+              let units = DistanceUnit(rawValue: unitsRaw),
+              let updatedAtInterval = watchDoubleValue(payload["updatedAt"]) else { return nil }
 
         let holes = rawHoles.compactMap(WatchHole.init(payload:))
         guard holes.count == rawHoles.count else { return nil }
 
+        // Одна битая метка грина не должна убивать весь снимок — пропускаем
+        // только её, а не проваливаем декодирование целиком.
         var greens: [Int: GreenMark] = [:]
         for (key, value) in rawGreens {
-            guard let hole = Int(key), let lat = value["lat"], let lng = value["lng"] else { return nil }
+            guard let hole = Int(key),
+                  let markDict = value as? [String: Any],
+                  let lat = watchDoubleValue(markDict["lat"]),
+                  let lng = watchDoubleValue(markDict["lng"]) else { continue }
             greens[hole] = GreenMark(lat: lat, lng: lng)
         }
 
@@ -119,7 +134,7 @@ struct WatchRoundSnapshot: Equatable {
         self.clubs = clubs
         self.greens = greens
         self.activeHoleNumber = activeHoleNumber
-        self.unitsYards = unitsYards
+        self.units = units
         self.updatedAt = Date(timeIntervalSince1970: updatedAtInterval)
     }
 }
@@ -141,9 +156,9 @@ struct WatchShotEntry: Equatable {
     }
 
     init?(payload: [String: Any]) {
-        guard let holeNumber = payload["holeNumber"] as? Int,
+        guard let holeNumber = watchIntValue(payload["holeNumber"]),
               let clubs = payload["clubs"] as? [String],
-              let recordedAtInterval = payload["recordedAt"] as? TimeInterval else { return nil }
+              let recordedAtInterval = watchDoubleValue(payload["recordedAt"]) else { return nil }
         self.holeNumber = holeNumber
         self.clubs = clubs
         self.recordedAt = Date(timeIntervalSince1970: recordedAtInterval)
@@ -166,7 +181,7 @@ struct WatchShotBatch: Equatable {
     }
 
     init?(payload: [String: Any]) {
-        guard let version = payload["v"] as? Int, version == 1,
+        guard let version = watchIntValue(payload["v"]), version == 1,
               let roundId = payload["roundId"] as? String,
               let rawEntries = payload["entries"] as? [[String: Any]] else { return nil }
 

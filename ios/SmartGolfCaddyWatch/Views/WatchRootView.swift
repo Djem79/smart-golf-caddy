@@ -79,7 +79,7 @@ struct WatchRootView: View {
         clubs: ["Driver", "3 Wood", "5 Iron", "7 Iron", "PW", "Putter"],
         greens: [:],
         activeHoleNumber: 3,
-        unitsYards: false,
+        units: .m,
         updatedAt: Date()
     )
     #endif

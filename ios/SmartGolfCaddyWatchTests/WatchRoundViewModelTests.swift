@@ -24,7 +24,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             clubs: clubs,
             greens: [:],
             activeHoleNumber: activeHoleNumber,
-            unitsYards: false,
+            units: .m,
             updatedAt: Date()
         )
     }

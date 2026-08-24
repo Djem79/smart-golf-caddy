@@ -35,16 +35,20 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         } catch {
             // Не бросаем дальше — отсутствие связи с часами не должно ронять
             // экран лунки на телефоне.
+            #if DEBUG
             print("WatchBridge: не удалось отправить снимок раунда: \(error)")
+            #endif
         }
     }
 
     // MARK: - WCSessionDelegate
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        #if DEBUG
         if let error {
             print("WatchBridge: ошибка активации сессии: \(error)")
         }
+        #endif
     }
 
     func sessionDidBecomeInactive(_ session: WCSession) {
@@ -59,7 +63,12 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard let batch = WatchShotBatch(payload: userInfo) else { return }
+        guard let batch = WatchShotBatch(payload: userInfo) else {
+            #if DEBUG
+            print("WatchBridge: не удалось разобрать пакет ударов от часов: \(userInfo)")
+            #endif
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             self?.onShotBatch?(batch)
         }

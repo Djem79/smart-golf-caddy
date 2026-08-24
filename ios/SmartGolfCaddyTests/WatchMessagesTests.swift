@@ -20,7 +20,7 @@ final class WatchMessagesTests: XCTestCase {
             clubs: ["driver", "7-iron", "putter"],
             greens: [1: GreenMark(lat: 55.700, lng: 37.400), 2: GreenMark(lat: 55.701, lng: 37.401)],
             activeHoleNumber: 2,
-            unitsYards: false,
+            units: .m,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
     }
@@ -67,12 +67,60 @@ final class WatchMessagesTests: XCTestCase {
         XCTAssertNil(WatchRoundSnapshot(payload: ["garbage": "value"]))
     }
 
-    func testSnapshotToleratesMissingGreens() throws {
-        // greens может отсутствовать для лунок без меток — не должно валить init.
+    func testSnapshotToleratesEmptyGreensDict() throws {
+        // Пустой словарь greens (лунки без меток) — не должно валить init.
         var payload = makeSnapshot().payload
         payload["greens"] = [String: [String: Double]]()
         let restored = try XCTUnwrap(WatchRoundSnapshot(payload: payload))
         XCTAssertTrue(restored.greens.isEmpty)
+    }
+
+    func testSnapshotDropsMalformedGreenMarkButKeepsRest() throws {
+        // Одна битая метка грина (нечисловой lat) не должна валить весь
+        // снимок — остальные метки декодируются как обычно.
+        var payload = makeSnapshot().payload
+        let greens = payload["greens"] as! [String: [String: Double]]
+        var greensAny: [String: Any] = greens.mapValues { $0 as Any }
+        greensAny["3"] = ["lat": "not-a-number", "lng": 37.4] as [String: Any]
+        payload["greens"] = greensAny
+
+        let restored = try XCTUnwrap(WatchRoundSnapshot(payload: payload))
+        XCTAssertEqual(restored.greens.count, 2)
+        XCTAssertNil(restored.greens[3])
+        XCTAssertEqual(restored.greens[1], GreenMark(lat: 55.700, lng: 37.400))
+    }
+
+    func testSnapshotRoundTripsIntFieldsEncodedAsNSNumber() throws {
+        // updateApplicationContext/transferUserInfo гоняют payload через
+        // property-list/XPC: числа приходят как NSNumber, и его внутренний
+        // числовой тип не обязан совпадать с исходным Int — round-trip в
+        // одном процессе (Int остаётся Int) этот случай не ловит, поэтому
+        // подставляем double-backed NSNumber туда, где ждём Int.
+        var payload = makeSnapshot().payload
+        payload["v"] = NSNumber(value: 1.0)
+        payload["totalHoles"] = NSNumber(value: 18.0)
+        payload["activeHoleNumber"] = NSNumber(value: 2.0)
+        let holes = (payload["holes"] as! [[String: Any]]).map { hole -> [String: Any] in
+            var h = hole
+            h["number"] = NSNumber(value: Double(h["number"] as! Int))
+            h["par"] = NSNumber(value: Double(h["par"] as! Int))
+            h["distanceMeters"] = NSNumber(value: Double(h["distanceMeters"] as! Int))
+            h["myShots"] = NSNumber(value: Double(h["myShots"] as! Int))
+            return h
+        }
+        payload["holes"] = holes
+
+        let restored = try XCTUnwrap(WatchRoundSnapshot(payload: payload))
+        XCTAssertEqual(restored, makeSnapshot())
+    }
+
+    func testSnapshotRoundTripsDoubleFieldsEncodedAsIntBackedNSNumber() throws {
+        // Обратный случай: updatedAt/lat/lng ждём как Double, а через XPC
+        // может прийти int-backed NSNumber (например, целая секунда).
+        var payload = makeSnapshot().payload
+        payload["updatedAt"] = NSNumber(value: Int(1_700_000_000))
+        let restored = try XCTUnwrap(WatchRoundSnapshot(payload: payload))
+        XCTAssertEqual(restored.updatedAt, Date(timeIntervalSince1970: 1_700_000_000))
     }
 
     // MARK: - WatchShotBatch
@@ -123,10 +171,26 @@ final class WatchMessagesTests: XCTestCase {
         XCTAssertNil(WatchShotBatch(payload: ["garbage": "value"]))
     }
 
-    func testBatchTogglesEmptyEntries() throws {
+    func testBatchAcceptsEmptyEntries() throws {
         var payload = makeBatch().payload
         payload["entries"] = [[String: Any]]()
         let restored = try XCTUnwrap(WatchShotBatch(payload: payload))
         XCTAssertTrue(restored.entries.isEmpty)
+    }
+
+    func testBatchRoundTripsFieldsEncodedAsNSNumber() throws {
+        var payload = makeBatch().payload
+        payload["v"] = NSNumber(value: 1.0)
+        let entries = (payload["entries"] as! [[String: Any]]).map { entry -> [String: Any] in
+            var e = entry
+            e["holeNumber"] = NSNumber(value: Double(e["holeNumber"] as! Int))
+            e["recordedAt"] = NSNumber(value: Int((e["recordedAt"] as! TimeInterval)))
+            return e
+        }
+        payload["entries"] = entries
+
+        let restored = try XCTUnwrap(WatchShotBatch(payload: payload))
+        XCTAssertEqual(restored.entries.map(\.holeNumber), [1, 2])
+        XCTAssertEqual(restored.entries.map(\.recordedAt), makeBatch().entries.map(\.recordedAt))
     }
 }

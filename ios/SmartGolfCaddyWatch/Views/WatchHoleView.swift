@@ -22,7 +22,7 @@ struct WatchHoleView: View {
 
     private var distanceLabel: String? {
         guard let hole = viewModel.currentHole, hole.distanceMeters > 0 else { return nil }
-        let unitsYards = viewModel.snapshot?.unitsYards ?? false
+        let unitsYards = viewModel.snapshot?.units == .yd
         let value = unitsYards ? Score.metersToYards(hole.distanceMeters) : hole.distanceMeters
         return "\(value) \(unitsYards ? "ярд" : "м")"
     }
@@ -186,7 +186,7 @@ struct WatchHoleView: View {
         clubs: ["Driver", "7 Iron", "Putter"],
         greens: [:],
         activeHoleNumber: 3,
-        unitsYards: false,
+        units: .m,
         updatedAt: Date()
     )
     return NavigationStack {

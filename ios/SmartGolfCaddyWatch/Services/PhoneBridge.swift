@@ -38,10 +38,16 @@ final class PhoneBridge: NSObject, WCSessionDelegate {
 
     // MARK: - WCSessionDelegate
 
+    // `self` внутри nonisolated-делегатного метода actor-isolated класса не
+    // даёт прямого доступа к @MainActor-свойствам без хопа, поэтому пишем
+    // через PhoneBridge.shared — тот же единственный экземпляр (private
+    // init, синглтон), просто адресуемся к нему через MainActor-контекст.
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        #if DEBUG
         if let error {
             print("PhoneBridge: ошибка активации сессии: \(error)")
         }
+        #endif
         let reachable = session.isReachable
         Task { @MainActor in
             PhoneBridge.shared.isReachable = reachable
@@ -56,7 +62,12 @@ final class PhoneBridge: NSObject, WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        guard let snapshot = WatchRoundSnapshot(payload: applicationContext) else { return }
+        guard let snapshot = WatchRoundSnapshot(payload: applicationContext) else {
+            #if DEBUG
+            print("PhoneBridge: не удалось разобрать снимок раунда: \(applicationContext)")
+            #endif
+            return
+        }
         Task { @MainActor in
             PhoneBridge.shared.latestSnapshot = snapshot
         }
