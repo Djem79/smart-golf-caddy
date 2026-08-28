@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(SessionViewModel.self) private var session
     @State private var model = ProfileViewModel()
+    @State private var accountModel = AccountViewModel()
 
     private var currentUserId: String? { AuthService.currentUserId }
     private var bag: [BagClub] { session.profile?.resolvedBag ?? Clubs.defaultBag }
@@ -22,6 +23,7 @@ struct ProfileView: View {
                 DSButton(title: "Выйти из аккаунта", style: .secondary) {
                     session.signOut()
                 }
+                dangerZone
             }
             .padding(DS.screenPadding)
         }
@@ -34,6 +36,50 @@ struct ProfileView: View {
         .refreshable {
             if let uid = currentUserId { await model.load(userId: uid) }
         }
+        .confirmationDialog(
+            "Удалить аккаунт?", isPresented: $accountModel.showDeleteConfirm, titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                Task {
+                    if await accountModel.confirmDelete() {
+                        session.signOut()
+                    }
+                }
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("""
+            Профиль, статистика и метки гринов удаляются навсегда. Ваши \
+            соло-раунды будут удалены. В совместных раундах вместо вашего \
+            имени останется «Удалённый игрок» — счёт партнёров не \
+            пострадает. Это действие необратимо.
+            """)
+        }
+    }
+
+    // Визуально отделена от остального профиля (App Store 5.1.1(v) — кнопка
+    // удаления аккаунта должна легко находиться, не быть закопана).
+    private var dangerZone: some View {
+        VStack(spacing: 12) {
+            Rectangle()
+                .fill(DSColor.outlineVariant.opacity(0.3))
+                .frame(height: 1)
+            if let error = accountModel.deleteError {
+                Text(error)
+                    .font(DSFont.labelLG)
+                    .foregroundStyle(DSColor.error)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
+            DSButton(
+                title: "Удалить аккаунт", icon: "trash", style: .destructive,
+                disabled: accountModel.deletingAccount
+            ) {
+                accountModel.deleteError = nil
+                accountModel.showDeleteConfirm = true
+            }
+        }
+        .padding(.top, 4)
     }
 
     private var statsIfPlayed: PlayerStats? {
