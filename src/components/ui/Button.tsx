@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost'
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   icon?: LucideIcon
   iconRight?: LucideIcon
 }
@@ -28,6 +28,12 @@ export function Button({
       'border border-outline-variant text-on-surface bg-surface-container-lowest ' +
       'hover:bg-surface-container-low',
     ghost: 'text-primary underline-offset-4 hover:underline',
+    // Destructive actions (delete account, etc). Outlined rather than
+    // filled — matches `secondary`'s weight so it doesn't compete with the
+    // primary CTA on a screen, but reads unmistakably as "dangerous".
+    danger:
+      'border border-error/40 text-error bg-surface-container-lowest ' +
+      'hover:bg-error-container/30',
   }
   return (
     <button className={`${base} ${variants[variant]} ${className}`} {...props}>

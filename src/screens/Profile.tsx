@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Briefcase, ChevronRight } from 'lucide-react'
+import { Briefcase, ChevronRight, Trash2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { signOut } from '../services/auth'
 import { getUserRounds } from '../services/rounds'
+import { deleteAccount } from '../services/account'
 import { computeClubUsage, computePlayerStats, computeHandicap } from '../services/scoring'
 import { getBagFromUser, getClubLabel, scoreColor } from '../types'
 import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Avatar } from '../components/ui/Avatar'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
 import { pluralRu } from '../utils/intl'
@@ -23,6 +25,9 @@ export function Profile() {
   const [rounds, setRounds] = useState<Round[]>([])
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const bag = useMemo(() => getBagFromUser(profile), [profile])
 
@@ -59,6 +64,28 @@ export function Profile() {
       navigate('/auth', { replace: true })
     } catch {
       setSigningOut(false)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeletingAccount(true)
+    setDeleteError(null)
+    try {
+      // Server deletes the Firestore profile/data first, Firebase Auth
+      // record last (see functions/src/index.ts:deleteAccount). Sign out
+      // immediately on success so the profile subscription tears down
+      // before the now-invalid session could surface a stray
+      // permission-denied from a live Firestore listener.
+      await deleteAccount()
+      setShowDeleteConfirm(false)
+      await signOut()
+      navigate('/auth', { replace: true })
+    } catch {
+      // Deletion may have failed partway — never sign the user out on
+      // error, they may still need to retry.
+      setShowDeleteConfirm(false)
+      setDeletingAccount(false)
+      setDeleteError('Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз.')
     }
   }
 
@@ -253,9 +280,36 @@ export function Profile() {
         <Button variant="secondary" onClick={handleSignOut} disabled={signingOut}>
           {signingOut ? 'Выходим...' : 'Выйти из аккаунта'}
         </Button>
+
+        <div className="pt-2 space-y-2 border-t border-outline-variant/30">
+          {deleteError && (
+            <p className="text-label-lg text-error text-center">{deleteError}</p>
+          )}
+          <Button
+            variant="danger"
+            icon={Trash2}
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deletingAccount}
+            className="mt-3"
+          >
+            Удалить аккаунт
+          </Button>
+        </div>
       </div>
 
       <BottomNav />
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Удалить аккаунт?"
+        body="Профиль, статистика и метки гринов удаляются навсегда. Ваши соло-раунды будут удалены. В совместных раундах вместо вашего имени останется «Удалённый игрок» — счёт партнёров не пострадает. Это действие необратимо."
+        confirmLabel="Удалить"
+        cancelLabel="Отмена"
+        destructive
+        loading={deletingAccount}
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }
