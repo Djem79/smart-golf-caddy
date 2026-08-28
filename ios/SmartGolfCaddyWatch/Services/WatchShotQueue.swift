@@ -259,7 +259,7 @@ final class WatchShotQueue: @unchecked Sendable {
     /// снят иначе (защита от утечки состояния throttle'а).
     func markConfirmed(roundId: String, holeNumber: Int, acceptedCount: Int, accepted: Bool = true) {
         let key = slotKey(roundId, holeNumber)
-        ioQueue.sync { inFlightSince.removeValue(forKey: key) }
+        ioQueue.sync { _ = inFlightSince.removeValue(forKey: key) }
         if acceptedCount > 0 {
             withMap { map in
                 guard let live = map[key] else { return }
