@@ -90,3 +90,14 @@ export const ShareInput = z.object({
     .refine(s => EMAIL_RE.test(s), { message: 'Некорректный email' }),
 })
 export type ShareInput = z.infer<typeof ShareInput>
+
+// --- deleteAccount ---
+//
+// Payload is intentionally empty — the uid to delete is always
+// `request.auth.uid`, never client-supplied (a user may delete only
+// themselves). Schema exists for uniformity with the other callables and
+// as a place to add fields later (e.g. a confirmation string) without
+// touching the call site. `.strict()` rejects unexpected keys instead of
+// silently ignoring them.
+export const DeleteAccountInput = z.object({}).strict()
+export type DeleteAccountInput = z.infer<typeof DeleteAccountInput>

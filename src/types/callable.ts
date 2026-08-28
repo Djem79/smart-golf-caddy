@@ -56,3 +56,12 @@ export interface ShareInput {
 export interface ShareResult {
   ok: boolean
 }
+
+// deleteAccount — payload is empty; uid comes from the verified auth token
+// server-side, never from the client. `Record<string, never>` (rather than
+// an empty interface) so `{}` is a valid value without tripping
+// no-empty-interface lint rules.
+export type DeleteAccountInput = Record<string, never>
+export interface DeleteAccountResult {
+  ok: boolean
+}

@@ -38,6 +38,10 @@ struct ShareInput: Encodable {
     let toEmail: String
 }
 
+// Пустой payload: uid берётся сервером из проверенного auth-токена,
+// никогда из клиента — пользователь может удалить только себя.
+struct DeleteAccountInput: Encodable {}
+
 // Encodable → [String: Any] для Functions SDK (nil-поля выпадают сами).
 func callableDict<T: Encodable>(_ value: T) throws -> [String: Any] {
     let data = try JSONEncoder().encode(value)

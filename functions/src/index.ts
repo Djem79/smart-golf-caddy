@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+import type { Firestore, WriteBatch } from 'firebase-admin/firestore'
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
@@ -17,6 +18,7 @@ import {
   UpdateHoleConfigInput,
   JoinLobbyInput,
   ShareInput,
+  DeleteAccountInput,
 } from './contracts'
 
 // Run a Zod schema against an unknown callable payload. On failure we throw
@@ -527,6 +529,127 @@ export const shareRoundByEmail = onCall(
     if (!result.ok) {
       throw new HttpsError('internal', result.reason ?? 'Не удалось отправить письмо')
     }
+    return { ok: true }
+  },
+)
+
+// 5. Delete account — App Store Guideline 5.1.1(v) requires an in-app path
+//    to delete the account and its data. `uid` is taken ONLY from the
+//    verified auth token, never from the payload, so a caller can delete
+//    only themselves.
+//
+// Firestore batched writes cap at 500 operations per commit. Account
+// deletion can touch an unbounded number of rounds/greenMarks docs, so
+// operations are queued as closures and flushed in chunks instead of
+// building one oversized batch.
+const BATCH_LIMIT = 500
+
+async function commitInBatches(db: Firestore, ops: ((batch: WriteBatch) => void)[]): Promise<void> {
+  for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
+    const batch = db.batch()
+    for (const op of ops.slice(i, i + BATCH_LIMIT)) op(batch)
+    await batch.commit()
+  }
+}
+
+export const deleteAccount = onCall(
+  { region: 'us-central1', enforceAppCheck: true },
+  async request => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Требуется вход')
+    // Payload is empty by contract — parsed only to reject unexpected keys
+    // and to keep the request shape validated the same way as every other
+    // callable. request.data is `null` when the client omits the argument
+    // entirely, so it's coalesced to `{}` before validation.
+    parseInput(DeleteAccountInput, request.data ?? {})
+
+    const uid = request.auth.uid
+    const db = getFirestore()
+    const ops: ((batch: WriteBatch) => void)[] = []
+
+    // 1. users/{uid} — profile. delete() on a missing doc is a no-op, which
+    //    is what makes a retry after a partial failure safe.
+    ops.push(batch => batch.delete(db.doc(`users/${uid}`)))
+
+    // 2. userQuota/{uid} — daily quota counters.
+    ops.push(batch => batch.delete(db.doc(`userQuota/${uid}`)))
+
+    // 3. courses/*/greenMarks/{uid} — green marks are keyed by uid under
+    //    every course. `courses/{courseKey}` parent docs are never actually
+    //    created (GreensService writes straight to the greenMarks
+    //    subcollection path), so there is no top-level `courses` collection
+    //    to enumerate and iterate. A collectionGroup('greenMarks') scan is
+    //    used instead and filtered by document id in code. This needs no
+    //    Firestore index: a bare collection-group query with no additional
+    //    filter/orderBy is covered by Firestore's automatic collection-group
+    //    index — composite indexes are only required when combining several
+    //    filters, which this doesn't. The tradeoff is a full scan of every
+    //    user's green marks on every deletion; acceptable at current scale,
+    //    worth revisiting (e.g. a reverse users/{uid}/greenMarkRefs index)
+    //    if the greenMarks collection grows large.
+    const greenMarksSnap = await db.collectionGroup('greenMarks').get()
+    const greenMarkDocs = greenMarksSnap.docs.filter(d => d.id === uid)
+    for (const d of greenMarkDocs) ops.push(batch => batch.delete(d.ref))
+
+    // 4. Rounds the user participates in. Solo rounds (playerIds === [uid])
+    //    are deleted outright; group rounds are anonymised in-place —
+    //    playerIds, holes and scores stay untouched so teammates' scorecard
+    //    and match result are unaffected, only the departing player's
+    //    display identity is scrubbed.
+    const roundsSnap = await db.collection('rounds').where('playerIds', 'array-contains', uid).get()
+    let roundsDeleted = 0
+    let roundsAnonymized = 0
+    for (const doc of roundsSnap.docs) {
+      const data = doc.data() as { playerIds?: string[]; hostId?: string; status?: string }
+      const playerIds = data.playerIds ?? []
+      if (playerIds.length === 1 && playerIds[0] === uid) {
+        ops.push(batch => batch.delete(doc.ref))
+        roundsDeleted++
+        continue
+      }
+      const patch: Record<string, unknown> = {
+        [`players.${uid}.name`]: 'Удалённый игрок',
+        [`players.${uid}.avatar`]: '',
+        [`players.${uid}.email`]: FieldValue.delete(),
+      }
+      // The departing user was hosting an unfinished group round — nobody
+      // else can START/FINISH it (both are host-only actions) once the host
+      // is gone, so teammates would be stuck in the lobby or mid-round
+      // forever. Force-finish it instead so GroupLobby/HoleTracker's
+      // existing 'finished' → RoundResults navigation gets them out. Scores
+      // recorded so far stand as final; this only affects rounds where the
+      // deleted user happened to be host, not every round they played in.
+      if (data.hostId === uid && data.status !== 'finished') {
+        patch.status = 'finished'
+        patch.finishedAt = FieldValue.serverTimestamp()
+      }
+      ops.push(batch => batch.update(doc.ref, patch))
+      roundsAnonymized++
+    }
+
+    await commitInBatches(db, ops)
+
+    // 5. Firebase Auth — deleted LAST. If anything above throws, the Auth
+    //    record (and thus the ability to sign in and retry) still exists;
+    //    every Firestore step is idempotent so a retry safely finishes the
+    //    job instead of erroring on already-applied changes. Deleting Auth
+    //    first and failing partway would instead orphan Firestore data with
+    //    no way for the (now signed-out) user to trigger a retry.
+    try {
+      await getAuth().deleteUser(uid)
+    } catch (e) {
+      const code = (e as { code?: string } | null)?.code
+      // Already gone — a previous attempt got this far before failing
+      // later, or this is a genuine retry. Not an error.
+      if (code !== 'auth/user-not-found') throw e
+    }
+
+    logger.info('Account deletion completed', {
+      uid,
+      roundsDeleted,
+      roundsAnonymized,
+      greenMarksDeleted: greenMarkDocs.length,
+    })
+
     return { ok: true }
   },
 )
