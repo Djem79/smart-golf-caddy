@@ -207,6 +207,9 @@ Round объекты ВСЕГДА через `normalizeRound`.
 - `userQuota/{uid}` — Admin SDK only (clients не имеют доступа).
 - `courses/{courseKey}/greenMarks/{uid}` — читают все аутентифицированные,
   пишет только владелец.
+- Удаление аккаунта идёт ТОЛЬКО через callable `deleteAccount` (Admin SDK
+  в обход правил) — клиент не может удалить ни свои документы, ни чужие.
+  Инварианты — в `functions/CLAUDE.md`.
 
 При изменении rules — **обязательно** `npm run test:rules` (эмулятор,
 покрывает forgery/leave/start/finish/read-guard) перед `firebase deploy

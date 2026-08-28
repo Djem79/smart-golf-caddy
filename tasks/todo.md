@@ -315,26 +315,31 @@ CLAUDE.md, раздел "Фаза 3c". Тесты (прогнаны дважды
 целиком.
 
 Что удаляет callable `deleteAccount` (Admin SDK, enforceAppCheck):
-- [ ] `users/{uid}` — профиль целиком
-- [ ] `userQuota/{uid}` — счётчики квот
-- [ ] `courses/*/greenMarks/{uid}` — метки гринов (привязаны к uid)
-- [ ] соло-раунды (`playerIds == [uid]`) — целиком
-- [ ] групповые раунды — `players[uid]` → имя «Удалённый игрок», avatar
+- [x] `users/{uid}` — профиль целиком
+- [x] `userQuota/{uid}` — счётчики квот
+- [x] `courses/*/greenMarks/{uid}` — метки гринов (привязаны к uid)
+- [x] соло-раунды (`playerIds == [uid]`) — целиком
+- [x] групповые раунды — `players[uid]` → имя «Удалённый игрок», avatar
       и email стираются; `playerIds` и удары ОСТАЮТСЯ (иначе поедет
       match-результат и таблица товарищей)
-- [ ] Firebase Auth — запись удаляется ПОСЛЕДНЕЙ (если упадём раньше,
+- [x] Firebase Auth — запись удаляется ПОСЛЕДНЕЙ (если упадём раньше,
       пользователь сможет повторить; обратный порядок оставил бы
       осиротевшие данные без владельца)
 
 Задачи:
-- [ ] T1: `functions/src/index.ts` + `contracts.ts`, зеркала контракта в
+- [x] T1: `functions/src/index.ts` + `contracts.ts`, зеркала контракта в
       `src/types/callable.ts` и `ios/.../CallableContracts.swift` (SYNC)
-- [ ] T2: веб — кнопка в Profile + ConfirmDialog + сервис
-- [ ] T3: iOS — ProfileView + сервис
-- [ ] T4: доки (CLAUDE.md, SETUP.md), деплой функции
+- [x] T2: веб — кнопка в Profile + ConfirmDialog + сервис
+- [x] T3: iOS — ProfileView + сервис
+- [x] T4: доки (CLAUDE.md, SETUP.md)
+- [ ] Деплой `deleteAccount` в прод (`firebase deploy --only functions`)
 
-Открытый вопрос для T1: незавершённые раунды (lobby/active) с участием
-удаляемого. Обезличивание оставит лобби без живого хоста.
+РЕШЕНО (ревью T1): роль хоста передаётся первому из оставшихся игроков,
+`status` не трогается. Первая версия принудительно завершала раунд — это
+теряло неотправленный удар соигрока (`failed-precondition` считается
+окончательным отказом и в вебе, и на iOS) и рассылало всем письма об
+«итогах» ещё идущей игры. Логика вынесена в `deleteAccountDecision.ts`
+и покрыта тестами.
 
 Решение (T1, после ревью): force-finish раунда отклонён — ломает третьих
 лиц (`onRoundFinished` шлёт email ВСЕМ playerIds на любой флип в
@@ -352,7 +357,7 @@ test:run`).
 
 ### Беклог фазы 3d-1
 
-- [ ] `deleteAccount` шаг 3 (`courses/*/greenMarks/{uid}`) читает ВСЕ
+- [x] `deleteAccount` шаг 3 (`courses/*/greenMarks/{uid}`) читает ВСЕ
       метки гринов ВСЕХ пользователей на каждое удаление аккаунта
       (`collectionGroup('greenMarks').get()` + фильтр по doc.id в коде —
       обоснование в `functions/src/index.ts`). Стоимость растёт с
