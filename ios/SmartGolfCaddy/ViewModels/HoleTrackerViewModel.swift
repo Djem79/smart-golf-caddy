@@ -71,6 +71,13 @@ final class HoleTrackerViewModel {
     // изменений — дефолт .shared.
     private let rangefinder: ShotRangefinder
 
+    /// Контекст для снимка часов (сумка/единицы) — эта VM не подписана на
+    /// профиль пользователя (это забота SessionViewModel/View-слоя), поэтому
+    /// вью обязано прокинуть их через updateWatchContext(clubs:units:).
+    /// Дефолты — разумный fallback до первого вызова (полная сумка/метры).
+    private var watchClubs: [String] = Clubs.defaultBag.filter(\.enabled).map(\.id)
+    private var watchUnits: DistanceUnit = .m
+
     init(roundId: String, holeIndex: Int, userId: String, rangefinder: ShotRangefinder = .shared) {
         self.roundId = roundId
         self.holeIndex = holeIndex
@@ -109,6 +116,17 @@ final class HoleTrackerViewModel {
     /// следующей перерисовкой SwiftUI на изменение состояния VM.
     var gpsReady: Bool { ShotRangefinder.isUsable(GeolocationService.shared.lastFix) }
 
+    /// Обновляет контекст снимка часов (клюшки активной сумки, единицы
+    /// измерения) — вызывает экран, когда узнаёт профиль пользователя (сама
+    /// VM его не подписывает — не её зона ответственности, см. CLAUDE.md
+    /// слои). Если раунд уже загружен, сразу пересылает обновлённый снимок,
+    /// а не ждёт следующего изменения раунда.
+    func updateWatchContext(clubs: [String], units: DistanceUnit) {
+        watchClubs = clubs
+        watchUnits = units
+        if round != nil { sendWatchSnapshot() }
+    }
+
     func start() {
         guard unsubscribe == nil else { return }
         GeolocationService.shared.startTracking()
@@ -132,6 +150,7 @@ final class HoleTrackerViewModel {
                     self.startGreens(courseKey: key)
                 }
                 self.applyGreenMarks(self.greenMarks, fix: GeolocationService.shared.lastFix)
+                self.sendWatchSnapshot()
             },
             onError: { [weak self] _ in
                 self?.loadError = "Не удалось загрузить раунд. Проверьте связь."
@@ -165,9 +184,9 @@ final class HoleTrackerViewModel {
             greenDistanceMeters = nil
             return
         }
-        // Больше 800 м до грина не бывает: это чужое поле или мусорная метка.
+        // Клэмп и верхняя граница — GeoGates.maxGreenDistanceMeters (Models/Geo.swift).
         let meters = Greens.distanceMeters(from: fix, to: average)
-        greenDistanceMeters = (0...800).contains(meters) ? meters : nil
+        greenDistanceMeters = GeoGates.clampGreenDistance(meters)
     }
 
     /// Поставить метку грина текущей лункой по текущему GPS-фиксу. Метка —
@@ -329,6 +348,44 @@ final class HoleTrackerViewModel {
 
     private func refreshQueueBadge() {
         hasQueuedShots = ShotQueue.shared.pendingCount(roundId: roundId) > 0
+    }
+
+    /// Собирает и шлёт часам снимок раунда. `myShots` каждой лунки — ВСЕГДА
+    /// счёт userId (владельца телефона), а не activeUserId: часы записывают
+    /// удары только от лица своего носителя (WatchBridge.applyBatch пишет
+    /// под AuthService.currentUserId), поэтому и "сколько уже подтверждено"
+    /// на часах должно считаться относительно того же игрока, независимо от
+    /// того, за кого хост сейчас ведёт счёт на экране телефона.
+    private func sendWatchSnapshot() {
+        guard let round else { return }
+        let holes = round.holes.enumerated().map { index, hole in
+            WatchHole(
+                number: index + 1,
+                par: hole.par,
+                distanceMeters: hole.distanceMeters,
+                myShots: hole.shots[userId]?.resolvedClubs.count ?? 0
+            )
+        }
+        var greens: [Int: GreenMark] = [:]
+        if round.totalHoles > 0 {
+            for holeNumber in 1...round.totalHoles {
+                if let mark = Greens.average(greenMarks, hole: holeNumber) {
+                    greens[holeNumber] = mark
+                }
+            }
+        }
+        let snapshot = WatchRoundSnapshot(
+            roundId: roundId,
+            courseName: round.courseName,
+            totalHoles: round.totalHoles,
+            holes: holes,
+            clubs: watchClubs,
+            greens: greens,
+            activeHoleNumber: holeIndex + 1,
+            units: watchUnits,
+            updatedAt: Date()
+        )
+        WatchBridge.shared.send(snapshot: snapshot)
     }
 
     @MainActor deinit {

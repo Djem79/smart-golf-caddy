@@ -79,6 +79,6 @@ enum Greens {
     }
 
     static func distanceMeters(from fix: GeoFix, to green: GreenMark) -> Int {
-        Int(CoursesService.haversineMetres(fix.lat, fix.lng, green.lat, green.lng).rounded())
+        Int(GeoMath.haversineMetres(fix.lat, fix.lng, green.lat, green.lng).rounded())
     }
 }

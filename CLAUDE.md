@@ -2,43 +2,37 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Специфика подгружается по месту работы: `ios/CLAUDE.md` (iOS + Apple
+Watch), `functions/CLAUDE.md` (Cloud Functions, контракты, email).
+
 ## Project
 
 Smart Golf Caddy — mobile-first React PWA для трекинга гольф-раундов
-(русский UI). Target viewport — **390 px wide** (`.screen` утилита
-форсит `max-w-[390px] mx-auto`).
+(русский UI) плюс нативное iOS-приложение с компаньоном для Apple Watch.
+Target viewport — **390 px wide** (`.screen` утилита форсит
+`max-w-[390px] mx-auto`).
 
-**Stack:**
-- Frontend: React 19 + TypeScript + Vite + Tailwind 3 + Zustand
-- Backend: Firebase 12 (Auth + Firestore + Hosting + **App Check**) +
-  Cloud Functions Gen 2 (**Node 22**, `functions/`)
-- Email: Resend + `react-email` (rendered server-side в functions)
-- PWA: `vite-plugin-pwa`, Sentry: `@sentry/react`
-- Tests: Vitest + @testing-library + jsdom; rules-тесты через
-  `@firebase/rules-unit-testing` + Firestore emulator
+Стек — в `package.json` / `functions/package.json`. Неочевидное: тесты
+правил Firestore гоняются в эмуляторе, письма рендерятся server-side в
+functions, PWA через `vite-plugin-pwa`.
 
 **Design system:** Fairway Elite — green primary `#00450D` /
 primary-container `#1B5E20`. **Шрифт унифицирован: Playfair Display**
-(весь UI, headlines и body — один шрифт, см. Sprint 8). Иконки —
-**lucide-react** (никаких эмодзи). Все токены в `tailwind.config.js`.
+(весь UI, headlines и body — один шрифт). Иконки — **lucide-react**
+(никаких эмодзи). Все токены в `tailwind.config.js`.
 
 Сейчас в проде версия **v1.0.0** (см. git tag, GitHub Release,
 `BACKUP.md`).
 
 ## Common commands
 
+Скрипты — в `package.json`; ниже только то, что из него не следует.
+
 ```bash
-# Node через nvm — в свежей сессии нужно `source ~/.nvm/nvm.sh`
-npm run dev              # Vite dev server :5173
-npm run build            # tsc -b && vite build
-npm run test             # vitest watch
-npm run test:run         # vitest run (CI mode)
+source ~/.nvm/nvm.sh     # Node через nvm — нужно в каждой свежей сессии
 npm run test:run -- src/services/scoring.test.ts   # одиночный файл
-npm run test:rules       # firestore.rules.test.mjs в эмуляторе (нужна JDK 21+!)
-npm run test:e2e         # Playwright smoke (нужен предварительный npm run build)
-npm run test:e2e:ui      # Playwright UI mode для дебага
-npm run lint             # eslint .
-npx tsc --noEmit         # type-check (без emit)
+npm run test:rules       # эмулятор Firestore, нужен JDK 21+ в PATH
+npm run test:e2e         # Playwright; требует предварительного npm run build
 ```
 
 `npm run test:rules` гоняет `firestore.rules.test.mjs` через `firebase
@@ -46,113 +40,10 @@ emulators:exec --only firestore` — нужен **JDK 21+ в PATH** (firebase-to
 дропнул JDK <21 в late-2025; на macOS — openjdk через brew, keg-only:
 `export PATH="/usr/local/opt/openjdk/bin:$PATH"`).
 
-Functions (отдельный TypeScript-проект в `functions/`):
-
-```bash
-cd functions
-npm run build            # tsc
-npx tsc --noEmit         # type-check functions без emit
-npm run email:dev        # react-email dev preview :3000
-```
-
-Firebase CLI (auth через `firebase login` уже сделан):
-
-```bash
-source ~/.nvm/nvm.sh
-firebase deploy --only hosting             # frontend
-firebase deploy --only functions           # cloud functions
-firebase deploy --only firestore           # rules + indexes
-firebase deploy --only firestore,functions,hosting   # всё сразу
-firebase functions:log                     # tail логов всех функций
-firebase functions:secrets:set RESEND_API_KEY   # ротация секрета
-firebase functions:list                    # список развёрнутых функций
-```
-
-Setup-инструкции для `.env.local`, Auth provider, Places API и Resend —
-в `SETUP.md`. Бэкап / recovery — в `BACKUP.md`.
-
-iOS (нативное приложение, `ios/`):
-
-```bash
-./ios/scripts/test.sh            # каноничные тесты iOS (xcodegen + xcodebuild + все env)
-./ios/scripts/build.sh           # каноничная сборка
-# SIM_NAME и DD можно переопределить env-переменными; дефолты: iPhone 17, DerivedData вне iCloud
-```
-
-iOS-архитектура зеркалит веб: Views → ViewModels (@Observable) →
-Services → Firebase SDK; Models — чистые структуры. `import Firebase*`
-в прод-коде — только в `Services/` (+ `AppDelegate`, DEBUG-only
-`DiagnosticsView`); `import GoogleSignIn` — только в `Services/` (+
-`RootView.onOpenURL`). Тест-таргету импорт Firebase разрешён.
-Контракты callable: зеркалятся в трёх местах —
-`ios/SmartGolfCaddy/Services/CallableContracts.swift` ↔
-`functions/src/contracts.ts` ↔ `src/types/callable.ts` (SYNC-маркеры
-во всех трёх — при правке схемы на одной стороне обновлять остальные
-две). `ios/SmartGolfCaddy/Info.plist` генерируется xcodegen из
-`project.yml`, но трекается в git (в отличие от `.xcodeproj`). Фаза 3b (метки гринов): коллекция `courses/{courseKey}/greenMarks/{uid}` —
-документ на пользователя (`holes: { "1": {lat, lng} }`). Правила: читают
-все аутентифицированные, пишет ТОЛЬКО владелец → одна ошибочная метка не
-портит поле остальным; усреднение по всем игрокам делает клиент
-(`Greens.average`). `Greens.courseKey` — стабильный ключ: placeId для
-полей из поиска, `name:<нормализованное имя>` для ручных (их courseId
-уникален на раунд), с санитайзом символов пути. Гейты замера — те же,
-что у дальномера (`ShotRangefinder.isUsable`: точность ≤25 м, возраст
-≤90 с). setData(merge:) сливает вложенные карты рекурсивно — проверено
-эмулятором, метки лунок не затирают друг друга. На сервер уходят
-координаты ГРИНОВ (статичные точки поля), не траектория игрока.
-
-Фаза 3a (групповая игра): экраны GroupLobby (код + QR через CoreImage,
-список игроков, старт хостом), JoinGame (ввод кода + автовход по
-deep-link `smartgolfcaddy://join/<CODE>`, латч на один код), Leaderboard
-(живая таблица, match-статус). Режимы в настройке: Соло/Группа и
-Stroke/Match (match — только для группы). В трекере `activeUserId`:
-хост ведёт счёт за любого игрока, слоты очереди И меток дальномера
-следуют за активным игроком, GPS-замер и lastClubUsed — ТОЛЬКО для
-своего слота (иначе координаты/дефолт хоста утекут товарищу).
-ВАЖНО: выход из лобби пишет ПОЛНЫЙ новый playerIds (правила требуют
-равенства множеств — arrayRemove не проходит).
-
-Фаза 2c (GPS-дальномер): `Services/ShotRangefinder.swift` — авто-замер
-дистанции удара. Позиция запоминается в момент записи удара (слот
-`round:hole:uid`, файл в Application Support), дистанция считается при
-записи следующего; присваивается ТОЛЬКО при непрерывности (метка
-принадлежит непосредственно предыдущему удару) — иначе замер покрыл бы
-несколько ударов. Гейты: точность фикса ≤25 м, дистанция 3…600 м,
-**0 = «неизвестно»**. `GeolocationService` умеет непрерывный трекинг
-(startTracking на экране лунки; одноразовые колбэки поиска полей при
-этом отключаются). Схема: `HoleShots.distances` параллельно `clubs`
-(инвариант равной длины; сервер сохраняет прежние замеры, если клиент
-поле не прислал — веб дистанции не измеряет).
-
-Фаза 2b: корень — TabView (Раунды/История/Профиль, AppRouter держит
-selectedTab и три стека); экраны History/Profile/MyBag/CourseSearch;
-`Services/UsersService.swift` (bag/units, setDoc merge),
-`Services/CoursesService.swift` (Places API New; ключ — Info.plist
-GooglePlacesAPIKey ← GOOGLE_PLACES_IOS_KEY из Local.xcconfig, отдельный
-iOS-ключ с bundle-restriction), `Services/GeolocationService.swift`
-(CoreLocation, only-there import). Штраф: псевдо-клюшка
-`Clubs.penaltyId` ↔ `PENALTY_ID` (src/types) — SYNC; исключается из
-статистики клюшек на обеих платформах. Иконка генерируется
-`swift ios/scripts/gen-appicon.swift`.
-
-Фаза 2a: роутер `App/AppRouter.swift` (NavigationStack, enum Route);
-экраны Home/RoundSetup/HoleTracker/RoundResults + вью-модели;
-`Services/RoundsService.swift` (создание соло-раунда клиентом, finish,
-подписка, запрос истории; удары/пар — через callable);
-`Services/ShotQueue.swift` — офлайн-очередь ударов (файл в Application
-Support, last-write-wins на слот `round:hole:uid`, флаш по
-NWPathMonitor; юнит-тесты — спецификация поведения). Скоринг —
-`Models/Scoring.swift` (чистый порт scoring.ts, сортировки через
-localizedStandardCompare для паритета с localeCompare).
-
-ВАЖНО:
-сборка/тесты только через `ios/scripts/*` — они держат DerivedData вне
-iCloud (артефакты в `~/Documents` портит File Provider → codesign
-detritus-fail). FirebaseFirestore линкуется ТОЛЬКО в app-таргет
-(#14464): его source-сборка (`FIREBASE_SOURCE_FIRESTORE`) создавала
-вторую копию FirebaseCore и роняла приложение
-(FIRIllegalStateException) — не возвращать, тестам классы Firebase
-доступны из рантайма хоста.
+Деплой — `firebase deploy --only hosting|functions|firestore` (auth через
+`firebase login` уже сделан). Setup-инструкции для `.env.local`, Auth
+provider, Places API, Resend и установки на реальные устройства — в
+`SETUP.md`. Бэкап / recovery — в `BACKUP.md`.
 
 ## Workflow orchestration
 
@@ -223,51 +114,6 @@ types/    ← импортит каждый, никаких inbound deps
 
 - `services/` — **единственный** слой, импортящий `firebase/*` И
   `firebase/functions`. Тесты мокают этот boundary.
-- `functions/` — отдельный TypeScript-проект со своим `package.json`
-  и `tsconfig.json`. Хранит email-шаблоны и Cloud Functions.
-  При работе с functions всегда `cd functions` для команд.
-
-### Cloud Functions (Sprint 6+7)
-
-Все Cloud Functions в `us-central1` (Firestore в `europe-west3` —
-cross-region warning подавляется, см. `firebase.json`). Список
-функций:
-
-**Все callable имеют `enforceAppCheck: true`** — без валидного App Check
-токена вызов отклоняется (см. секцию App Check ниже).
-
-| Function | Триггер | Что делает |
-|---|---|---|
-| `onRoundFinished` | `firestore.document('rounds/{id}').onUpdate` | Auto-email при `status: active → finished`. Atomic lease + per-uid tracking (`emailingStartedAt`, `emailedTo`, `emailedAt`). Per-recipient daily cap на авто-письма (`bumpDailyQuota(uid,'auto',30)`). |
-| `recordShot` | callable | Server-authoritative запись ударов. Принимает `targetUid` — **хост может писать удары за любого игрока**, остальные только за себя (host-or-self check). Пишет весь массив `clubs` лунки → **идемпотентно** (важно для офлайн-очереди). |
-| `joinLobbyByCode` | callable | Server-side lookup лобби. Per-uid rate-limit `bumpDailyQuota(uid,'join',30)` против перебора кодов. Клиент НЕ читает рунд напрямую. |
-| `updateHoleConfig` | callable | Host-only edit par + distanceMeters для лунки. |
-| `shareRoundByEmail` | callable | Manual share. Recipient-allowlist (только участники + caller's auth email), daily quota 10/uid. |
-
-Per-user/per-kind квоты в `userQuota/{uid}` через generic
-`bumpDailyQuota(uid, kind, limit)` (kinds: `share`/`join`/`auto`,
-структура `{ [kind]: { day, count } }`, Admin-SDK only).
-
-Secrets через `defineSecret('RESEND_API_KEY')`. Ротация: `firebase
-functions:secrets:set RESEND_API_KEY` + redeploy.
-
-### Callable contracts (Zod)
-
-Server-side payload-валидация всех 4 callable централизована в Zod-схемах
-в `functions/src/contracts.ts` (`RecordShotInput`, `UpdateHoleConfigInput`,
-`JoinLobbyInput`, `ShareInput`). Каждый callable начинается со строчки
-`const x = parseInput(SchemaName, request.data)` — это бросает
-`HttpsError('invalid-argument', ...)` с первым issue.message, поэтому
-руками `if (typeof x !== 'number')` уже **не пишем**.
-
-Клиент **зеркалит** эти схемы как plain TypeScript-интерфейсы в
-`src/types/callable.ts` (без zod-рантайма в браузерном бандле — экономит
-~50 KB), а iOS — как Swift-структуры в
-`ios/SmartGolfCaddy/Services/CallableContracts.swift`. Файлы
-синхронизируются вручную; во всех трёх стоит маркер `SYNC:`
-указывающий на парные файлы. При правке схемы на одной стороне —
-**обязательно** обновить обе остальные, иначе клиент пошлёт payload,
-который сервер отклонит.
 
 ### Data model — central source of truth
 
@@ -282,10 +128,10 @@ Server-side payload-валидация всех 4 callable централизо�
   (нужен для `array-contains` query). Всегда поддерживается рядом с
   `Round.players: Record<uid, PlayerInfo>` map.
 - `BagClub.category?` бэкфиллится `getClubCategory(club)` из id.
-- `PlayerInfo.email?` — добавлен в Sprint 6 для post-round email
-  rollup. Старые раунды без email отрабатываются через Auth lookup.
-- `Round.playMode?: 'stroke' | 'match'` — Sprint 4. Match play
-  работает только для `playerIds.length === 2`.
+- `PlayerInfo.email?` — для post-round email rollup. Старые раунды без
+  email отрабатываются через Auth lookup.
+- `Round.playMode?: 'stroke' | 'match'` — match play работает только для
+  `playerIds.length === 2`.
 - `Round.emailedAt`, `Round.emailedTo`, `Round.emailingStartedAt`,
   `Round.emailResults` — server-only поля, клиент НЕ пишет (rules
   блокируют).
@@ -359,6 +205,8 @@ Round объекты ВСЕГДА через `normalizeRound`.
   `emailResults` — server-only (rules блокируют client writes).
 - `users/{uid}` — owner-only.
 - `userQuota/{uid}` — Admin SDK only (clients не имеют доступа).
+- `courses/{courseKey}/greenMarks/{uid}` — читают все аутентифицированные,
+  пишет только владелец.
 
 При изменении rules — **обязательно** `npm run test:rules` (эмулятор,
 покрывает forgery/leave/start/finish/read-guard) перед `firebase deploy
@@ -367,29 +215,14 @@ Round объекты ВСЕГДА через `normalizeRound`.
 ### App Check
 
 reCAPTCHA v3, enforced на всех callable. Клиент инициализирует в
-`src/firebase.ts` (`initializeAppCheck` + `ReCaptchaV3Provider`),
-**no-op без `VITE_APP_CHECK_SITE_KEY`**. Поэтапный rollout и
-троттл/ключ-гочи описаны в `SETUP.md`. Ключевое:
+`src/firebase.ts`, **no-op без `VITE_APP_CHECK_SITE_KEY`**. Поэтапный
+rollout и троттл/ключ-гочи описаны в `SETUP.md`. Ключевое:
 - **site key** (`VITE_APP_CHECK_SITE_KEY`) → клиент; **secret** → в
   Firebase console App Check (НЕ перепутать).
 - Firebase **browser API key** должен иметь право на «Firebase App
   Check API» (иначе 403 на `exchangeRecaptchaV3Token`).
 - Сначала деплой клиента с ключом и проверка verified-запросов, потом
   `enforceAppCheck:true` — иначе все вызовы отвалятся.
-
-### Email (Sprint 6)
-
-Email-шаблон в `functions/src/emails/RoundSummary.tsx` —
-react-email компоненты. Payload собирается `buildPayload.ts`. Цвета
-pill'ов в `functions/src/emails/types.ts` — это **отдельная,
-email-client-safe палитра** (НЕ совпадает с web `scoreColor` — разные
-таргеты рендера; не пытаться «синхронизировать»). При изменении club
-abbreviations в `src/types/index.ts:CLUB_ABBREV` — синхронизировать с
-`functions/src/emails/buildPayload.ts:CLUB_ABBREV` (вот это реально
-дублируется и должно совпадать).
-
-Preview шаблона: `cd functions && npm run email:dev` (Storyboard
-на :3000).
 
 ### Routing
 
@@ -400,46 +233,26 @@ import (старая вкладка после деплоя → чанк 404) с
 `sessionStorage` против петли). Non-`/auth` routes обёрнуты в
 `<ProtectedRoute>`, которая редиректит на `/auth` без user **и
 сохраняет целевой путь** (`state.from`) — Auth возвращает туда после
-входа (важно для deep-link `/join/:code`). Catch-all `*` → `/home`.
+входа (важно для deep-link `/join/:code`).
 
 ### Testing
 
-Vitest + jsdom + @testing-library/react. Tests рядом с source
-(`Foo.test.ts(x)` next to `Foo.ts(x)`).
+Tests рядом с source (`Foo.test.ts(x)` next to `Foo.ts(x)`).
 
 При импорте модуля, transitively пулящего `firebase/*`, **мокать
-Firebase ДО импорта**:
-
-```ts
-vi.mock('../firebase', () => ({ db: {}, app: {} }))
-vi.mock('firebase/firestore', () => ({...}))
-vi.mock('firebase/functions', () => ({
-  getFunctions: vi.fn(() => ({ __functions: true })),
-  httpsCallable: (_fns, name) => async (payload) => {
-    callableCalls.push({ name, payload })
-    return { data: callableResponses.get(name) ?? { ok: true } }
-  },
-}))
-```
-
-Стандартный паттерн — в `src/services/rounds.test.ts`. Strict TS
-требует, чтобы тестовые фикстуры включали `playerIds` и все
-required-поля `Round` типа.
+Firebase ДО импорта** — эталон паттерна (включая мок
+`firebase/functions` с записью вызовов) в `src/services/rounds.test.ts`,
+копировать оттуда. Strict TS требует, чтобы тестовые фикстуры включали
+`playerIds` и все required-поля типа `Round`.
 
 **E2E (Playwright)** живут в `e2e/` (исключены из vitest через
-`vite.config.ts:test.exclude`). Сейчас — unauth-smoke (`/`,`/auth`,
-ProtectedRoute redirects, console-error guard) на Pixel-7 viewport,
-гоняется через `vite preview` на :4173. Полный solo-round flow
-(login → удары → finish) требует Firebase Emulator Suite — отложен.
-Локально: `npm run build` (с placeholder env-ом, см. ci.yml), потом
-`npm run test:e2e`. Vitest и Playwright не конфликтуют — у них разные
+`vite.config.ts:test.exclude`). Сейчас — unauth-smoke. Полный
+solo-round flow (login → удары → finish) требует Firebase Emulator
+Suite — отложен. Vitest и Playwright не конфликтуют — разные
 расширения (`*.test.ts` vs `*.spec.ts`) и разные runner'ы.
 
-**CI** (`.github/workflows/ci.yml`) — 4 джоба, все обязательны:
-`verify` (lint + tsc + vitest + build с placeholder env),
-`functions · type check`, `firestore rules` (нужен JDK 21+),
-`e2e · playwright smoke` (с кэшем браузеров по hash'у package-lock.json).
-При падении e2e — `playwright-report/` загружается артефактом на 7 дней.
+CI — `.github/workflows/ci.yml`, все джобы обязательны. При падении e2e
+`playwright-report/` загружается артефактом на 7 дней.
 
 ## Conventions
 
@@ -487,9 +300,6 @@ ProtectedRoute redirects, console-error guard) на Pixel-7 viewport,
   экранах.
 - **Backup** — git tag v1.0.0 + GitHub Release + Firestore PITR
   (7 дней) + daily snapshots (98 дней). См. `BACKUP.md`.
-- **Functions secrets** в GCP Secret Manager — `RESEND_API_KEY`
-  ротируется через `firebase functions:secrets:set RESEND_API_KEY`
-  + redeploy. Старые версии остаются disabled (можно re-enable).
 - README.md — stock Vite template; SETUP.md — реальная onboarding.
 - `tasks/lessons.md` накапливает паттерны из user-corrections —
   читать в начале сессии.

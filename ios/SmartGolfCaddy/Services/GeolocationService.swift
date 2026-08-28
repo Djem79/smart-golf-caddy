@@ -2,13 +2,9 @@
 // Обёртка CLLocationManager (when-in-use). Колбэки — на main.
 import CoreLocation
 import Foundation
-
-struct GeoFix: Equatable {
-    let lat: Double
-    let lng: Double
-    let accuracy: Double   // метры; < 0 = недостоверно
-    let timestamp: Date    // из CLLocation.timestamp — для гейта устаревших фиксов
-}
+// GeoFix живёт в Models/Geo.swift (Foundation-only) — на неё ссылается
+// Models/GreenMarks.swift, который подключён по ссылке в watch-таргет
+// (Phase 3c): Models не должен зависеть от Services.
 
 final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
     static let shared = GeolocationService()

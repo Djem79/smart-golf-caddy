@@ -32,6 +32,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Уязвимости возвращаются молча при каждом npm ci, поэтому проверяем их
+      # в CI, а не разово руками. --omit=dev: инструменты сборки (sharp и
+      # прочее) в браузерный бандл не попадают, и падать из-за них нельзя;
+      # всё, что реально уезжает к пользователю, проверяется строго.
+      - name: Audit (prod dependencies)
+        run: npm audit --omit=dev --audit-level=high
+
       # Build needs every VITE_ env var to be present at compile time, otherwise
       # Vite hard-fails the static replacement step. We inject placeholder
       # values so the build can complete — the real keys are injected only at
@@ -76,6 +83,12 @@ jobs:
       - name: Install dependencies
         working-directory: functions
         run: npm ci
+
+      # Бэкенд: проверяем без послаблений — здесь нет "только для сборки"
+      # зависимостей, всё исполняется в Cloud Functions.
+      - name: Audit (functions)
+        working-directory: functions
+        run: npm audit --audit-level=high
 
       - name: Type check (functions)
         working-directory: functions

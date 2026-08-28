@@ -176,6 +176,30 @@ enum RoundsService {
         return { listener.remove() }
     }
 
+    /// Разовое (не подписка) чтение раунда. Нужно WatchBridge при приёме
+    /// батча ударов с часов: чтобы дописать unsyncedShots-хвост к уже
+    /// известным телефону клюшкам лунки, а не затереть их (критический
+    /// инвариант — см. комментарий в WatchBridge.swift). nil, если раунд не
+    /// найден.
+    ///
+    /// source: .server — ПРИНУДИТЕЛЬНО живой запрос к серверу, НЕ .default.
+    /// Живое ревью Task 4 (Fix 1) указало: .default при офлайне молча
+    /// подставляет локальный Firestore-кэш, а этот кэш не знает о
+    /// собственных офлайн-записях ТЕЛЕФОНА (они идут через Cloud
+    /// Function recordShot, а не прямой клиентский write — оптимистичного
+    /// обновления кэша для них нет); мердж на такой устаревшей базе мог
+    /// затереть недавно записанный на телефоне удар. При офлайне/
+    /// недоступности сервера .server ЗАКОНОМЕРНО бросает — вызывающая
+    /// сторона (WatchBridge.applyBatch) уже трактует throw как "писать
+    /// нельзя, часы повторят" (тот же критический инвариант). nil, если
+    /// раунд не найден.
+    static func getRound(roundId: String) async throws -> Round? {
+        let snapshot = try await FirebaseService.db.collection("rounds").document(roundId).getDocument(source: .server)
+        guard snapshot.exists, let raw = snapshot.data() else { return nil }
+        let data = FirebaseService.normalizedDates(raw) as? [String: Any] ?? raw
+        return Round(id: snapshot.documentID, data: data)
+    }
+
     static func getUserRounds(userId: String, limitTo: Int = 50) async throws -> [Round] {
         let snapshot = try await FirebaseService.db.collection("rounds")
             .whereField("playerIds", arrayContains: userId)
