@@ -20,6 +20,7 @@ import {
   ShareInput,
   DeleteAccountInput,
 } from './contracts'
+import { decideRoundDeletion } from './deleteAccountDecision'
 
 // Run a Zod schema against an unknown callable payload. On failure we throw
 // a Firebase `invalid-argument` with the first issue's message — keeps the
@@ -590,37 +591,40 @@ export const deleteAccount = onCall(
     const greenMarkDocs = greenMarksSnap.docs.filter(d => d.id === uid)
     for (const d of greenMarkDocs) ops.push(batch => batch.delete(d.ref))
 
-    // 4. Rounds the user participates in. Solo rounds (playerIds === [uid])
-    //    are deleted outright; group rounds are anonymised in-place —
-    //    playerIds, holes and scores stay untouched so teammates' scorecard
-    //    and match result are unaffected, only the departing player's
-    //    display identity is scrubbed.
+    // 4. Rounds the user participates in. Decision (delete outright vs.
+    //    anonymise in-place, and whether the host role needs handing over)
+    //    is computed by the pure, unit-tested `decideRoundDeletion` — see
+    //    that file for why status is never touched here (a force-finish
+    //    used to live in this branch and broke third parties: it fired
+    //    onRoundFinished's email blast at teammates mid-round and
+    //    permanently rejected their still-in-flight offline shots).
+    //    playerIds/holes/scores always stay untouched on anonymize — only
+    //    the departing player's display identity (and, if they were host,
+    //    the hostId) changes.
     const roundsSnap = await db.collection('rounds').where('playerIds', 'array-contains', uid).get()
     let roundsDeleted = 0
     let roundsAnonymized = 0
     for (const doc of roundsSnap.docs) {
-      const data = doc.data() as { playerIds?: string[]; hostId?: string; status?: string }
-      const playerIds = data.playerIds ?? []
-      if (playerIds.length === 1 && playerIds[0] === uid) {
+      const data = doc.data() as { playerIds?: string[]; hostId?: string }
+      const decision = decideRoundDeletion({ playerIds: data.playerIds ?? [], hostId: data.hostId ?? '', uid })
+
+      if (decision.action === 'delete') {
         ops.push(batch => batch.delete(doc.ref))
         roundsDeleted++
         continue
       }
+
       const patch: Record<string, unknown> = {
         [`players.${uid}.name`]: 'Удалённый игрок',
         [`players.${uid}.avatar`]: '',
         [`players.${uid}.email`]: FieldValue.delete(),
       }
-      // The departing user was hosting an unfinished group round — nobody
-      // else can START/FINISH it (both are host-only actions) once the host
-      // is gone, so teammates would be stuck in the lobby or mid-round
-      // forever. Force-finish it instead so GroupLobby/HoleTracker's
-      // existing 'finished' → RoundResults navigation gets them out. Scores
-      // recorded so far stand as final; this only affects rounds where the
-      // deleted user happened to be host, not every round they played in.
-      if (data.hostId === uid && data.status !== 'finished') {
-        patch.status = 'finished'
-        patch.finishedAt = FieldValue.serverTimestamp()
+      // Хост уходит — передаём роль первому оставшемуся участнику, чтобы
+      // START/FINISH (host-only действия в правилах) остались доступны:
+      // живой хост доигрывает и завершает раунд сам, никаких писем и
+      // потерянных ударов.
+      if (decision.newHostId) {
+        patch.hostId = decision.newHostId
       }
       ops.push(batch => batch.update(doc.ref, patch))
       roundsAnonymized++
@@ -640,7 +644,17 @@ export const deleteAccount = onCall(
       const code = (e as { code?: string } | null)?.code
       // Already gone — a previous attempt got this far before failing
       // later, or this is a genuine retry. Not an error.
-      if (code !== 'auth/user-not-found') throw e
+      if (code !== 'auth/user-not-found') {
+        // Firestore data is already gone/anonymised at this point — this is
+        // the one step whose failure otherwise leaves no trace server-side
+        // (the client just sees the callable reject), so log before
+        // rethrowing.
+        logger.error('deleteAccount: Auth deleteUser failed after Firestore cleanup', {
+          uid,
+          error: e instanceof Error ? e.message : 'unknown',
+        })
+        throw e
+      }
     }
 
     logger.info('Account deletion completed', {
