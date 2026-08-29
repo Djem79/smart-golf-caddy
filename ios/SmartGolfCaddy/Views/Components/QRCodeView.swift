@@ -23,6 +23,8 @@ struct QRCodeView: View {
     let text: String
     var size: CGFloat = 200
 
+    @Environment(LocaleManager.self) private var lm
+
     var body: some View {
         if let image = QRCode.image(for: text) {
             Image(uiImage: image)
@@ -30,7 +32,7 @@ struct QRCodeView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: size, height: size)
-                .accessibilityLabel("QR-код для входа в лобби")
+                .accessibilityLabel(lm.t.groupLobby.qrCodeAria)
         } else {
             Color.clear.frame(width: size, height: size)
         }

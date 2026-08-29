@@ -129,6 +129,7 @@ struct Strings {
         let copied: String
         let tapToCopy: String
         let scanQr: String
+        let qrCodeAria: String
         let copyLink: String
         let players: String
         let starting: String
@@ -449,6 +450,7 @@ extension Strings {
             copied: "Скопировано",
             tapToCopy: "Тап чтобы скопировать",
             scanQr: "Или отсканируйте QR",
+            qrCodeAria: "QR-код для входа в лобби",
             copyLink: "Скопировать ссылку",
             players: "Игроки",
             starting: "Запускаем...",
@@ -743,6 +745,7 @@ extension Strings {
             copied: "Copied",
             tapToCopy: "Tap to copy",
             scanQr: "Or scan the QR code",
+            qrCodeAria: "QR code to join the lobby",
             copyLink: "Copy link",
             players: "Players",
             starting: "Starting...",
