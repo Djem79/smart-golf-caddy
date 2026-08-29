@@ -8,6 +8,7 @@ struct GroupLobbyView: View {
     let roundId: String
 
     @Environment(AppRouter.self) private var router
+    @Environment(LocaleManager.self) private var lm
     @State private var model = GroupLobbyViewModel()
     @State private var copiedCode = false
     @State private var copiedLink = false
@@ -24,23 +25,23 @@ struct GroupLobbyView: View {
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.error)
                         .multilineTextAlignment(.center)
-                    DSButton(title: "На главную", style: .secondary) { router.goHome() }
+                    DSButton(title: lm.t.common.goHome, style: .secondary) { router.goHome() }
                         .padding(.horizontal, 48)
                 }
                 .padding(DS.screenPadding)
             } else {
-                ProgressView("Загрузка лобби...")
+                ProgressView(lm.t.groupLobby.loading)
             }
         }
         .background(DSColor.surface)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("Лобби группы").font(DSFont.titleLG)
+                Text(lm.t.groupLobby.title).font(DSFont.titleLG)
             }
             ToolbarItem(placement: .topBarLeading) {
                 Button { router.goHome() } label: { Image(systemName: "house") }
-                    .accessibilityLabel("На главную")
+                    .accessibilityLabel(lm.t.common.goHome)
             }
         }
         .task { model.start(roundId: roundId) }
@@ -53,9 +54,9 @@ struct GroupLobbyView: View {
             }
         }
         .confirmationDialog(
-            "Покинуть лобби?", isPresented: $showLeaveConfirm, titleVisibility: .visible
+            lm.t.groupLobby.leaveConfirmTitle, isPresented: $showLeaveConfirm, titleVisibility: .visible
         ) {
-            Button("Покинуть") {
+            Button(lm.t.groupLobby.leave) {
                 Task {
                     leaving = true
                     let ok = await model.leave()
@@ -63,11 +64,11 @@ struct GroupLobbyView: View {
                     if ok { router.goHome() }
                 }
             }
-            Button("Остаться", role: .cancel) {}
+            Button(lm.t.groupLobby.stay, role: .cancel) {}
         } message: {
             Text(model.isHost
-                 ? "Вы хост — без вас раунд не запустится. Лобби останется доступным по коду, но другим игрокам придётся ждать."
-                 : "Вы выйдете из этого лобби. Можно вернуться по коду.")
+                 ? lm.t.groupLobby.leaveConfirmHost
+                 : lm.t.groupLobby.leaveConfirmGuest)
         }
     }
 
@@ -85,7 +86,7 @@ struct GroupLobbyView: View {
                             .tracking(1.5)
                             .textCase(.uppercase)
                             .foregroundStyle(DSColor.onSurfaceVariant)
-                        Text("\(round.totalHoles) \(pluralRu(round.totalHoles, "лунка", "лунки", "лунок"))")
+                        Text("\(round.totalHoles) \(plural(round.totalHoles, lm.current, lm.t.common.holesWord))")
                             .font(DSFont.labelMD)
                             .foregroundStyle(DSColor.onSurfaceVariant)
                     }
@@ -121,7 +122,7 @@ struct GroupLobbyView: View {
 
     private func codeCard(_ round: Round) -> some View {
         card {
-            Text("Код лобби")
+            Text(lm.t.groupLobby.codeCardTitle)
                 .font(DSFont.labelMD)
                 .tracking(1.5)
                 .textCase(.uppercase)
@@ -136,11 +137,11 @@ struct GroupLobbyView: View {
                     .foregroundStyle(DSColor.primary)
                     .frame(maxWidth: .infinity, minHeight: DS.touchTarget)
             }
-            .accessibilityLabel("Код лобби \(round.lobbyCode), тап чтобы скопировать")
+            .accessibilityLabel(lm.t.groupLobby.codeAccessibleLabel(round.lobbyCode))
             HStack(spacing: 4) {
                 Image(systemName: copiedCode ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 12, weight: copiedCode ? .bold : .regular))
-                Text(copiedCode ? "Скопировано" : "Тап чтобы скопировать")
+                Text(copiedCode ? lm.t.groupLobby.copied : lm.t.groupLobby.tapToCopy)
                     .font(DSFont.labelMD)
             }
             .foregroundStyle(copiedCode ? DSColor.primary : DSColor.onSurfaceVariant)
@@ -150,7 +151,7 @@ struct GroupLobbyView: View {
 
     private func qrCard(_ round: Round) -> some View {
         card {
-            Text("Или отсканируйте QR")
+            Text(lm.t.groupLobby.scanQr)
                 .font(DSFont.labelMD)
                 .tracking(1.5)
                 .textCase(.uppercase)
@@ -166,7 +167,7 @@ struct GroupLobbyView: View {
             Button {
                 copyToClipboard(joinURL(round), flag: $copiedLink)
             } label: {
-                Text(copiedLink ? "Скопировано" : "Скопировать ссылку")
+                Text(copiedLink ? lm.t.groupLobby.copied : lm.t.groupLobby.copyLink)
                     .font(DSFont.labelLG)
                     .foregroundStyle(DSColor.primary)
                     .frame(maxWidth: .infinity, minHeight: DS.touchTarget)
@@ -178,7 +179,7 @@ struct GroupLobbyView: View {
     private func playersSection(_ round: Round) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .lastTextBaseline) {
-                Text("Игроки")
+                Text(lm.t.groupLobby.players)
                     .font(DSFont.titleLG)
                     .foregroundStyle(DSColor.onSurface)
                 Spacer()
@@ -206,9 +207,9 @@ struct GroupLobbyView: View {
                     .lineLimit(1)
                 Spacer()
                 if uid == round.hostId {
-                    badge("Хост")
+                    badge(lm.t.common.host)
                 } else if uid == AuthService.currentUserId {
-                    Text("Вы")
+                    Text(lm.t.groupLobby.you)
                         .font(DSFont.labelMD)
                         .tracking(1.5)
                         .textCase(.uppercase)
@@ -235,21 +236,24 @@ struct GroupLobbyView: View {
             if model.isHost {
                 DSButton(
                     title: model.starting
-                        ? "Запускаем..."
-                        : "Начать раунд (\(model.players.count) \(pluralRu(model.players.count, "игрок", "игрока", "игроков")))",
+                        ? lm.t.groupLobby.starting
+                        : lm.t.groupLobby.startRoundButton(
+                            model.players.count,
+                            plural(model.players.count, lm.current, lm.t.common.playersWord)
+                          ),
                     icon: "play.fill",
                     disabled: model.starting || model.players.isEmpty
                 ) {
                     Task { await model.startRound() }
                 }
             } else {
-                Text("Ожидаем хоста...")
+                Text(lm.t.groupLobby.waitingHost)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
-            DSButton(title: "Покинуть лобби", style: .secondary, disabled: leaving) {
+            DSButton(title: lm.t.groupLobby.leaveLobby, style: .secondary, disabled: leaving) {
                 showLeaveConfirm = true
             }
         }

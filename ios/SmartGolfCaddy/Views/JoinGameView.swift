@@ -8,6 +8,7 @@ struct JoinGameView: View {
 
     @Environment(AppRouter.self) private var router
     @Environment(SessionViewModel.self) private var session
+    @Environment(LocaleManager.self) private var lm
     @State private var model = JoinGameViewModel()
     @FocusState private var codeFieldFocused: Bool
 
@@ -24,10 +25,10 @@ struct JoinGameView: View {
                             .stroke(DSColor.primaryContainer.opacity(0.2))
                     )
                     .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadiusLG))
-                Text("Введите код лобби")
+                Text(lm.t.joinGame.heading)
                     .font(DSFont.headlineMD)
                     .foregroundStyle(DSColor.onSurface)
-                Text("Хост в своём приложении видит 6-значный код или QR")
+                Text(lm.t.joinGame.subtitle)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
                     .multilineTextAlignment(.center)
@@ -54,7 +55,7 @@ struct JoinGameView: View {
                 RoundedRectangle(cornerRadius: DS.cornerRadius)
                     .stroke(DSColor.outlineVariant, lineWidth: 2)
             )
-            .accessibilityLabel("Код лобби")
+            .accessibilityLabel(lm.t.joinGame.codeAria)
 
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)
@@ -65,7 +66,7 @@ struct JoinGameView: View {
 
             VStack(spacing: 10) {
                 DSButton(
-                    title: model.loading ? "Подключаемся..." : "Присоединиться",
+                    title: model.loading ? lm.t.joinGame.connecting : lm.t.joinGame.join,
                     disabled: !model.canSubmit
                 ) {
                     codeFieldFocused = false
@@ -75,13 +76,13 @@ struct JoinGameView: View {
                         }
                     }
                 }
-                DSButton(title: "Отмена", style: .secondary) { router.goHome() }
+                DSButton(title: lm.t.common.cancel, style: .secondary) { router.goHome() }
             }
         }
         .padding(.horizontal, DS.screenPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(DSColor.surface)
-        .navigationTitle("Присоединиться")
+        .navigationTitle(lm.t.joinGame.navTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if let joined = await model.autoJoinIfNeeded(initial: code, profile: session.profile) {

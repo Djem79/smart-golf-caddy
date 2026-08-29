@@ -85,7 +85,7 @@ enum Scoring {
                 let resolvedClubs = hole.shots[userId]?.resolvedClubs ?? []
                 let resolvedDistances = hole.shots[userId]?.resolvedDistances ?? []
                 for (index, club) in resolvedClubs.enumerated() {
-                    if club == "Неизвестно" || club == Clubs.penaltyId { continue }
+                    if club == Clubs.unknownId || club == Clubs.penaltyId { continue }
                     counts[club, default: 0] += 1
                     total += 1
                     

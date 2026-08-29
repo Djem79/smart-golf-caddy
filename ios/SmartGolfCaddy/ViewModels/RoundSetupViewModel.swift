@@ -21,7 +21,7 @@ final class RoundSetupViewModel {
 
     var effectiveName: String {
         let trimmed = courseName.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? "Поле для гольфа" : trimmed
+        return trimmed.isEmpty ? AppLocaleStore.strings.courseSearch.courseFallbackName : trimmed
     }
 
     /// Забирает выбранное поле/префилл из стора (одноразово) и чистит стор.
@@ -47,7 +47,7 @@ final class RoundSetupViewModel {
         // Паритет с вебом: user.email ?? '' (пустую строку не шлём — nil
         // опускается в firestoreData, сервер имеет Auth-lookup fallback).
         let info = PlayerInfo(
-            name: profile?.name ?? "Голфер",
+            name: profile?.name ?? AppLocaleStore.strings.common.fallbackName,
             avatar: profile?.avatar ?? "",
             totalScore: 0, scoreDiff: 0,
             email: AuthService.currentUserEmail
@@ -73,7 +73,7 @@ final class RoundSetupViewModel {
                 tee: tee
             )
         } catch {
-            errorMessage = "Не удалось создать раунд. Попробуйте ещё раз."
+            errorMessage = AppLocaleStore.strings.roundSetup.createError
             return nil
         }
     }

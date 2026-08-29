@@ -153,7 +153,7 @@ final class HoleTrackerViewModel {
                 self.sendWatchSnapshot()
             },
             onError: { [weak self] _ in
-                self?.loadError = "Не удалось загрузить раунд. Проверьте связь."
+                self?.loadError = AppLocaleStore.strings.holeTracker.loadError
             }
         )
     }
@@ -166,7 +166,7 @@ final class HoleTrackerViewModel {
                 self?.applyGreenMarks(sets, fix: GeolocationService.shared.lastFix)
             },
             onError: { [weak self] _ in
-                self?.loadError = "Не удалось загрузить метки грина."
+                self?.loadError = AppLocaleStore.strings.holeTracker.loadGreenMarksError
             }
         )
     }
@@ -197,7 +197,7 @@ final class HoleTrackerViewModel {
     func markGreen() async -> Bool {
         guard let fix = GeolocationService.shared.lastFix, ShotRangefinder.isUsable(fix) else { return false }
         guard let courseKey else {
-            saveError = "Раунд ещё загружается — попробуйте через секунду."
+            saveError = AppLocaleStore.strings.holeTracker.markGreenLoadingError
             return false
         }
         do {
@@ -206,7 +206,7 @@ final class HoleTrackerViewModel {
             )
             return true
         } catch {
-            saveError = "Не удалось сохранить метку грина."
+            saveError = AppLocaleStore.strings.holeTracker.markGreenSaveError
             return false
         }
     }
@@ -310,7 +310,7 @@ final class HoleTrackerViewModel {
             roundId: roundId, holeIndex: holeIndex, targetUid: activeUserId, clubs: next, distances: distances
         )
         if case .rejected = outcome {
-            saveError = "Не удалось сохранить удар."
+            saveError = AppLocaleStore.strings.holeTracker.saveShotError
             if optimistic?.slot == slotKey { optimistic = nil }  // rollback слота
             refreshQueueBadge()
             return false
@@ -328,7 +328,7 @@ final class HoleTrackerViewModel {
             try await RoundsService.finishRound(roundId: roundId)
             return true
         } catch {
-            saveError = "Не удалось завершить раунд. Попробуйте ещё раз."
+            saveError = AppLocaleStore.strings.holeTracker.finishRoundError
             return false
         }
     }
@@ -341,7 +341,7 @@ final class HoleTrackerViewModel {
             )
             return true
         } catch {
-            saveError = "Не удалось сохранить параметры лунки."
+            saveError = AppLocaleStore.strings.holeTracker.holeSaveError
             return false
         }
     }

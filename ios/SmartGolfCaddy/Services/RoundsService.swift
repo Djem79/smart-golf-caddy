@@ -169,7 +169,7 @@ enum RoundsService {
                 } else {
                     onError(NSError(
                         domain: "SmartGolfCaddy", code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Данные раунда повреждены"]
+                        userInfo: [NSLocalizedDescriptionKey: AppLocaleStore.strings.roundsService.corruptedRoundData]
                     ))
                 }
             }

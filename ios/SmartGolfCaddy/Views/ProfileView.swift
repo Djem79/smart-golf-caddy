@@ -4,15 +4,21 @@ import SwiftUI
 // условия и поддержка должны быть доступны из приложения). Один домен —
 // правка адреса при переезде на свой домен делается в одном месте.
 private enum LegalLinks {
-    static let all: [(label: String, url: URL)] = [
-        ("Политика конфиденциальности", URL(string: "https://smart-golf-caddy.web.app/privacy")!),
-        ("Условия использования", URL(string: "https://smart-golf-caddy.web.app/terms")!),
-        ("Поддержка", URL(string: "https://smart-golf-caddy.web.app/support")!),
-    ]
+    // T4: локализованные подписи читаются на каждый рендер (не кэшируются
+    // статически), иначе смена языка не обновила бы список без перезапуска.
+    static var all: [(label: String, url: URL)] {
+        let t = AppLocaleStore.strings.profile
+        return [
+            (t.legalPrivacy, URL(string: "https://smart-golf-caddy.web.app/privacy")!),
+            (t.legalTerms, URL(string: "https://smart-golf-caddy.web.app/terms")!),
+            (t.legalSupport, URL(string: "https://smart-golf-caddy.web.app/support")!),
+        ]
+    }
 }
 
 struct ProfileView: View {
     @Environment(SessionViewModel.self) private var session
+    @Environment(LocaleManager.self) private var lm
     @State private var model = ProfileViewModel()
     @State private var accountModel = AccountViewModel()
 
@@ -24,6 +30,7 @@ struct ProfileView: View {
             VStack(spacing: 20) {
                 if model.loadError { errorBanner }
                 userCard
+                languageToggle
                 statsCard
                 if let stats = statsIfPlayed, stats.totalHolesPlayed > 0 {
                     distributionCard(stats)
@@ -32,7 +39,7 @@ struct ProfileView: View {
                 favoriteClubsCard
                 bagLink
                 legalLinks
-                DSButton(title: "Выйти из аккаунта", style: .secondary) {
+                DSButton(title: lm.t.profile.signOut, style: .secondary) {
                     session.signOut()
                 }
                 dangerZone
@@ -40,7 +47,7 @@ struct ProfileView: View {
             .padding(DS.screenPadding)
         }
         .background(DSColor.surface)
-        .navigationTitle("Профиль")
+        .navigationTitle(lm.t.profile.title)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if let uid = currentUserId { await model.load(userId: uid) }
@@ -49,23 +56,18 @@ struct ProfileView: View {
             if let uid = currentUserId { await model.load(userId: uid) }
         }
         .confirmationDialog(
-            "Удалить аккаунт?", isPresented: $accountModel.showDeleteConfirm, titleVisibility: .visible
+            lm.t.profile.deleteAccountConfirmTitle, isPresented: $accountModel.showDeleteConfirm, titleVisibility: .visible
         ) {
-            Button("Удалить", role: .destructive) {
+            Button(lm.t.common.delete, role: .destructive) {
                 Task {
                     if await accountModel.confirmDelete() {
                         session.signOut()
                     }
                 }
             }
-            Button("Отмена", role: .cancel) {}
+            Button(lm.t.common.cancel, role: .cancel) {}
         } message: {
-            Text("""
-            Профиль, статистика и метки гринов удаляются навсегда. Ваши \
-            соло-раунды будут удалены. В совместных раундах вместо вашего \
-            имени останется «Удалённый игрок» — счёт партнёров не \
-            пострадает. Это действие необратимо.
-            """)
+            Text(lm.t.profile.deleteAccountConfirmBody)
         }
     }
 
@@ -84,7 +86,7 @@ struct ProfileView: View {
                     .frame(maxWidth: .infinity)
             }
             DSButton(
-                title: "Удалить аккаунт", icon: "trash", style: .destructive,
+                title: lm.t.profile.deleteAccount, icon: "trash", style: .destructive,
                 disabled: accountModel.deletingAccount
             ) {
                 accountModel.deleteError = nil
@@ -127,11 +129,11 @@ struct ProfileView: View {
 
     private var errorBanner: some View {
         HStack(spacing: 12) {
-            Text("Не удалось загрузить статистику")
+            Text(lm.t.profile.loadError)
                 .font(DSFont.labelLG)
                 .foregroundStyle(DSColor.onSurface)
             Spacer()
-            Button("Повторить") {
+            Button(lm.t.common.retry) {
                 Task {
                     if let uid = currentUserId { await model.load(userId: uid) }
                 }
@@ -151,7 +153,7 @@ struct ProfileView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(DSColor.primary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.profile?.name ?? "Голфер")
+                Text(session.profile?.name ?? lm.t.common.fallbackName)
                     .font(DSFont.titleLG)
                     .foregroundStyle(DSColor.onSurface)
                     .lineLimit(1)
@@ -164,19 +166,61 @@ struct ProfileView: View {
         .overlay(RoundedRectangle(cornerRadius: DS.cornerRadius).stroke(DSColor.outlineVariant.opacity(0.25)))
     }
 
+    // T4: переключатель языка — тот же визуальный приём пилюли, что у
+    // unitsToggle в MyBagView. Подписи языков — на самих языках («Русский»/
+    // «English»), не переводятся: игрок, случайно попавший в чужой язык,
+    // должен узнать свой в любом состоянии интерфейса.
+    private var languageToggle: some View {
+        VStack(spacing: 6) {
+            Text(lm.t.profile.language)
+                .font(DSFont.labelMD)
+                .tracking(1.2)
+                .textCase(.uppercase)
+                .foregroundStyle(DSColor.onSurfaceVariant)
+            HStack(spacing: 0) {
+                ForEach([AppLocale.ru, AppLocale.en], id: \.self) { locale in
+                    Button {
+                        changeLanguage(locale)
+                    } label: {
+                        Text(locale == .ru ? "Русский" : "English")
+                            .font(DSFont.labelLG)
+                            .frame(maxWidth: .infinity, minHeight: DS.touchTarget)
+                    }
+                    .background(lm.current == locale ? DSColor.surfaceContainerLowest : .clear)
+                    .foregroundStyle(lm.current == locale ? DSColor.primary : DSColor.onSurfaceVariant)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .padding(4)
+            .background(DSColor.surfaceContainer)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    // Применяется немедленно (каждый читатель environment(LocaleManager.self)
+    // перерисовывается на месте — без перезапуска), запись в Firestore —
+    // отдельно и некритично (тот же паттерн, что changeUnits в MyBagView):
+    // UI уже отражает выбор, повторной попытки при сетевой ошибке не нужно.
+    private func changeLanguage(_ locale: AppLocale) {
+        guard locale != lm.current else { return }
+        lm.set(locale)
+        guard let uid = currentUserId else { return }
+        Task { try? await UsersService.updateLocale(uid: uid, locale: locale) }
+    }
+
     private var statsCard: some View {
-        card(title: "Статистика") {
+        card(title: lm.t.profile.statsTitle) {
             if let stats = statsIfPlayed, stats.roundsPlayed > 0 {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    statCell("РАУНДОВ", "\(stats.roundsPlayed)")
-                    statCell("СР. УДАРЫ", stats.avgShots.truncatingRemainder(dividingBy: 1) == 0
+                    statCell(lm.t.profile.roundsLabel, "\(stats.roundsPlayed)")
+                    statCell(lm.t.profile.avgShotsLabel, stats.avgShots.truncatingRemainder(dividingBy: 1) == 0
                              ? String(format: "%.0f", stats.avgShots)
                              : String(format: "%.1f", stats.avgShots))
-                    statCell("ЛУЧШИЙ СЧЁТ", stats.bestScore.map(String.init) ?? "—")
-                    statCell("BEST VS PAR", stats.bestScoreDiff.map { $0 > 0 ? "+\($0)" : "\($0)" } ?? "—")
+                    statCell(lm.t.profile.bestScoreLabel, stats.bestScore.map(String.init) ?? "—")
+                    statCell(lm.t.profile.bestVsParLabel, stats.bestScoreDiff.map { $0 > 0 ? "+\($0)" : "\($0)" } ?? "—")
                 }
             } else {
-                Text("Сыграйте первый раунд, чтобы увидеть статистику.")
+                Text(lm.t.profile.noStatsYet)
                     .font(DSFont.labelLG)
                     .foregroundStyle(DSColor.onSurfaceVariant)
             }
@@ -204,12 +248,12 @@ struct ProfileView: View {
             ("Par", stats.holeStats.par, Score.color(0)),
             ("Bogey", stats.holeStats.bogey, Score.color(1)),
             ("Double", stats.holeStats.double, Score.color(2)),
-            ("Хуже", stats.holeStats.worse, Score.color(3)),
+            (lm.t.profile.worseLabel, stats.holeStats.worse, Score.color(3)),
         ]
         let total = stats.totalHolesPlayed
         func pct(_ n: Int) -> Int { total > 0 ? Int((Double(n) / Double(total) * 100).rounded()) : 0 }
-        return card(title: "Распределение по лункам") {
-            Text("За все \(total) \(pluralRu(total, "сыгранную лунку", "сыгранных лунки", "сыгранных лунок"))")
+        return card(title: lm.t.profile.distributionTitle) {
+            Text(lm.t.profile.overAllHoles(total, plural(total, lm.current, lm.t.profile.playedHolesWord)))
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             GeometryReader { geo in
@@ -248,7 +292,7 @@ struct ProfileView: View {
     }
 
     private var handicapCard: some View {
-        card(title: "Гандикап") {
+        card(title: lm.t.profile.handicapTitle) {
             if let uid = currentUserId,
                let handicap = Scoring.handicap(rounds: model.rounds, userId: uid) {
                 Text(handicap.index >= 0
@@ -258,12 +302,12 @@ struct ProfileView: View {
                     .foregroundStyle(DSColor.primary)
                     .monospacedDigit()
                 Text(handicap.bestUsed == 8
-                     ? "по лучшим 8 из \(handicap.basedOnRounds) раундов · WHS-метод (без course rating / slope)"
-                     : "по \(handicap.basedOnRounds) \(pluralRu(handicap.basedOnRounds, "раунду", "раундам", "раундам")), среднее × 0.96")
+                     ? lm.t.profile.handicapBest8(handicap.basedOnRounds)
+                     : lm.t.profile.handicapAvg(handicap.basedOnRounds, plural(handicap.basedOnRounds, lm.current, lm.t.profile.roundsWord)))
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
             } else {
-                Text("Сыграйте минимум 3 раунда — рассчитаем по WHS (best 8 из последних 20 × 0.96).")
+                Text(lm.t.profile.handicapEmpty)
                     .font(DSFont.labelLG)
                     .foregroundStyle(DSColor.onSurfaceVariant)
             }
@@ -271,11 +315,11 @@ struct ProfileView: View {
     }
 
     private var favoriteClubsCard: some View {
-        card(title: "Любимые клюшки") {
+        card(title: lm.t.profile.favoriteClubsTitle) {
             if let uid = currentUserId {
                 let stats = Array(Scoring.clubUsage(rounds: model.rounds, userId: uid).prefix(5))
                 if stats.isEmpty {
-                    Text("Статистика появится после первых ударов.")
+                    Text(lm.t.profile.favoriteClubsEmpty)
                         .font(DSFont.labelLG)
                         .foregroundStyle(DSColor.onSurfaceVariant)
                 } else {
@@ -288,7 +332,7 @@ struct ProfileView: View {
                                         .font(DSFont.bodyMD)
                                         .foregroundStyle(DSColor.onSurface)
                                     Spacer()
-                                    Text("\(stat.count) \(pluralRu(stat.count, "удар", "удара", "ударов")) · \(stat.percent)%")
+                                    Text("\(stat.count) \(plural(stat.count, lm.current, lm.t.profile.shotsWord)) · \(stat.percent)%")
                                         .font(DSFont.labelMD)
                                         .foregroundStyle(DSColor.onSurfaceVariant)
                                 }
@@ -317,13 +361,17 @@ struct ProfileView: View {
                         .frame(width: 44, height: 44)
                         .background(DSColor.onPrimary.opacity(0.15))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                    Text("МОЯ СУМКА")
+                    Text(lm.t.profile.myBagLink)
                         .font(DSFont.labelLG)
                         .tracking(2.5)
                         .foregroundStyle(DSColor.onPrimary)
                 }
                 HStack {
-                    Text("\(bag.filter(\.enabled).count) клюшек · \(session.profile?.units == .yd ? "ярды" : "метры")")
+                    Text(lm.t.profile.clubsCountAndUnit(
+                        bag.filter(\.enabled).count,
+                        plural(bag.filter(\.enabled).count, lm.current, lm.t.common.clubsWord),
+                        session.profile?.units == .yd ? lm.t.myBag.yardsWord : lm.t.myBag.metersWord
+                    ))
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.onPrimary.opacity(0.85))
                     Spacer()

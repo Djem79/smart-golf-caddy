@@ -44,8 +44,18 @@ struct BagClub: Equatable, Identifiable {
 enum Clubs {
     /// Псевдо-клюшка «Штраф»: пишется в серию как обычный удар (счёт +1 по
     /// правилам гольфа), исключается из статистики клюшек. SYNC: PENALTY_ID
-    /// в src/types/index.ts.
+    /// в src/types/index.ts. Ключ данных, синхронизированный с вебом/базой —
+    /// НЕ переводить (T4).
     static let penaltyId = "Штраф"
+
+    /// T4: внутренний sentinel для ударов старых документов, у которых есть
+    /// count, но нет ни clubs, ни legacyClub (см. HoleShots.resolvedClubs в
+    /// Round.swift) — никогда не пишется в Firestore, никогда не
+    /// показывается напрямую. `label(for:in:)` переводит его на текущий
+    /// язык; Scoring.clubUsage сравнивает с этой же константой, а не с
+    /// локализованным текстом, чтобы исключение из статистики не зависело
+    /// от выбранного языка.
+    static let unknownId = "__unknown_club__"
 
     static let abbrev: [String: String] = [
         "Driver": "DRV", "3W": "3W", "5W": "5W", "Hybrid": "HY",
@@ -55,12 +65,25 @@ enum Clubs {
         "Putter": "PT",
     ]
 
-    static let groups: [(category: ClubCategory, label: String, defaultIds: [String])] = [
-        (.wood, "Драйвер и вуды", ["Driver", "3W", "5W", "Hybrid"]),
-        (.iron, "Айроны", ["3i", "4i", "5i", "6i", "7i", "8i", "9i"]),
-        (.wedge, "Вейджи", ["PW", "GW", "50°", "SW", "54°", "58°", "LW", "60°"]),
-        (.putter, "Паттер", ["Putter"]),
+    // T4: label больше не хранится статически — переводится динамически
+    // через categoryLabel(_:), иначе смена языка требовала бы пересборки
+    // этого массива на каждый рендер.
+    static let groups: [(category: ClubCategory, defaultIds: [String])] = [
+        (.wood, ["Driver", "3W", "5W", "Hybrid"]),
+        (.iron, ["3i", "4i", "5i", "6i", "7i", "8i", "9i"]),
+        (.wedge, ["PW", "GW", "50°", "SW", "54°", "58°", "LW", "60°"]),
+        (.putter, ["Putter"]),
     ]
+
+    static func categoryLabel(_ category: ClubCategory) -> String {
+        let clubs = AppLocaleStore.strings.clubs
+        switch category {
+        case .wood: return clubs.categoryWood
+        case .iron: return clubs.categoryIron
+        case .wedge: return clubs.categoryWedge
+        case .putter: return clubs.categoryPutter
+        }
+    }
 
     static let defaultBag: [BagClub] = [
         BagClub(id: "Driver", customName: nil, distanceMeters: 230, enabled: true, category: .wood, custom: nil),
@@ -112,12 +135,13 @@ enum Clubs {
     }
 
     static func label(for clubId: String, in bag: [BagClub]) -> String {
+        if clubId == unknownId { return AppLocaleStore.strings.common.unknown }
         if let known = abbrev[clubId] { return known }
         if let club = bag.first(where: { $0.id == clubId }),
            let name = club.customName, !name.trimmingCharacters(in: .whitespaces).isEmpty {
             return name
         }
-        if clubId.hasPrefix("custom-") { return "Клюшка" }
+        if clubId.hasPrefix("custom-") { return AppLocaleStore.strings.clubs.missingCustom }
         return clubId
     }
 }

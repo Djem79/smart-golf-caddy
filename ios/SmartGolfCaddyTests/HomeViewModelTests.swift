@@ -35,6 +35,6 @@ final class HomeViewModelTests: XCTestCase {
     @MainActor
     func testResumeSubtitleCountsPlayed() {
         let round = activeRound(shotsOnHoles: [1, 3, 5])
-        XCTAssertEqual(HomeViewModel.resumeSubtitle(round: round, userId: "u1"), "Пройдено 3 из 9")
+        XCTAssertEqual(HomeViewModel.resumeSubtitle(round: round, userId: "u1"), AppLocaleStore.strings.home.playedOf(3, 9))
     }
 }

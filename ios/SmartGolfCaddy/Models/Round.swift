@@ -32,7 +32,12 @@ struct HoleShots: Equatable {
     var resolvedClubs: [String] {
         if !clubs.isEmpty { return clubs }
         if let legacyClub, !legacyClub.isEmpty { return Array(repeating: legacyClub, count: count) }
-        return Array(repeating: "Неизвестно", count: count)
+        // T4: не локализованная строка — стабильный внутренний sentinel.
+        // Clubs.label(for:in:) переводит его в отображаемый текст на
+        // текущем языке; Scoring.clubUsage сравнивает с этой же константой,
+        // чтобы исключить эти удары из статистики клюшек независимо от
+        // выбранного языка.
+        return Array(repeating: Clubs.unknownId, count: count)
     }
 
     /// Дистанции, выровненные по длине серии: недостающие — 0, лишние отброшены.
@@ -172,23 +177,18 @@ struct Round: Equatable, Identifiable {
 
 // Порт TEE_COLORS (цвета) и t.common.tee (метки, src/i18n/ru.ts+en.ts) из веба — тии.
 extension TeeColor {
-    var label: String {
+    private var info: Strings.Common.TeeInfo {
+        let tee = AppLocaleStore.strings.common.tee
         switch self {
-        case .pro: return "Pro"
-        case .men: return "Мужские"
-        case .senior: return "Сеньорские"
-        case .ladies: return "Женские"
+        case .pro: return tee.pro
+        case .men: return tee.men
+        case .senior: return tee.senior
+        case .ladies: return tee.ladies
         }
     }
 
-    var teeDescription: String {
-        switch self {
-        case .pro: return "Чемпионские · +10%"
-        case .men: return "Стандартные"
-        case .senior: return "Чуть ближе · −10%"
-        case .ladies: return "Ближе всего · −20%"
-        }
-    }
+    var label: String { info.label }
+    var teeDescription: String { info.description }
 
     var bgHex: String {
         switch self {

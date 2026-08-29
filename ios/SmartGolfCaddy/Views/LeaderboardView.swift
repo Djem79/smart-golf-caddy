@@ -8,6 +8,7 @@ struct LeaderboardView: View {
     let roundId: String
 
     @Environment(AppRouter.self) private var router
+    @Environment(LocaleManager.self) private var lm
     @State private var model = LeaderboardViewModel()
 
     var body: some View {
@@ -20,16 +21,16 @@ struct LeaderboardView: View {
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.error)
                         .multilineTextAlignment(.center)
-                    DSButton(title: "На главную", style: .secondary) { router.goHome() }
+                    DSButton(title: lm.t.common.goHome, style: .secondary) { router.goHome() }
                         .padding(.horizontal, 48)
                 }
                 .padding(DS.screenPadding)
             } else {
-                ProgressView("Загрузка...")
+                ProgressView(lm.t.common.loading)
             }
         }
         .background(DSColor.surface)
-        .navigationTitle("Таблица")
+        .navigationTitle(lm.t.leaderboard.navTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task { model.start(roundId: roundId) }
         .onChange(of: model.round?.status) { _, status in
@@ -50,9 +51,9 @@ struct LeaderboardView: View {
 
     private func statusText(_ round: Round) -> String {
         switch round.status {
-        case .lobby: return "Лобби (ещё не начали)"
-        case .finished: return "Раунд завершён"
-        case .active: return "\(round.totalHoles) \(pluralRu(round.totalHoles, "лунка", "лунки", "лунок"))"
+        case .lobby: return lm.t.leaderboard.lobbyNotStarted
+        case .finished: return lm.t.leaderboard.roundFinished
+        case .active: return "\(round.totalHoles) \(plural(round.totalHoles, lm.current, lm.t.common.holesWord))"
         }
     }
 
@@ -82,7 +83,7 @@ struct LeaderboardView: View {
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
                     .lineLimit(1)
                 (Text(statusText(round))
-                    + Text(isMatchPlay ? " · Match 1 v 1" : ""))
+                    + Text(isMatchPlay ? lm.t.leaderboard.match1v1Suffix : ""))
                     .font(DSFont.titleLG)
                     .foregroundStyle(DSColor.onPrimary)
             }
@@ -98,7 +99,7 @@ struct LeaderboardView: View {
 
     private func matchCard(_ round: Round, _ status: MatchPlayStatus) -> some View {
         VStack(spacing: 4) {
-            Text("MATCH STATUS")
+            Text(lm.t.leaderboard.matchStatusUppercase)
                 .font(DSFont.labelMD)
                 .tracking(1.5)
                 .foregroundStyle(DSColor.onSurfaceVariant)
@@ -106,16 +107,16 @@ struct LeaderboardView: View {
                 .font(DSFont.displayLG)
                 .foregroundStyle(DSColor.primary)
                 .monospacedDigit()
-            Text(status.leaderUid.flatMap { round.players[$0]?.name }.map { "Ведёт: \($0)" } ?? "Игроки на равных")
+            Text(status.leaderUid.flatMap { round.players[$0]?.name }.map { lm.t.leaderboard.leading($0) } ?? lm.t.common.playersEven)
                 .font(DSFont.labelLG)
                 .foregroundStyle(DSColor.onSurface)
             if status.closed {
-                Label("Матч решён", systemImage: "checkmark")
+                Label(lm.t.leaderboard.matchDecided, systemImage: "checkmark")
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.primary)
                     .padding(.top, 4)
             }
-            Text("Сыграно: \(status.holesPlayed) · Осталось: \(status.holesRemaining)")
+            Text(lm.t.leaderboard.playedRemaining(status.holesPlayed, status.holesRemaining))
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
                 .padding(.top, 4)
@@ -134,8 +135,8 @@ struct LeaderboardView: View {
         return VStack(spacing: 8) {
             HStack {
                 Text("#").frame(width: 28, alignment: .leading)
-                Text("Игрок").frame(maxWidth: .infinity, alignment: .leading)
-                Text("К пару").frame(width: 64, alignment: .trailing)
+                Text(lm.t.leaderboard.columnPlayer).frame(maxWidth: .infinity, alignment: .leading)
+                Text(lm.t.leaderboard.columnToPar).frame(width: 64, alignment: .trailing)
             }
             .font(DSFont.labelMD)
             .tracking(1)
@@ -144,7 +145,7 @@ struct LeaderboardView: View {
             .padding(.horizontal, 12)
 
             if entries.isEmpty {
-                Text("Игроков пока нет")
+                Text(lm.t.leaderboard.noPlayers)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
                     .padding(.top, 32)
@@ -168,11 +169,11 @@ struct LeaderboardView: View {
                 .frame(width: 28, alignment: .leading)
             avatarCircle(entry.name)
             VStack(alignment: .leading, spacing: 2) {
-                Text(isMe ? "\(entry.name) (вы)" : entry.name)
+                Text(isMe ? "\(entry.name) (\(lm.t.leaderboard.you))" : entry.name)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onSurface)
                     .lineLimit(1)
-                Text("\(entry.thru > 0 ? "\(entry.totalScore)" : "—") удар. · \(entry.thru)/\(totalHoles)")
+                Text("\(entry.thru > 0 ? "\(entry.totalScore)" : "—") \(lm.t.leaderboard.strokesShortDot) · \(entry.thru)/\(totalHoles)")
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
             }

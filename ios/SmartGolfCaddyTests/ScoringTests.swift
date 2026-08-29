@@ -45,12 +45,12 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(totals.scoreDiff, 0)
     }
 
-    // MARK: clubUsage — сортировка по убыванию, «Неизвестно» исключён
+    // MARK: clubUsage — сортировка по убыванию, Clubs.unknownId исключён
 
     func testClubUsage() {
         let round = makeRound(holes: [
             hole(1, par: 4, shots: ["u1": ["count": 3, "clubs": ["Driver", "7i", "7i"]]]),
-            hole(2, par: 4, shots: ["u1": ["count": 2, "clubs": [], "club": ""]]),  // resolvedClubs → «Неизвестно» ×2
+            hole(2, par: 4, shots: ["u1": ["count": 2, "clubs": [], "club": ""]]),  // resolvedClubs → Clubs.unknownId ×2
         ])
         let usage = Scoring.clubUsage(round: round, userId: "u1")
         XCTAssertEqual(usage.map(\.club), ["7i", "Driver"])
@@ -266,9 +266,11 @@ final class ScoringTests: XCTestCase {
     // MARK: TeeColor labels
 
     func testTeeLabels() {
-        XCTAssertEqual(TeeColor.men.label, "Мужские")
+        // T4: label/teeDescription are locale-dependent now — compare
+        // against the current-locale string, not a hardcoded Russian one.
+        XCTAssertEqual(TeeColor.men.label, AppLocaleStore.strings.common.tee.men.label)
         XCTAssertEqual(TeeColor.pro.bgHex, "#0A3010")
         XCTAssertEqual(TeeColor.ladies.textHex, "#FFFFFF")
-        XCTAssertEqual(TeeColor.senior.teeDescription, "Чуть ближе · −10%")
+        XCTAssertEqual(TeeColor.senior.teeDescription, AppLocaleStore.strings.common.tee.senior.description)
     }
 }

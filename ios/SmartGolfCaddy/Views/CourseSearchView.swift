@@ -4,6 +4,7 @@ import SwiftUI
 struct CourseSearchView: View {
     @Environment(AppRouter.self) private var router
     @Environment(AppStore.self) private var store
+    @Environment(LocaleManager.self) private var lm
     @State private var model = CourseSearchViewModel()
 
     var body: some View {
@@ -11,8 +12,8 @@ struct CourseSearchView: View {
             searchField
             DSButton(
                 title: model.searchText.trimmingCharacters(in: .whitespaces).isEmpty
-                    ? "Указать поле вручную / пропустить"
-                    : "Использовать «\(model.searchText.trimmingCharacters(in: .whitespaces))»",
+                    ? lm.t.courseSearch.manualEntry
+                    : lm.t.courseSearch.useQuery(model.searchText.trimmingCharacters(in: .whitespaces)),
                 style: .secondary
             ) {
                 store.selectedCourse = nil
@@ -24,7 +25,7 @@ struct CourseSearchView: View {
             content
         }
         .background(DSColor.surface)
-        .navigationTitle("Поиск полей")
+        .navigationTitle(lm.t.courseSearch.title)
         .navigationBarTitleDisplayMode(.inline)
         .task { model.start() }
     }
@@ -33,7 +34,7 @@ struct CourseSearchView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(DSColor.onSurfaceVariant)
-            TextField("Поиск полей или городов", text: $model.searchText)
+            TextField(lm.t.courseSearch.searchPlaceholder, text: $model.searchText)
                 .font(DSFont.bodyMD)
                 .onChange(of: model.searchText) { _, _ in model.searchChanged() }
         }
@@ -53,7 +54,7 @@ struct CourseSearchView: View {
                     .foregroundStyle(DSColor.error)
                     .multilineTextAlignment(.center)
                 if !model.geoDenied {
-                    DSButton(title: "Повторить", style: .secondary) {
+                    DSButton(title: lm.t.common.retry, style: .secondary) {
                         model.start()
                     }
                     .padding(.horizontal, 64)
@@ -62,10 +63,10 @@ struct CourseSearchView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(DS.screenPadding)
         } else if model.loading && model.visible.isEmpty {
-            ProgressView("Ищем поля рядом...")
+            ProgressView(lm.t.courseSearch.searchingNearby)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if model.visible.isEmpty {
-            Text("Поля не найдены. Попробуйте другой запрос или укажите поле вручную.")
+            Text(lm.t.courseSearch.noResults)
                 .font(DSFont.bodyMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
                 .multilineTextAlignment(.center)
@@ -108,7 +109,7 @@ struct CourseSearchView: View {
                                 .font(DSFont.labelMD)
                                 .foregroundStyle(DSColor.onSurfaceVariant)
                         }
-                        Text("\(String(format: "%.1f", course.distanceKm)) км")
+                        Text("\(String(format: "%.1f", course.distanceKm)) \(lm.t.common.km)")
                             .font(DSFont.labelMD)
                             .foregroundStyle(DSColor.onSurfaceVariant)
                     }

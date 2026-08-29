@@ -35,6 +35,6 @@ final class HomeViewModel {
 
     static func resumeSubtitle(round: Round, userId: String) -> String {
         let played = round.holes.filter { ($0.shots[userId]?.count ?? 0) > 0 }.count
-        return "Пройдено \(played) из \(round.totalHoles)"
+        return AppLocaleStore.strings.home.playedOf(played, round.totalHoles)
     }
 }

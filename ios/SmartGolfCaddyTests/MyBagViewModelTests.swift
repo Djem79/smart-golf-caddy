@@ -88,7 +88,7 @@ final class MyBagViewModelTests: XCTestCase {
         let model = MyBagViewModel(persistBag: { _ in throw Boom() }, persistUnits: { _ in })
         model.syncFromProfile(AppUser(uid: "u", data: ["name": "Тест"]))
         await model.toggle(id: "5W")
-        XCTAssertEqual(model.errorMessage, "Не удалось сохранить изменения")
+        XCTAssertEqual(model.errorMessage, AppLocaleStore.strings.myBag.saveError)
         XCTAssertTrue(model.bag.first { $0.id == "5W" }!.enabled)  // оптимизм не откатываем (веб-паритет)
     }
 }

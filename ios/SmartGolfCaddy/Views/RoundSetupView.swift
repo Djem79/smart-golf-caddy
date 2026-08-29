@@ -5,6 +5,7 @@ struct RoundSetupView: View {
     @Environment(SessionViewModel.self) private var session
     @Environment(AppRouter.self) private var router
     @Environment(AppStore.self) private var store
+    @Environment(LocaleManager.self) private var lm
     @State private var model = RoundSetupViewModel()
     @FocusState private var nameFocused: Bool
 
@@ -22,7 +23,7 @@ struct RoundSetupView: View {
                         .foregroundStyle(DSColor.error)
                         .frame(maxWidth: .infinity)
                 }
-                DSButton(title: model.creating ? "Создаём..." : "Начать раунд",
+                DSButton(title: model.creating ? lm.t.roundSetup.creating : lm.t.roundSetup.startRound,
                          icon: "flag.fill",
                          disabled: model.creating) {
                     Task {
@@ -37,7 +38,7 @@ struct RoundSetupView: View {
             .padding(DS.screenPadding)
         }
         .background(DSColor.surface)
-        .navigationTitle("Настройка раунда")
+        .navigationTitle(lm.t.roundSetup.title)
         .navigationBarTitleDisplayMode(.inline)
         .task { model.adopt(store: store) }
     }
@@ -52,12 +53,12 @@ struct RoundSetupView: View {
 
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("НАЗВАНИЕ ПОЛЯ")
+            sectionHeader(lm.t.roundSetup.courseNameSectionHeader)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             if model.selectedPlaceId != nil {
                 selectedCourseCard
             } else {
-                TextField("Например: Гольф клуб Москва", text: $model.courseName)
+                TextField(lm.t.roundSetup.courseNamePlaceholder, text: $model.courseName)
                     .font(DSFont.bodyMD)
                     .padding(14)
                     .background(DSColor.surfaceContainerLowest)
@@ -76,10 +77,10 @@ struct RoundSetupView: View {
             Text(model.courseName)
                 .font(DSFont.titleLG)
                 .foregroundStyle(DSColor.onSurface)
-            Text("\(model.selectedVicinity) · \(String(format: "%.1f", model.selectedDistanceKm)) км")
+            Text("\(model.selectedVicinity) · \(String(format: "%.1f", model.selectedDistanceKm)) \(lm.t.common.km)")
                 .font(DSFont.labelLG)
                 .foregroundStyle(DSColor.onSurfaceVariant)
-            Button("Сменить поле") {
+            Button(lm.t.roundSetup.changeCourse) {
                 router.replaceLast(.courseSearch)
             }
             .font(DSFont.labelLG)
@@ -95,7 +96,7 @@ struct RoundSetupView: View {
 
     private var holesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("КОЛИЧЕСТВО ЛУНОК")
+            sectionHeader(lm.t.roundSetup.holesSectionHeader)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             HStack(spacing: 12) {
                 ForEach([9, 18], id: \.self) { n in
@@ -121,7 +122,7 @@ struct RoundSetupView: View {
 
     private var teeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("ТИИ (ОТКУДА ИГРАЕМ)")
+            sectionHeader(lm.t.roundSetup.teeSectionHeader)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(TeeColor.allCases, id: \.self) { tee in
@@ -167,15 +168,15 @@ struct RoundSetupView: View {
 
     private var modeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("РЕЖИМ ИГРЫ").foregroundStyle(DSColor.onSurfaceVariant)
+            sectionHeader(lm.t.roundSetup.modeSectionHeader).foregroundStyle(DSColor.onSurfaceVariant)
             HStack(spacing: 12) {
-                choiceCard(title: "Соло", subtitle: "Только вы",
+                choiceCard(title: lm.t.roundSetup.soloTitle, subtitle: lm.t.roundSetup.soloDesc,
                            icon: "person", selected: model.mode == .solo) { model.mode = .solo }
-                choiceCard(title: "Группа", subtitle: "С друзьями",
+                choiceCard(title: lm.t.roundSetup.groupTitle, subtitle: lm.t.roundSetup.groupDesc,
                            icon: "person.2", selected: model.mode == .group) { model.mode = .group }
             }
             if model.mode == .group {
-                Text("После создания раунда вы получите код, чтобы пригласить друзей")
+                Text(lm.t.roundSetup.groupHint)
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
                     .frame(maxWidth: .infinity)
@@ -187,15 +188,15 @@ struct RoundSetupView: View {
     private var formatSection: some View {
         if model.mode == .group {
             VStack(alignment: .leading, spacing: 12) {
-                sectionHeader("ФОРМАТ ИГРЫ").foregroundStyle(DSColor.onSurfaceVariant)
+                sectionHeader(lm.t.roundSetup.formatSectionHeader).foregroundStyle(DSColor.onSurfaceVariant)
                 HStack(spacing: 12) {
-                    choiceCard(title: "Stroke", subtitle: "Общий счёт по ударам",
+                    choiceCard(title: lm.t.roundSetup.strokeTitle, subtitle: lm.t.roundSetup.strokeDesc,
                                icon: "chart.bar", selected: model.playMode == .stroke) { model.playMode = .stroke }
-                    choiceCard(title: "Match", subtitle: "2 игрока · по лункам",
+                    choiceCard(title: lm.t.roundSetup.matchTitle, subtitle: lm.t.roundSetup.matchDesc,
                                icon: "flag.2.crossed", selected: model.playMode == .match) { model.playMode = .match }
                 }
                 if model.playMode == .match {
-                    Text("Match play считается по победам в каждой лунке. Лучше всего работает 1 на 1.")
+                    Text(lm.t.roundSetup.matchHint)
                         .font(DSFont.labelMD)
                         .foregroundStyle(DSColor.onSurfaceVariant)
                         .frame(maxWidth: .infinity)

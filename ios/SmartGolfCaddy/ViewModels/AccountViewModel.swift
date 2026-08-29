@@ -40,7 +40,7 @@ final class AccountViewModel {
             return true
         } catch {
             showDeleteConfirm = false
-            deleteError = "Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз."
+            deleteError = AppLocaleStore.strings.profile.deleteAccountError
             return false
         }
     }

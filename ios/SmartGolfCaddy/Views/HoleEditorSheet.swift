@@ -10,6 +10,7 @@ struct HoleEditorSheet: View {
     let onSave: (_ par: Int?, _ distanceMeters: Int?) -> Void
     let onCancel: () -> Void
 
+    @Environment(LocaleManager.self) private var lm
     @State private var par: Int
     @State private var distanceText: String
     @State private var validationError: String?
@@ -29,16 +30,16 @@ struct HoleEditorSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Параметры лунки \(holeNumber)")
+                Text(lm.t.holeTracker.editHoleTitle(holeNumber))
                     .font(DSFont.titleLG)
                     .foregroundStyle(DSColor.onSurface)
-                Text("Подгоните под реальное поле — изменение видно всем игрокам.")
+                Text(lm.t.holeTracker.editHoleHint)
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("ПАР")
+                Text(lm.t.holeTracker.parUppercase)
                     .font(DSFont.labelMD)
                     .tracking(1.2)
                     .foregroundStyle(DSColor.onSurfaceVariant)
@@ -64,7 +65,7 @@ struct HoleEditorSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("ДИСТАНЦИЯ, МЕТРОВ")
+                Text(lm.t.holeTracker.distanceMetersUppercase)
                     .font(DSFont.labelMD)
                     .tracking(1.2)
                     .foregroundStyle(DSColor.onSurfaceVariant)
@@ -85,8 +86,8 @@ struct HoleEditorSheet: View {
             }
 
             HStack(spacing: 8) {
-                DSButton(title: "Отмена", style: .secondary, disabled: saving, action: onCancel)
-                DSButton(title: saving ? "Сохраняем..." : "Сохранить", disabled: saving) {
+                DSButton(title: lm.t.common.cancel, style: .secondary, disabled: saving, action: onCancel)
+                DSButton(title: saving ? lm.t.holeTracker.saving : lm.t.holeTracker.save, disabled: saving) {
                     submit()
                 }
             }
@@ -97,7 +98,7 @@ struct HoleEditorSheet: View {
 
     private func submit() {
         guard let parsed = Int(distanceText), (50...700).contains(parsed) else {
-            validationError = "Дистанция должна быть 50–700 метров"
+            validationError = lm.t.holeTracker.distanceError
             return
         }
         validationError = nil

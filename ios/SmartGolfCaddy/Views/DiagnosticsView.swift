@@ -7,20 +7,23 @@ import FirebaseFunctions
 import SwiftUI
 
 struct DiagnosticsView: View {
-    @State private var status = "Проверка связи не запускалась"
+    @Environment(LocaleManager.self) private var lm
+    @State private var status: String?
     @State private var running = false
+
+    private var statusText: String { status ?? lm.t.diagnostics.checkNotRun }
 
     var body: some View {
         VStack(spacing: 8) {
             Button {
                 Task { await runCheck() }
             } label: {
-                Label("Проверить связь с сервером", systemImage: "antenna.radiowaves.left.and.right")
+                Label(lm.t.diagnostics.checkButton, systemImage: "antenna.radiowaves.left.and.right")
                     .font(DSFont.labelLG)
                     .frame(minHeight: DS.touchTarget)
             }
             .disabled(running)
-            Text(status)
+            Text(statusText)
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
                 .multilineTextAlignment(.center)
@@ -36,21 +39,21 @@ struct DiagnosticsView: View {
             let result = try await FirebaseService.functions
                 .httpsCallable("joinLobbyByCode").call(payload)
             guard let data = result.data as? [String: Any] else {
-                status = "Неожиданный ответ: \(String(describing: result.data))"
+                status = lm.t.diagnostics.unexpectedResponse(String(describing: result.data))
                 return
             }
             if data["roundId"] is NSNull || data["roundId"] == nil {
-                status = "Сервер отвечает, App Check пропускает. Канал работает."
+                status = lm.t.diagnostics.channelOk
             } else {
-                status = "Неожиданный ответ: \(String(describing: result.data))"
+                status = lm.t.diagnostics.unexpectedResponse(String(describing: result.data))
             }
         } catch {
             let ns = error as NSError
             if ns.domain == FunctionsErrorDomain,
                ns.code == FunctionsErrorCode.unauthenticated.rawValue {
-                status = "App Check отклонил вызов — зарегистрируйте debug token в консоли Firebase"
+                status = lm.t.diagnostics.appCheckRejected
             } else {
-                status = "Ошибка: \(error.localizedDescription)"
+                status = lm.t.diagnostics.errorPrefix(error.localizedDescription)
             }
         }
     }

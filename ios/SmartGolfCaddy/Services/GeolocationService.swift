@@ -45,7 +45,7 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
             manager.requestWhenInUseAuthorization()
         case .denied, .restricted:
             DispatchQueue.main.async {
-                onDenied("Доступ к геолокации запрещён. Разрешите его в Настройках.")
+                onDenied(AppLocaleStore.strings.geolocation.permissionDenied)
             }
         default:
             manager.requestLocation()
@@ -85,7 +85,7 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
             }
         case .denied, .restricted:
             DispatchQueue.main.async { [weak self] in
-                self?.onDenied?("Доступ к геолокации запрещён. Разрешите его в Настройках.")
+                self?.onDenied?(AppLocaleStore.strings.geolocation.permissionDenied)
             }
         default:
             break
@@ -109,7 +109,7 @@ final class GeolocationService: NSObject, CLLocationManagerDelegate, @unchecked 
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         DispatchQueue.main.async { [weak self] in
-            self?.onError?("Не удалось определить местоположение")
+            self?.onError?(AppLocaleStore.strings.geolocation.positionUnavailable)
         }
     }
 }

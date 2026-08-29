@@ -15,7 +15,7 @@ final class RoundResultsViewModel {
             roundId: roundId,
             onChange: { [weak self] round in self?.round = round },
             onError: { [weak self] _ in
-                self?.loadError = "Не удалось загрузить итоги. Проверьте связь."
+                self?.loadError = AppLocaleStore.strings.roundResults.loadError
             }
         )
     }

@@ -15,8 +15,8 @@ enum AuthServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noPresenter: return "Не найден корневой экран для входа"
-        case .missingToken: return "Google не вернул токен — попробуйте ещё раз"
+        case .noPresenter: return AppLocaleStore.strings.auth.noPresenterError
+        case .missingToken: return AppLocaleStore.strings.auth.missingTokenError
         case .cancelled: return nil
         }
     }

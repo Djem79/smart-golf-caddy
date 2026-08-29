@@ -35,25 +35,25 @@ final class JoinGameViewModel {
     func join(profile: AppUser?) async -> String? {
         guard !loading else { return nil }
         guard code.count == 6 else {
-            errorMessage = "Код должен содержать 6 символов"
+            errorMessage = AppLocaleStore.strings.joinGame.codeLengthError
             return nil
         }
         loading = true
         errorMessage = nil
         defer { loading = false }
         let info = PlayerInfo(
-            name: profile?.name ?? "Голфер",
+            name: profile?.name ?? AppLocaleStore.strings.common.fallbackName,
             avatar: profile?.avatar ?? "",
             totalScore: 0, scoreDiff: 0, email: nil
         )
         do {
             guard let roundId = try await joiner(code, info) else {
-                errorMessage = "Лобби с таким кодом не найдено. Проверьте код или попросите хоста создать новое."
+                errorMessage = AppLocaleStore.strings.joinGame.lobbyNotFound
                 return nil
             }
             return roundId
         } catch {
-            errorMessage = "Не удалось присоединиться. Проверьте интернет и попробуйте снова."
+            errorMessage = AppLocaleStore.strings.joinGame.joinError
             return nil
         }
     }

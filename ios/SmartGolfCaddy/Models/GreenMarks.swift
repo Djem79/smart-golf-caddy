@@ -38,9 +38,16 @@ struct GreenMarkSet: Equatable {
 }
 
 enum Greens {
-    /// Дефолтная заглушка `RoundSetupViewModel.effectiveName`, которую
-    /// пользователь не вводил сам — не идентифицирует физическое поле.
-    private static let unnamedCoursePlaceholder = "поле для гольфа"
+    /// Дефолтные заглушки `RoundSetupViewModel.effectiveName` /
+    /// `CoursesService`'s Places-fallback, которые пользователь не вводил
+    /// сам — не идентифицируют физическое поле. T4: обе локали сразу (не
+    /// текущая `AppLocaleStore.current`) — курс мог создать игрок с другим
+    /// языком профиля в том же групповом раунде, и это сравнение обязано
+    /// узнать заглушку независимо от того, кто сейчас смотрит на экран.
+    private static let unnamedCoursePlaceholders: Set<String> = [
+        Strings.ru.courseSearch.courseFallbackName.lowercased(),
+        Strings.en.courseSearch.courseFallbackName.lowercased(),
+    ]
 
     /// Стабильный ключ поля для меток гринов. Для полей из поиска —
     /// placeId. Для введённых вручную id уникален на раунд
@@ -65,7 +72,7 @@ enum Greens {
         })
         let bounded = String(sanitized.prefix(100))
         // Дефолтное имя-заглушка не идентифицирует поле.
-        guard !bounded.isEmpty, bounded != unnamedCoursePlaceholder else { return nil }
+        guard !bounded.isEmpty, !unnamedCoursePlaceholders.contains(bounded) else { return nil }
         return "name:\(bounded)"
     }
 

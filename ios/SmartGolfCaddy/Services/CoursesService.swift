@@ -12,12 +12,13 @@ enum CourseFetchError: LocalizedError {
     case http(Int)
 
     var errorDescription: String? {
+        let errors = AppLocaleStore.strings.courseSearch.errors
         switch self {
-        case .config: return "API ключ Google Places не настроен"
-        case .network: return "Нет связи с серверами Google"
-        case .denied: return "Доступ к Places API (New) запрещён"
-        case .quota: return "Превышен лимит запросов к Places API"
-        case .invalid: return "Некорректный запрос к Places API"
+        case .config: return errors.apiKeyMissing
+        case .network: return errors.network
+        case .denied: return errors.denied
+        case .quota: return errors.quota
+        case .invalid: return errors.invalid
         case .http(let code): return "Places API HTTP \(code)"
         }
     }
@@ -138,7 +139,7 @@ final class CoursesService: @unchecked Sendable {
             }
             return CourseResult(
                 placeId: place.id ?? "",
-                name: place.displayName?.text ?? "Поле для гольфа",
+                name: place.displayName?.text ?? AppLocaleStore.strings.courseSearch.courseFallbackName,
                 vicinity: place.formattedAddress ?? "",
                 rating: place.rating,
                 userRatingsTotal: place.userRatingCount,

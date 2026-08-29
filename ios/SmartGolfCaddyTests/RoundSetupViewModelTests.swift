@@ -6,7 +6,7 @@ final class RoundSetupViewModelTests: XCTestCase {
     func testEffectiveNameTrimAndFallback() {
         let model = RoundSetupViewModel()
         model.courseName = "   "
-        XCTAssertEqual(model.effectiveName, "Поле для гольфа")
+        XCTAssertEqual(model.effectiveName, AppLocaleStore.strings.courseSearch.courseFallbackName)
         model.courseName = "  Сколково  "
         XCTAssertEqual(model.effectiveName, "Сколково")
     }

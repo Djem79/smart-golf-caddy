@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HistoryView: View {
+    @Environment(LocaleManager.self) private var lm
     @State private var model = HistoryViewModel()
 
     private var currentUserId: String? { AuthService.currentUserId }
@@ -10,7 +11,7 @@ struct HistoryView: View {
             if model.loadError {
                 errorState
             } else if model.loading {
-                ProgressView("Загрузка...")
+                ProgressView(lm.t.common.loading)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.rounds.isEmpty {
                 emptyState
@@ -19,7 +20,7 @@ struct HistoryView: View {
             }
         }
         .background(DSColor.surface)
-        .navigationTitle("История раундов")
+        .navigationTitle(lm.t.history.title)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if let uid = currentUserId { await model.load(userId: uid) }
@@ -80,11 +81,13 @@ struct HistoryView: View {
 
     private func subtitle(_ round: Round) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.locale = Locale(identifier: lm.current == .ru ? "ru_RU" : "en_US")
         formatter.dateFormat = "d MMMM yyyy"
         let date = formatter.string(from: round.createdAt)
         let players = round.players.count
-        return "\(date) · \(round.totalHoles) \(pluralRu(round.totalHoles, "лунка", "лунки", "лунок")) · \(players) \(pluralRu(players, "игрок", "игрока", "игроков"))"
+        let holesWord = plural(round.totalHoles, lm.current, lm.t.common.holesWord)
+        let playersWord = plural(players, lm.current, lm.t.common.playersWord)
+        return "\(date) · \(round.totalHoles) \(holesWord) · \(players) \(playersWord)"
     }
 
     private var emptyState: some View {
@@ -95,7 +98,7 @@ struct HistoryView: View {
                 .frame(width: 56, height: 56)
                 .background(DSColor.surfaceContainer)
                 .clipShape(Circle())
-            Text("Нет завершённых раундов")
+            Text(lm.t.history.empty)
                 .font(DSFont.bodyMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
         }
@@ -104,10 +107,10 @@ struct HistoryView: View {
 
     private var errorState: some View {
         VStack(spacing: 16) {
-            Text("Не удалось загрузить историю")
+            Text(lm.t.history.loadError)
                 .font(DSFont.bodyMD)
                 .foregroundStyle(DSColor.onSurface)
-            DSButton(title: "Повторить", style: .secondary) {
+            DSButton(title: lm.t.common.retry, style: .secondary) {
                 Task {
                     if let uid = currentUserId { await model.load(userId: uid) }
                 }

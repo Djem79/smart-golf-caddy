@@ -6,6 +6,7 @@ struct RoundResultsView: View {
 
     @Environment(SessionViewModel.self) private var session
     @Environment(AppRouter.self) private var router
+    @Environment(LocaleManager.self) private var lm
     @State private var model = RoundResultsViewModel()
 
     private var viewerBag: [BagClub] { session.profile?.resolvedBag ?? Clubs.defaultBag }
@@ -13,9 +14,9 @@ struct RoundResultsView: View {
     /// Средняя дистанция клюшки в юнитах пользователя (профиль → ярды/метры).
     private func avgDistanceText(_ meters: Int) -> String {
         if session.profile?.units == .yd {
-            return "\(Score.metersToYards(meters)) я"
+            return "\(Score.metersToYards(meters)) \(lm.t.common.yardsShort)"
         }
-        return "\(meters) м"
+        return "\(meters) \(lm.t.common.metersShort)"
     }
 
     var body: some View {
@@ -28,23 +29,23 @@ struct RoundResultsView: View {
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.error)
                         .multilineTextAlignment(.center)
-                    DSButton(title: "На главную", style: .secondary) { router.goHome() }
+                    DSButton(title: lm.t.common.goHome, style: .secondary) { router.goHome() }
                         .padding(.horizontal, 48)
                 }
                 .padding(DS.screenPadding)
             } else {
-                ProgressView("Загрузка результатов...")
+                ProgressView(lm.t.roundResults.loading)
             }
         }
         .background(DSColor.surface)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("Итоги раунда").font(DSFont.titleLG)
+                Text(lm.t.roundResults.title).font(DSFont.titleLG)
             }
             ToolbarItem(placement: .topBarLeading) {
                 Button { router.goHome() } label: { Image(systemName: "house") }
-                    .accessibilityLabel("На главную")
+                    .accessibilityLabel(lm.t.common.goHome)
             }
         }
         .task { model.start(roundId: roundId) }
@@ -59,10 +60,10 @@ struct RoundResultsView: View {
                 clubUsageSection(round)
                 scorecardSection(round)
                 VStack(spacing: 10) {
-                    DSButton(title: "Новый раунд", icon: "plus") {
+                    DSButton(title: lm.t.roundResults.newRound, icon: "plus") {
                         router.startNewRound()
                     }
-                    DSButton(title: "На главную", style: .secondary) { router.goHome() }
+                    DSButton(title: lm.t.common.goHome, style: .secondary) { router.goHome() }
                 }
                 .padding(.horizontal, DS.screenPadding)
             }
@@ -86,22 +87,22 @@ struct RoundResultsView: View {
                 let status = Scoring.matchPlayStatus(round: round,
                                                      uidA: round.playerIds[0],
                                                      uidB: round.playerIds[1])
-                Text("MATCH PLAY")
+                Text(lm.t.roundResults.matchPlayUppercase)
                     .font(DSFont.labelLG).tracking(2.5)
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
                 Text(status.label)
                     .font(DSFont.displayLG)
                     .foregroundStyle(DSColor.onPrimary)
                     .monospacedDigit()
-                Text(status.leaderUid.flatMap { round.players[$0]?.name } ?? "Игроки на равных")
+                Text(status.leaderUid.flatMap { round.players[$0]?.name } ?? lm.t.common.playersEven)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onPrimary)
             } else if isSolo {
                 let totals = Scoring.playerTotals(round: round, userId: round.playerIds[0])
-                Text("ВАШ РЕЗУЛЬТАТ")
+                Text(lm.t.roundResults.yourResultUppercase)
                     .font(DSFont.labelLG).tracking(2.5)
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
-                Text("\(totals.totalScore) уд.")
+                Text("\(totals.totalScore) \(lm.t.roundResults.strokesShortDot)")
                     .font(DSFont.displayLG)
                     .foregroundStyle(DSColor.onPrimary)
                     .monospacedDigit()
@@ -110,14 +111,14 @@ struct RoundResultsView: View {
                     .foregroundStyle(DSColor.onPrimary)
             } else {
                 let winner = Scoring.leaderboard(round: round).first
-                Text("ПОБЕДИТЕЛЬ")
+                Text(lm.t.roundResults.winnerUppercase)
                     .font(DSFont.labelLG).tracking(2.5)
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
-                Text((winner?.thru ?? 0) > 0 ? (winner?.name ?? "Неизвестно") : "Неизвестно")
+                Text((winner?.thru ?? 0) > 0 ? (winner?.name ?? lm.t.common.unknown) : lm.t.common.unknown)
                     .font(DSFont.headlineLG)
                     .foregroundStyle(DSColor.onPrimary)
             }
-            Text("\(round.courseName) · \(round.totalHoles) \(pluralRu(round.totalHoles, "лунка", "лунки", "лунок"))")
+            Text("\(round.courseName) · \(round.totalHoles) \(plural(round.totalHoles, lm.current, lm.t.common.holesWord))")
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onPrimary.opacity(0.7))
         }
@@ -131,7 +132,7 @@ struct RoundResultsView: View {
 
     private func leaderboardSection(_ round: Round) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionTitle("Таблица")
+            sectionTitle(lm.t.roundResults.leaderboardSectionTitle)
             ForEach(Scoring.leaderboard(round: round)) { entry in
                 HStack {
                     Text(entry.name)
@@ -157,11 +158,11 @@ struct RoundResultsView: View {
                 let usage = Scoring.clubUsage(round: round, userId: uid)
                 if !usage.isEmpty {
                     sectionTitle(round.playerIds.count == 1
-                                 ? "Клюшки"
-                                 : "Клюшки · \(round.players[uid]?.name ?? "")")
+                                 ? lm.t.roundResults.clubsTitle
+                                 : lm.t.roundResults.clubsForPlayer(round.players[uid]?.name ?? ""))
                     FlowLayoutCompat(items: Array(usage.enumerated()), spacing: 6) { _, stat in
                         Text(stat.avgDistanceMeters > 0
-                             ? "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%) · ср. \(avgDistanceText(stat.avgDistanceMeters))"
+                             ? "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%) · \(lm.t.roundResults.avgAbbrev) \(avgDistanceText(stat.avgDistanceMeters))"
                              : "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%)")
                             .font(DSFont.labelMD)
                             .padding(.horizontal, 10)
@@ -179,24 +180,24 @@ struct RoundResultsView: View {
     // Скоркарта: горизонтальный скролл, ячейка лунки закрашена scoreColor.
     private func scorecardSection(_ round: Round) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionTitle("Скоркарта")
+            sectionTitle(lm.t.roundResults.scorecardTitle)
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
-                        cell("Лунка", width: 72, header: true)
+                        cell(lm.t.roundResults.holeColumnHeader, width: 72, header: true)
                         ForEach(round.holes, id: \.holeNumber) { hole in
                             cell("\(hole.holeNumber)", header: true)
                         }
                     }
                     HStack(spacing: 4) {
-                        cell("Пар", width: 72, header: true)
+                        cell(lm.t.common.par, width: 72, header: true)
                         ForEach(round.holes, id: \.holeNumber) { hole in
                             cell("\(hole.par)")
                         }
                     }
                     ForEach(round.playerIds, id: \.self) { uid in
                         HStack(spacing: 4) {
-                            cell(round.playerIds.count == 1 ? "Удары" : (round.players[uid]?.name ?? ""), width: 72, header: true)
+                            cell(round.playerIds.count == 1 ? lm.t.roundResults.strokesRowHeader : (round.players[uid]?.name ?? ""), width: 72, header: true)
                             ForEach(round.holes, id: \.holeNumber) { hole in
                                 let shots = hole.shots[uid]?.count ?? 0
                                 if shots > 0 {

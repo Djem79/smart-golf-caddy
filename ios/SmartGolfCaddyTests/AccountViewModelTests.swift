@@ -29,10 +29,10 @@ final class AccountViewModelTests: XCTestCase {
 
         XCTAssertFalse(success)
         XCTAssertFalse(model.showDeleteConfirm)   // dialog closes either way
-        XCTAssertEqual(
-            model.deleteError,
-            "Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз."
-        )
+        // T4: compares against the current-locale string (not a hardcoded
+        // Russian literal) so this test doesn't depend on, or leak, the
+        // process's AppLocaleStore state.
+        XCTAssertEqual(model.deleteError, AppLocaleStore.strings.profile.deleteAccountError)
         XCTAssertFalse(model.deletingAccount)     // re-enabled for retry
     }
 

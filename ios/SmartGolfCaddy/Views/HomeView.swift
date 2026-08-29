@@ -4,10 +4,11 @@ struct HomeView: View {
     @Environment(SessionViewModel.self) private var session
     @Environment(AppRouter.self) private var router
     @Environment(AppStore.self) private var store
+    @Environment(LocaleManager.self) private var lm
     @State private var model = HomeViewModel()
 
     private var firstName: String {
-        let name = session.profile?.name ?? "Голфер"
+        let name = session.profile?.name ?? lm.t.common.fallbackName
         return name.split(separator: " ").first.map(String.init) ?? name
     }
 
@@ -28,15 +29,15 @@ struct HomeView: View {
                         .padding(.top, 24)
                 }
                 VStack(spacing: 12) {
-                    DSButton(title: "Начать новый раунд", icon: "plus") {
+                    DSButton(title: lm.t.home.startNewRound, icon: "plus") {
                         router.push(.courseSearch)
                     }
-                    DSButton(title: "Быстрый старт без выбора поля", icon: "bolt", style: .secondary) {
+                    DSButton(title: lm.t.home.quickStart, icon: "bolt", style: .secondary) {
                         store.prefillCourseName = nil
                         store.selectedCourse = nil
                         router.push(.roundSetup)
                     }
-                    DSButton(title: "Присоединиться к игре", icon: "person.2", style: .secondary) {
+                    DSButton(title: lm.t.home.joinGame, icon: "person.2", style: .secondary) {
                         router.push(.joinGame(code: nil))
                     }
                 }
@@ -80,7 +81,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("ДОБРО ПОЖАЛОВАТЬ")
+                    Text(lm.t.home.welcomeUppercase)
                         .font(DSFont.labelLG)
                         .tracking(2.5)
                         .foregroundStyle(DSColor.onPrimary.opacity(0.7))
@@ -97,7 +98,7 @@ struct HomeView: View {
                         .foregroundStyle(DSColor.onPrimary.opacity(0.8))
                         .frame(minWidth: DS.touchTarget, minHeight: DS.touchTarget)
                 }
-                .accessibilityLabel("Выйти")
+                .accessibilityLabel(lm.t.home.signOutAria)
             }
         }
         .padding(.horizontal, DS.screenPadding)
@@ -123,7 +124,7 @@ struct HomeView: View {
                     .background(DSColor.primary)
                     .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("ПРОДОЛЖИТЬ РАУНД")
+                    Text(lm.t.home.resumeUppercase)
                         .font(DSFont.labelMD)
                         .tracking(1.2)
                         .foregroundStyle(DSColor.primary)
@@ -168,11 +169,11 @@ struct HomeView: View {
 
     private var errorBanner: some View {
         HStack(spacing: 12) {
-            Text("Не удалось загрузить раунды")
+            Text(lm.t.home.loadError)
                 .font(DSFont.labelLG)
                 .foregroundStyle(DSColor.onSurface)
             Spacer()
-            Button("Повторить") {
+            Button(lm.t.common.retry) {
                 Task {
                     if let uid = currentUserId {
                         await model.load(userId: uid)
@@ -190,7 +191,7 @@ struct HomeView: View {
 
     private var recentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Последние раунды")
+            Text(lm.t.home.recentRounds)
                 .font(DSFont.titleLG)
                 .foregroundStyle(DSColor.onSurface)
             ForEach(model.recentFinished) { round in
@@ -230,10 +231,11 @@ struct HomeView: View {
 
     private func subtitle(for round: Round) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.locale = Locale(identifier: lm.current == .ru ? "ru_RU" : "en_US")
         formatter.dateFormat = "d MMM yyyy"
         let date = formatter.string(from: round.createdAt)
-        return "\(date) · \(round.totalHoles) \(pluralRu(round.totalHoles, "лунка", "лунки", "лунок"))"
+        let holesWord = plural(round.totalHoles, lm.current, lm.t.common.holesWord)
+        return "\(date) · \(round.totalHoles) \(holesWord)"
     }
 
     private func scoreSummary(_ round: Round, uid: String) -> String {

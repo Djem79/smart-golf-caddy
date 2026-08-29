@@ -25,14 +25,24 @@ final class SessionViewModel {
             self.profile = nil
             guard let uid else {
                 self.state = .signedOut
+                // T4: signed-out (or between sessions) falls back to the
+                // system default — a previous user's saved language must
+                // never leak into the next sign-in.
+                LocaleManager.shared.sync(withProfile: nil)
                 return
             }
             self.state = .signedIn
             self.unsubscribeProfile = ProfileService.subscribeToProfile(
                 uid: uid,
-                onChange: { [weak self] user in self?.profile = user },
+                onChange: { [weak self] user in
+                    self?.profile = user
+                    // T4: mirrors useLocaleSync on web — a saved
+                    // AppUser.locale overrides the system default the
+                    // instant the profile resolves/changes.
+                    LocaleManager.shared.sync(withProfile: user)
+                },
                 onError: { [weak self] _ in
-                    self?.errorMessage = "Не удалось загрузить профиль — проверьте сеть"
+                    self?.errorMessage = AppLocaleStore.strings.common.loadProfileError
                 }
             )
         }
@@ -56,7 +66,7 @@ final class SessionViewModel {
         do {
             try AuthService.signOut()
         } catch {
-            errorMessage = "Не удалось выйти — попробуйте ещё раз"
+            errorMessage = AppLocaleStore.strings.profile.signOutError
         }
     }
 

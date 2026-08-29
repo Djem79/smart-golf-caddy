@@ -71,7 +71,7 @@ final class MyBagViewModel {
         do {
             try await persistBag(next)
         } catch {
-            errorMessage = "Не удалось сохранить изменения"
+            errorMessage = AppLocaleStore.strings.myBag.saveError
         }
     }
 

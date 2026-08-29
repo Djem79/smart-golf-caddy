@@ -16,14 +16,17 @@ final class ModelsTests: XCTestCase {
     }
 
     func testResolvedClubsUnknown() {
+        // T4: fallback is Clubs.unknownId (a stable, non-localized sentinel)
+        // rather than a Russian literal — Clubs.label(for:in:) translates it
+        // for display on the current language; see LocalizationTests.
         let shots = HoleShots(count: 2, clubs: [], distances: [], legacyClub: nil, updatedAt: nil)
-        XCTAssertEqual(shots.resolvedClubs, ["Неизвестно", "Неизвестно"])
+        XCTAssertEqual(shots.resolvedClubs, [Clubs.unknownId, Clubs.unknownId])
     }
 
     func testResolvedClubsEmptyLegacy() {
         // Empty string legacy club should be falsy (web parity: JS if (shots.club) with "" → false)
         let shots = HoleShots(count: 2, clubs: [], distances: [], legacyClub: "", updatedAt: nil)
-        XCTAssertEqual(shots.resolvedClubs, ["Неизвестно", "Неизвестно"])
+        XCTAssertEqual(shots.resolvedClubs, [Clubs.unknownId, Clubs.unknownId])
     }
 
     // MARK: HoleShots — distances (Phase 2c GPS rangefinder)
@@ -69,6 +72,13 @@ final class ModelsTests: XCTestCase {
     }
 
     func testClubLabels() {
+        // T4: "Клюшка" fallback is locale-dependent now (Clubs.label reads
+        // AppLocaleStore.strings) — pin ru explicitly and restore after,
+        // so this test doesn't depend on (or leak into) the host locale.
+        let previous = AppLocaleStore.current
+        AppLocaleStore.set(.ru)
+        defer { AppLocaleStore.set(previous) }
+
         XCTAssertEqual(Clubs.label(for: "Driver", in: []), "DRV")
         XCTAssertEqual(Clubs.label(for: "custom-abc", in: []), "Клюшка")
         let bag = [BagClub(id: "custom-abc", customName: "Stealth 2", distanceMeters: 200, enabled: true, category: .wood, custom: true)]
@@ -206,13 +216,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(Score.yardsToMeters(109), 100)
     }
 
-    // MARK: pluralRu
-
-    func testPluralRu() {
-        XCTAssertEqual(pluralRu(1, "лунка", "лунки", "лунок"), "лунка")
-        XCTAssertEqual(pluralRu(3, "лунка", "лунки", "лунок"), "лунки")
-        XCTAssertEqual(pluralRu(5, "лунка", "лунки", "лунок"), "лунок")
-        XCTAssertEqual(pluralRu(11, "лунка", "лунки", "лунок"), "лунок")
-        XCTAssertEqual(pluralRu(21, "лунка", "лунки", "лунок"), "лунка")
-    }
+    // Pluralization (pluralRu → plural(n, locale, forms), T4) has its own
+    // suite — see LocalizationTests.swift.
 }

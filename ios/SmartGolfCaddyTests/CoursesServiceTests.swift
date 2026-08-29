@@ -38,7 +38,7 @@ final class CoursesServiceTests: XCTestCase {
             _ = try await service.findNearby(lat: 1, lng: 1)
             XCTFail("ожидали ошибку")
         } catch let error as CourseFetchError {
-            XCTAssertEqual(error.errorDescription, "API ключ Google Places не настроен")
+            XCTAssertEqual(error.errorDescription, AppLocaleStore.strings.courseSearch.errors.apiKeyMissing)
         } catch { XCTFail("не тот тип") }
     }
 

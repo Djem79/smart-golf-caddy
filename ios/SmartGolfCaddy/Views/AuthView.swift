@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AuthView: View {
     @Environment(SessionViewModel.self) private var session
+    @Environment(LocaleManager.self) private var lm
 
     var body: some View {
         VStack(spacing: 16) {
@@ -12,7 +13,7 @@ struct AuthView: View {
             Text("Smart Golf Caddy")
                 .font(DSFont.headlineLG)
                 .foregroundStyle(DSColor.onSurface)
-            Text("Трекинг гольф-раундов")
+            Text(lm.t.auth.tagline)
                 .font(DSFont.bodyMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             Spacer()
@@ -32,7 +33,7 @@ struct AuthView: View {
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: DS.touchTarget)
                 } else {
-                    Text("ВОЙТИ ЧЕРЕЗ GOOGLE")
+                    Text(lm.t.auth.signInWithGoogle)
                         .font(DSFont.labelLG)
                         .tracking(1.5)
                         .frame(maxWidth: .infinity)

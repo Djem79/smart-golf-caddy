@@ -34,7 +34,7 @@ final class GroupLobbyViewModel {
             roundId: roundId,
             onChange: { [weak self] round in self?.round = round },
             onError: { [weak self] _ in
-                self?.loadError = "Не удалось загрузить лобби. Возможно, вы не участник этого раунда или пропала связь."
+                self?.loadError = AppLocaleStore.strings.groupLobby.loadError
             }
         )
     }
@@ -48,7 +48,7 @@ final class GroupLobbyViewModel {
             try await RoundsService.startRound(roundId: roundId)
             // Подписка сама переведёт всех на лунку 1 при status == .active
         } catch {
-            errorMessage = "Не удалось запустить раунд. Попробуйте ещё раз."
+            errorMessage = AppLocaleStore.strings.groupLobby.startError
         }
     }
 
@@ -64,7 +64,7 @@ final class GroupLobbyViewModel {
             // Гонка: playerIds на сервере уже изменились (кто-то другой вышел
             // или подключился) — подписка сама подтянет актуальный список,
             // повторный тап сработает.
-            errorMessage = "Не удалось выйти из лобби. Обновите экран и попробуйте ещё раз."
+            errorMessage = AppLocaleStore.strings.groupLobby.leaveError
             return false
         }
     }

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MyBagView: View {
     @Environment(SessionViewModel.self) private var session
+    @Environment(LocaleManager.self) private var lm
     @State private var model = MyBagViewModel()
     @State private var addingCategory: ClubCategory?
     @State private var reordering = false
@@ -43,7 +44,7 @@ struct MyBagView: View {
                                 Button(role: .destructive) {
                                     Task { await model.deleteClub(id: club.id) }
                                 } label: {
-                                    Label("Удалить", systemImage: "trash")
+                                    Label(lm.t.common.delete, systemImage: "trash")
                                 }
                             }
                         }
@@ -54,14 +55,14 @@ struct MyBagView: View {
                     Button {
                         addingCategory = group.category
                     } label: {
-                        Label("Добавить клюшку", systemImage: "plus")
+                        Label(lm.t.myBag.addClub, systemImage: "plus")
                             .font(DSFont.labelLG)
                             .foregroundStyle(DSColor.primary)
                             .frame(maxWidth: .infinity, minHeight: DS.touchTarget)
                     }
                 } header: {
                     HStack {
-                        Text(group.label)
+                        Text(Clubs.categoryLabel(group.category))
                             .font(DSFont.titleLG)
                             .foregroundStyle(DSColor.onSurface)
                         Spacer()
@@ -77,16 +78,16 @@ struct MyBagView: View {
         .scrollContentBackground(.hidden)
         .background(DSColor.surface)
         .environment(\.editMode, .constant(reordering ? .active : .inactive))
-        .navigationTitle("Моя сумка")
+        .navigationTitle(lm.t.myBag.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if model.saving {
-                    Text("Сохранение...")
+                    Text(lm.t.myBag.saving)
                         .font(DSFont.labelMD)
                         .foregroundStyle(DSColor.onSurfaceVariant)
                 } else {
-                    Button(reordering ? "Готово" : "Порядок") {
+                    Button(reordering ? lm.t.myBag.reorderDone : lm.t.myBag.reorder) {
                         reordering.toggle()
                     }
                     .font(DSFont.labelLG)
@@ -113,10 +114,10 @@ struct MyBagView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Состав сумки")
+                    Text(lm.t.myBag.bagComposition)
                         .font(DSFont.headlineMD)
                         .foregroundStyle(DSColor.primary)
-                    Text("До 14 клюшек по правилам")
+                    Text(lm.t.myBag.ruleHint)
                         .font(DSFont.labelMD)
                         .foregroundStyle(DSColor.onSurfaceVariant)
                 }
@@ -137,7 +138,7 @@ struct MyBagView: View {
             .frame(height: 8)
             .background(Capsule().fill(DSColor.surfaceContainerHigh))
             if model.enabledCount < MyBagViewModel.totalSlots {
-                Text("Свободных слотов: \(MyBagViewModel.totalSlots - model.enabledCount)")
+                Text(lm.t.myBag.freeSlots(MyBagViewModel.totalSlots - model.enabledCount))
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
                     .frame(maxWidth: .infinity)
@@ -155,7 +156,7 @@ struct MyBagView: View {
                 Button {
                     Task { await model.changeUnits(unit) }
                 } label: {
-                    Text(unit == .m ? "Метры" : "Ярды")
+                    Text(unit == .m ? lm.t.myBag.metersFull : lm.t.myBag.yardsFull)
                         .font(DSFont.labelLG)
                         .frame(maxWidth: .infinity, minHeight: DS.touchTarget)
                 }
@@ -183,6 +184,7 @@ private struct ClubRowView: View {
     let onSetName: (String) -> Void
     let onSetDistance: (String) -> Void
 
+    @Environment(LocaleManager.self) private var lm
     @State private var nameText: String = ""
     @State private var distanceText: String = ""
     @FocusState private var nameFocused: Bool
@@ -195,7 +197,7 @@ private struct ClubRowView: View {
                 .foregroundStyle(club.enabled ? DSColor.onSurface : DSColor.onSurfaceVariant)
                 .frame(width: 56, alignment: .leading)
                 .lineLimit(1)
-            TextField(club.custom == true ? "Название" : "Модель", text: $nameText)
+            TextField(club.custom == true ? lm.t.myBag.nameFieldPlaceholderCustom : lm.t.myBag.nameFieldPlaceholderModel, text: $nameText)
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
                 .focused($nameFocused)
@@ -219,8 +221,10 @@ private struct ClubRowView: View {
                         .onChange(of: distanceFocused) { _, focused in
                             if !focused { onSetDistance(distanceText) }
                         }
-                        .accessibilityLabel("Дистанция \(club.customName ?? club.id), \(units == .yd ? "ярды" : "метры")")
-                    Text(units == .yd ? "я" : "м")
+                        .accessibilityLabel(lm.t.myBag.distanceAria(
+                            club.customName ?? club.id, units == .yd ? lm.t.myBag.yardsWord : lm.t.myBag.metersWord
+                        ))
+                    Text(units == .yd ? lm.t.common.yardsShort : lm.t.common.metersShort)
                         .font(DSFont.labelMD)
                         .foregroundStyle(DSColor.onSurfaceVariant)
                 }
@@ -236,7 +240,7 @@ private struct ClubRowView: View {
                     .frame(minWidth: DS.touchTarget, minHeight: DS.touchTarget)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Включить \(club.customName ?? club.id) в сумку")
+            .accessibilityLabel(lm.t.myBag.enableAria(club.customName ?? club.id))
         }
         .onAppear {
             nameText = club.customName ?? ""
@@ -254,32 +258,29 @@ private struct AddClubSheet: View {
     let onAdd: (String, Int) -> Void
     let onCancel: () -> Void
 
+    @Environment(LocaleManager.self) private var lm
     @State private var name = ""
     @State private var distanceText = ""
 
-    private var categoryLabel: String {
-        Clubs.groups.first { $0.category == category }?.label ?? ""
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Новая клюшка · \(categoryLabel)")
+            Text(lm.t.myBag.newClubTitle(Clubs.categoryLabel(category)))
                 .font(DSFont.titleLG)
                 .foregroundStyle(DSColor.onSurface)
-            TextField("Название (например: Stealth 2 HD)", text: $name)
+            TextField(lm.t.myBag.newClubNamePlaceholder, text: $name)
                 .font(DSFont.bodyMD)
                 .padding(14)
                 .background(DSColor.surfaceContainerLow)
                 .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
-            TextField(units == .yd ? "Дистанция, ярды" : "Дистанция, метры", text: $distanceText)
+            TextField(units == .yd ? lm.t.myBag.distanceYardsPlaceholder : lm.t.myBag.distanceMetersPlaceholder, text: $distanceText)
                 .keyboardType(.numberPad)
                 .font(DSFont.bodyMD)
                 .padding(14)
                 .background(DSColor.surfaceContainerLow)
                 .clipShape(RoundedRectangle(cornerRadius: DS.cornerRadius))
             HStack(spacing: 8) {
-                DSButton(title: "Отмена", style: .secondary, action: onCancel)
-                DSButton(title: "Добавить",
+                DSButton(title: lm.t.common.cancel, style: .secondary, action: onCancel)
+                DSButton(title: lm.t.myBag.add,
                          disabled: name.trimmingCharacters(in: .whitespaces).isEmpty || Int(distanceText) == nil) {
                     if let distance = Int(distanceText) {
                         onAdd(name, distance)

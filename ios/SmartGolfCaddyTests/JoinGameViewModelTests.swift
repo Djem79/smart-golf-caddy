@@ -21,8 +21,7 @@ final class JoinGameViewModelTests: XCTestCase {
         model.setCode("ABC234")
         let roundId = await model.join(profile: nil)
         XCTAssertNil(roundId)
-        XCTAssertEqual(model.errorMessage,
-                       "Лобби с таким кодом не найдено. Проверьте код или попросите хоста создать новое.")
+        XCTAssertEqual(model.errorMessage, AppLocaleStore.strings.joinGame.lobbyNotFound)
     }
 
     @MainActor

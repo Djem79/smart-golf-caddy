@@ -9,6 +9,7 @@ struct HoleTrackerView: View {
     @Environment(SessionViewModel.self) private var session
     @Environment(AppRouter.self) private var router
     @Environment(AppStore.self) private var store
+    @Environment(LocaleManager.self) private var lm
     @State private var model: HoleTrackerViewModel
     @State private var selectedClub: String = "Driver"
     @State private var showFinishConfirm = false
@@ -45,12 +46,12 @@ struct HoleTrackerView: View {
                         .font(DSFont.bodyMD)
                         .foregroundStyle(DSColor.error)
                         .multilineTextAlignment(.center)
-                    DSButton(title: "На главную", style: .secondary) { router.popToRoot() }
+                    DSButton(title: lm.t.common.goHome, style: .secondary) { router.popToRoot() }
                         .padding(.horizontal, 48)
                 }
                 .padding(DS.screenPadding)
             } else {
-                ProgressView("Загрузка...")
+                ProgressView(lm.t.common.loading)
             }
         }
         .background(DSColor.surface)
@@ -60,9 +61,9 @@ struct HoleTrackerView: View {
                 Group {
                     // «Лунка N / 0» при загрузке иначе — round ещё не пришёл.
                     if let round = model.round {
-                        Text("Лунка \(holeNumber) / \(round.totalHoles)")
+                        Text(lm.t.holeTracker.holeTitle(holeNumber, round.totalHoles))
                     } else {
-                        Text("Лунка \(holeNumber)")
+                        Text(lm.t.holeTracker.holeTitleNoTotal(holeNumber))
                     }
                 }
                 .font(DSFont.titleLG)
@@ -73,7 +74,7 @@ struct HoleTrackerView: View {
                 } label: {
                     Image(systemName: "house")
                 }
-                .accessibilityLabel("На главную")
+                .accessibilityLabel(lm.t.common.goHome)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if let round = model.round, round.playerIds.count > 1 {
@@ -82,7 +83,7 @@ struct HoleTrackerView: View {
                     } label: {
                         Image(systemName: "trophy")
                     }
-                    .accessibilityLabel("Турнирная таблица")
+                    .accessibilityLabel(lm.t.holeTracker.leaderboardAria)
                 }
             }
         }
@@ -108,15 +109,15 @@ struct HoleTrackerView: View {
                   router.path.last == .hole(roundId: roundId, number: holeNumber) else { return }
             router.replaceLast(.results(roundId: roundId))
         }
-        .confirmationDialog("Закончить игру?", isPresented: $showFinishConfirm, titleVisibility: .visible) {
-            Button("Завершить", role: .destructive) {
+        .confirmationDialog(lm.t.holeTracker.finishConfirmTitle, isPresented: $showFinishConfirm, titleVisibility: .visible) {
+            Button(lm.t.holeTracker.finish, role: .destructive) {
                 Task {
                     if await model.finish() {
                         router.replaceLast(.results(roundId: roundId))
                     }
                 }
             }
-            Button("Продолжить", role: .cancel) {}
+            Button(lm.t.holeTracker.continueEditing, role: .cancel) {}
         } message: {
             Text(finishConfirmBody)
         }
@@ -145,9 +146,9 @@ struct HoleTrackerView: View {
     private var finishConfirmBody: String {
         guard let round = model.round else { return "" }
         if holeNumber < round.totalHoles {
-            return "Вы прошли \(holeNumber - 1) из \(round.totalHoles) лунок. Пройденные удары попадут в итоги, незавершённые лунки — без ударов."
+            return lm.t.holeTracker.finishConfirmPartial(holeNumber - 1, round.totalHoles)
         }
-        return "Раунд будет записан в историю. Изменить удары после этого нельзя."
+        return lm.t.holeTracker.finishConfirmComplete
     }
 
     @ViewBuilder
@@ -160,7 +161,7 @@ struct HoleTrackerView: View {
                 VStack(spacing: 24) {
                     counter
                     if model.greenDistanceMeters == nil && model.canMarkGreen {
-                        Text("Отметьте грин, когда дойдёте — со следующего раунда покажем дистанцию")
+                        Text(lm.t.holeTracker.markGreenHint)
                             .font(DSFont.labelMD)
                             .foregroundStyle(DSColor.onSurfaceVariant)
                             .multilineTextAlignment(.center)
@@ -173,7 +174,7 @@ struct HoleTrackerView: View {
                             .foregroundStyle(DSColor.error)
                     }
                     if model.hasQueuedShots {
-                        Label("Нет сети — удары сохранятся автоматически", systemImage: "wifi.slash")
+                        Label(lm.t.holeTracker.offlineNotice, systemImage: "wifi.slash")
                             .font(DSFont.labelMD)
                             .foregroundStyle(DSColor.onSurfaceVariant)
                     }
@@ -191,7 +192,7 @@ struct HoleTrackerView: View {
                 if model.isHost { showHoleEditor = true }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Пар")
+                    Text(lm.t.common.par)
                         .font(DSFont.labelLG)
                         .foregroundStyle(DSColor.onPrimary.opacity(0.7))
                     Text("\(hole.par)")
@@ -201,7 +202,7 @@ struct HoleTrackerView: View {
                 }
             }
             .disabled(!model.isHost)
-            .accessibilityLabel("Изменить пар лунки (сейчас \(hole.par))")
+            .accessibilityLabel(lm.t.holeTracker.editParAria(hole.par))
             Spacer()
             Text("\(holeNumber)")
                 .font(DSFont.displayLG)
@@ -211,11 +212,11 @@ struct HoleTrackerView: View {
                 if model.isHost { showHoleEditor = true }
             } label: {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("Дист.")
+                    Text(lm.t.holeTracker.distanceShort)
                         .font(DSFont.labelLG)
                         .foregroundStyle(DSColor.onPrimary.opacity(0.7))
                     HStack(spacing: 6) {
-                        Text("\(hole.distanceMeters) м")
+                        Text("\(hole.distanceMeters) \(lm.t.common.metersShort)")
                             .font(DSFont.headlineMD)
                             .foregroundStyle(DSColor.onPrimary)
                             .underline(model.isHost, pattern: .dot)
@@ -223,12 +224,12 @@ struct HoleTrackerView: View {
                             .fill(Color(hex: round.tee.bgHex))
                             .frame(width: 20, height: 20)
                             .overlay(Circle().stroke(DSColor.onPrimary.opacity(0.3)))
-                            .accessibilityLabel("Тии: \(round.tee.label)")
+                            .accessibilityLabel(lm.t.holeTracker.teeAria(round.tee.label))
                     }
                 }
             }
             .disabled(!model.isHost)
-            .accessibilityLabel("Изменить дистанцию лунки (сейчас \(hole.distanceMeters) метров)")
+            .accessibilityLabel(lm.t.holeTracker.editDistanceAria(hole.distanceMeters))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
@@ -247,18 +248,18 @@ struct HoleTrackerView: View {
             if !model.courseIdentified {
                 // Ручной раунд без названия поля — метки гринов не собираются
                 // (Greens.courseKey вернул nil), кнопку отметки не показываем.
-                Text("Укажите название поля, чтобы отмечать грины")
+                Text(lm.t.holeTracker.courseNotIdentified)
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
             } else if let meters = model.greenDistanceMeters {
-                Text(session.profile?.units == .yd
-                     ? "До грина: \(Score.metersToYards(meters)) я"
-                     : "До грина: \(meters) м")
+                Text(lm.t.holeTracker.toGreen(session.profile?.units == .yd
+                     ? "\(Score.metersToYards(meters)) \(lm.t.common.yardsShort)"
+                     : "\(meters) \(lm.t.common.metersShort)"))
                     .font(DSFont.labelLG)
                     .foregroundStyle(DSColor.onPrimary)
                     .monospacedDigit()
             } else {
-                Text("Грин не отмечен")
+                Text(lm.t.holeTracker.greenNotMarked)
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onPrimary.opacity(0.7))
             }
@@ -267,7 +268,7 @@ struct HoleTrackerView: View {
                 Button {
                     Task { _ = await model.markGreen() }
                 } label: {
-                    Text("Я НА ГРИНЕ")
+                    Text(lm.t.holeTracker.onGreenButton)
                         .font(DSFont.labelMD)
                         .tracking(1.2)
                         .padding(.horizontal, 12)
@@ -277,7 +278,7 @@ struct HoleTrackerView: View {
                 .background(DSColor.onPrimary.opacity(model.canMarkGreen ? 0.18 : 0.08))
                 .clipShape(Capsule())
                 .disabled(!model.canMarkGreen)
-                .accessibilityLabel("Отметить грин текущей лунки")
+                .accessibilityLabel(lm.t.holeTracker.markGreenAria)
             }
         }
         .padding(.horizontal, 20)
@@ -291,7 +292,7 @@ struct HoleTrackerView: View {
     // enforce'ит host-or-self, здесь дублируем гейт для UI-подсказки).
     private func playerStrip(round: Round, hole: HoleConfig) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Игрок (тап для переключения)")
+            Text(lm.t.holeTracker.playerSwitch)
                 .font(DSFont.labelMD)
                 .textCase(.uppercase)
                 .tracking(1)
@@ -304,7 +305,7 @@ struct HoleTrackerView: View {
                 }
             }
             if showHostOnlyHint {
-                Text("Счёт за других ведёт хост")
+                Text(lm.t.holeTracker.hostScoresOthers)
                     .font(DSFont.labelMD)
                     .foregroundStyle(DSColor.onSurfaceVariant)
             }
@@ -328,7 +329,7 @@ struct HoleTrackerView: View {
                     .frame(width: 24, height: 24)
                     .background(active ? DSColor.onPrimary : DSColor.primaryContainer)
                     .clipShape(Circle())
-                Text(isMe ? "Вы" : name)
+                Text(isMe ? lm.t.common.you : name)
                     .font(DSFont.labelLG)
                     .lineLimit(1)
                     .frame(maxWidth: 100, alignment: .leading)
@@ -371,9 +372,9 @@ struct HoleTrackerView: View {
     private var seriesTitle: String {
         guard let round = model.round, round.playerIds.count > 1,
               model.activeUserId != model.userId else {
-            return "Ваши удары"
+            return lm.t.holeTracker.yourShots
         }
-        return "Удары: \(round.players[model.activeUserId]?.name ?? "—")"
+        return lm.t.holeTracker.shotsOf(round.players[model.activeUserId]?.name ?? "—")
     }
 
     private var counter: some View {
@@ -448,7 +449,7 @@ struct HoleTrackerView: View {
                 .disabled(model.saving)
                 .opacity(model.saving ? 0.3 : 1)
             }
-            Text("УДАРЫ")
+            Text(lm.t.holeTracker.shotsUppercase)
                 .font(DSFont.labelMD)
                 .tracking(3)
                 .foregroundStyle(DSColor.onSurfaceVariant)
@@ -457,12 +458,12 @@ struct HoleTrackerView: View {
 
     private var series: some View {
         VStack(spacing: 6) {
-            Text("Серия ударов")
+            Text(lm.t.holeTracker.shotSeries)
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
             FlowLayoutCompat(items: Array(model.currentClubs.enumerated()), spacing: 6) { index, club in
                 Text(model.currentDistances.indices.contains(index) && model.currentDistances[index] > 0
-                     ? "\(index + 1). \(Clubs.label(for: club, in: fullBag)) · \(model.currentDistances[index]) м"
+                     ? "\(index + 1). \(Clubs.label(for: club, in: fullBag)) · \(model.currentDistances[index]) \(lm.t.common.metersShort)"
                      : "\(index + 1). \(Clubs.label(for: club, in: fullBag))")
                     .font(DSFont.labelMD)
                     .padding(.horizontal, 10)
@@ -472,7 +473,7 @@ struct HoleTrackerView: View {
                     .clipShape(Capsule())
             }
             .padding(.horizontal, DS.screenPadding)
-            Label(model.gpsReady ? "GPS готов — дистанции пишутся" : "Ждём GPS — дистанции не пишутся",
+            Label(model.gpsReady ? lm.t.holeTracker.gpsReady : lm.t.holeTracker.gpsWaiting,
                   systemImage: model.gpsReady ? "location.fill" : "location.slash")
                 .font(DSFont.labelMD)
                 .foregroundStyle(DSColor.onSurfaceVariant)
@@ -481,7 +482,7 @@ struct HoleTrackerView: View {
 
     private var clubPicker: some View {
         VStack(spacing: 8) {
-            Text("ВЫБОР КЛЮШКИ")
+            Text(lm.t.holeTracker.clubPickerUppercase)
                 .font(DSFont.labelLG)
                 .tracking(1.5)
                 .foregroundStyle(DSColor.onSurfaceVariant)
@@ -513,26 +514,26 @@ struct HoleTrackerView: View {
     private func navigationButtons(round: Round) -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
-                DSButton(title: "Пред.", icon: "chevron.left", style: .secondary,
+                DSButton(title: lm.t.holeTracker.prev, icon: "chevron.left", style: .secondary,
                          disabled: holeNumber == 1) {
                     router.replaceLast(.hole(roundId: roundId, number: holeNumber - 1))
                 }
                 if holeNumber < round.totalHoles {
-                    DSButton(title: "Дальше", icon: "chevron.right") {
+                    DSButton(title: lm.t.holeTracker.next, icon: "chevron.right") {
                         router.replaceLast(.hole(roundId: roundId, number: holeNumber + 1))
                     }
                 } else {
                     // Тот же host-гейт, что у «досрочно»: не-хосту — та же
                     // кнопка текстом «Завершит хост» и disabled, как на вебе.
                     // В соло isHost всегда true — видимых изменений нет.
-                    DSButton(title: model.isHost ? "Закончить игру" : "Завершит хост", icon: "flag.fill",
+                    DSButton(title: model.isHost ? lm.t.holeTracker.finishGame : lm.t.holeTracker.finishWaitHost, icon: "flag.fill",
                              disabled: !model.isHost || model.finishing || model.saving) {
                         showFinishConfirm = true
                     }
                 }
             }
             if model.isHost && holeNumber < round.totalHoles {
-                DSButton(title: "Закончить игру досрочно", icon: "flag", style: .secondary,
+                DSButton(title: lm.t.holeTracker.finishEarly, icon: "flag", style: .secondary,
                          disabled: model.finishing) {
                     showFinishConfirm = true
                 }

@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var session = SessionViewModel()
     @State private var router = AppRouter()
     @State private var store = AppStore()
+    @State private var localeManager = LocaleManager.shared
 
     var body: some View {
         Group {
@@ -25,7 +26,7 @@ struct RootView: View {
                             }
                             .toolbar(.hidden, for: .navigationBar)
                     }
-                    .tabItem { Label("Раунды", systemImage: "figure.golf") }
+                    .tabItem { Label(localeManager.t.bottomNav.rounds, systemImage: "figure.golf") }
                     .tag(AppTab.rounds)
 
                     NavigationStack(path: $router.historyPath) {
@@ -34,7 +35,7 @@ struct RootView: View {
                                 RouteDestinationView(route: route).id(route)
                             }
                     }
-                    .tabItem { Label("История", systemImage: "clock.arrow.circlepath") }
+                    .tabItem { Label(localeManager.t.bottomNav.history, systemImage: "clock.arrow.circlepath") }
                     .tag(AppTab.history)
 
                     NavigationStack(path: $router.profilePath) {
@@ -43,7 +44,7 @@ struct RootView: View {
                                 RouteDestinationView(route: route).id(route)
                             }
                     }
-                    .tabItem { Label("Профиль", systemImage: "person.crop.circle") }
+                    .tabItem { Label(localeManager.t.bottomNav.profile, systemImage: "person.crop.circle") }
                     .tag(AppTab.profile)
                 }
                 .tint(DSColor.primary)
@@ -56,6 +57,7 @@ struct RootView: View {
         .environment(session)
         .environment(router)
         .environment(store)
+        .environment(localeManager)
         .task { session.start() }
         .onOpenURL { url in
             // smartgolfcaddy://join/ABC234 или https://<host>/join/ABC234
