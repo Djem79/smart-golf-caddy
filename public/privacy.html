@@ -176,6 +176,14 @@
   <h3>Technical error data</h3>
   <p>The app uses Sentry to collect crash and error reports. Sending personal data as part of these reports is explicitly disabled in configuration (<code>sendDefaultPii: false</code>).</p>
 
+  <h2>How data is collected</h2>
+  <p>Data reaches the app through three distinct channels:</p>
+  <ul>
+    <li><strong>Entered directly by you</strong> — the clubs in your bag, your handicap, your unit of measurement, hole-by-hole scores, and a course name when you add one manually.</li>
+    <li><strong>Received automatically from Google at sign-in</strong> — your user identifier, name, avatar, and email address, provided by Google Sign-In when you authenticate.</li>
+    <li><strong>Read through your device's system interfaces</strong> — location data, only with your explicit permission, and only while the hole-tracking screen is open or while searching for nearby courses. The app does not access location in the background or outside those moments.</li>
+  </ul>
+
   <h2>Who data is shared with</h2>
   <ul>
     <li><strong>Google</strong> — Firebase (authentication and database), Google Sign-In (sign-in with a Google account), Google Places API (nearby course search).</li>
@@ -183,6 +191,14 @@
     <li><strong>Sentry</strong> — crash and error reports.</li>
   </ul>
   <p>Data is <strong>never sold</strong> to third parties and <strong>never used for advertising</strong>.</p>
+
+  <h2>Data protection at third parties</h2>
+  <p>Data is shared only with the service providers listed above — Google, Resend, and Sentry — and only for the purposes described. Each of them processes data under its own terms of service and is required to maintain a level of protection no lower than what is described in this policy. We do not share data with any other party.</p>
+
+  <h2>How long data is kept</h2>
+  <p>Account and round data is kept for as long as your account exists. Once you delete your account, it is removed immediately, as described under account deletion below.</p>
+  <p>Backups of the database are kept longer than the data itself: point-in-time recovery covers the last <strong>7 days</strong>, and daily snapshots are retained for <strong>98 days</strong>. This means that after you delete your account, your data can still exist inside a backup for up to 98 days, until that backup itself expires and is removed.</p>
+  <p>Crash and error reports are retained by Sentry under Sentry's own retention schedule; no personal data is included in them.</p>
 
   <h2>User rights and account deletion</h2>
   <p>You can delete your account directly in the app: open the profile screen and tap the "Удалить аккаунт" ("Delete account") button. Deletion does the following:</p>
@@ -192,6 +208,19 @@
     <li>Your account is fully deleted — signing back in is no longer possible.</li>
   </ul>
   <p>For any questions about your data, contact <a class="contact" href="mailto:tdm.979@gmail.com">tdm.979@gmail.com</a>.</p>
+
+  <h2>Withdrawing consent</h2>
+  <ul>
+    <li><strong>Location</strong> — revoke location permission in your operating system's settings (iOS: Settings → the app → Location; in a browser: the site's permission settings). After that, distance to the green and shot-distance measurement stop working; the rest of the app continues to work normally.</li>
+    <li><strong>Everything else</strong> — withdraw consent by deleting your account, using the "Удалить аккаунт" ("Delete account") button on the profile screen.</li>
+    <li><strong>Round-summary emails</strong> — these are sent to the players in a round you take part in. To stop receiving them, don't join shared rounds, or delete your account. There is currently no separate unsubscribe option.</li>
+  </ul>
+
+  <h2>Security</h2>
+  <p>All traffic is encrypted over HTTPS. Access to your data is restricted by database rules — you can only see your own data and rounds you are a participant in. Score updates go through server-side functions that check permissions before writing, and all calls are protected by App Check.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>This policy may be updated from time to time. The date of the most recent change is shown at the bottom of this page.</p>
 
   <h2>Children</h2>
   <p>The app is not intended for children under 13. We do not knowingly collect data from children.</p>
