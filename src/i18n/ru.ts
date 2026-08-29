@@ -326,6 +326,12 @@ export const ru = {
     favoriteClubs: 'Любимые клюшки',
     favoriteClubsEmpty: 'Статистика появится после первых ударов.',
     shotsWord: { one: 'удар', few: 'удара', many: 'ударов' } as PluralForms,
+    // Language names are deliberately shown in the language itself (not
+    // translated) — a user who mis-taps into an unfamiliar language should
+    // still recognize their own.
+    language: 'Язык',
+    languageRu: 'Русский',
+    languageEn: 'English',
     myBag: 'Моя сумка',
     bagSummary: (count: number, clubsWord: string, unitLabel: string) => `${count} ${clubsWord} · ${unitLabel}`,
     legalLinksAria: 'Документы и поддержка',

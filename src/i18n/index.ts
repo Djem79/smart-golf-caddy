@@ -13,10 +13,10 @@ const dictionaries: Record<Locale, Dictionary> = { ru, en }
 // --- Language detection -----------------------------------------------
 //
 // Default is "by device language": a Russian system locale (ru, ru-RU,
-// ru-KZ, ...) gets the Russian UI, anything else gets English. There is no
-// language switcher yet (that's T3) — until then this is the only source of
-// truth for `currentLocale`.
-function detectSystemLocale(): Locale {
+// ru-KZ, ...) gets the Russian UI, anything else gets English. Exported so
+// T3's profile-load code (src/hooks/useLocaleSync.ts) can fall back to it
+// when the profile has no saved `locale` (or the user signs out).
+export function detectSystemLocale(): Locale {
   if (typeof navigator === 'undefined') return 'ru'
   const lang = navigator.language || navigator.languages?.[0] || ''
   return lang.toLowerCase().startsWith('ru') ? 'ru' : 'en'
@@ -29,11 +29,10 @@ export function getLocale(): Locale {
   return currentLocale
 }
 
-// Extension point for T3: once the user's `AppUser.locale` profile field
-// exists, the profile-loading code calls `setLocale(profile.locale ??
-// detectSystemLocale())` after it resolves, overriding the system default.
-// Every subscribed component (via `useT`) re-renders immediately — no page
-// reload needed.
+// T3: `useLocaleSync` (src/hooks/useLocaleSync.ts) calls this once the
+// profile resolves — `setLocale(profile?.locale ?? detectSystemLocale())` —
+// overriding the system default computed above. Every subscribed component
+// (via `useT`) re-renders immediately — no page reload needed.
 export function setLocale(locale: Locale): void {
   if (locale === currentLocale) return
   currentLocale = locale

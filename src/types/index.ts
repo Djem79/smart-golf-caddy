@@ -19,6 +19,13 @@ export interface AppUser {
   bag?: BagClub[]            // new canonical bag
   units?: DistanceUnit       // user's distance preference
   clubs?: string[]           // legacy: list of enabled club ids (pre-bag rollout)
+  // User's language override, set from the profile switcher. Absent →
+  // caller falls back to the device/system language (src/i18n's
+  // detectSystemLocale on web). Not typed against src/i18n's `Locale` —
+  // this file imports nothing per the layering rule in CLAUDE.md — but the
+  // two must stay in sync (SYNC: src/i18n/types.ts, ios/SmartGolfCaddy/
+  // Models/AppUser.swift).
+  locale?: 'ru' | 'en'
 }
 
 export interface HoleShots {

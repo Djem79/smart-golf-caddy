@@ -141,6 +141,20 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(user?.handicap, 12)
         XCTAssertNil(user?.bag)
         XCTAssertEqual(user?.resolvedBag.filter { $0.enabled }.count, 2)
+        XCTAssertNil(user?.locale) // absent field → caller falls back to device language
+    }
+
+    func testAppUserLocaleRoundTrips() {
+        let ru = AppUser(uid: "u1", data: ["name": "Д", "locale": "ru"])
+        XCTAssertEqual(ru?.locale, .ru)
+
+        let en = AppUser(uid: "u1", data: ["name": "D", "locale": "en"])
+        XCTAssertEqual(en?.locale, .en)
+    }
+
+    func testAppUserUnknownLocaleBecomesNil() {
+        let user = AppUser(uid: "u1", data: ["name": "Д", "locale": "fr"])
+        XCTAssertNil(user?.locale)
     }
 
     // MARK: Round

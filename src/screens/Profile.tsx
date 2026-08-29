@@ -6,6 +6,7 @@ import { useProfile } from '../hooks/useProfile'
 import { signOut } from '../services/auth'
 import { getUserRounds } from '../services/rounds'
 import { deleteAccount } from '../services/account'
+import { updateLocale } from '../services/users'
 import { computeClubUsage, computePlayerStats, computeHandicap } from '../services/scoring'
 import { getBagFromUser, getClubLabel, scoreColor } from '../types'
 import type { Round } from '../types'
@@ -15,7 +16,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-import { useT, plural } from '../i18n'
+import { useT, plural, setLocale, type Locale } from '../i18n'
 
 export function Profile() {
   const navigate = useNavigate()
@@ -77,6 +78,17 @@ export function Profile() {
     }
   }
 
+  // Switches immediately via setLocale (every useT() subscriber re-renders
+  // in place — no reload) and persists to the profile so it's picked up on
+  // other devices too. Firestore write failure is non-critical: the UI
+  // already reflects the choice, same pattern as changeUnits in MyBag.tsx.
+  async function changeLanguage(l: Locale) {
+    if (l === locale) return
+    setLocale(l)
+    if (!user) return
+    try { await updateLocale(user.uid, l) } catch { /* non-critical */ }
+  }
+
   async function handleDeleteAccount() {
     setDeletingAccount(true)
     setDeleteError(null)
@@ -131,6 +143,28 @@ export function Profile() {
             </div>
           </div>
         </Card>
+
+        {/* Language switcher — a settings pill, not an action button; same
+            visual pattern as the units toggle in MyBag.tsx. */}
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{t.profile.language}</p>
+          <div className="inline-flex p-1 bg-surface-container rounded-lg">
+            {(['ru', 'en'] as const).map(l => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => changeLanguage(l)}
+                className={`px-6 py-2 rounded-md text-label-lg font-semibold transition-colors min-h-touch ${
+                  locale === l
+                    ? 'bg-surface-container-lowest text-primary shadow-card'
+                    : 'text-on-surface-variant'
+                }`}
+              >
+                {l === 'ru' ? t.profile.languageRu : t.profile.languageEn}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Stats summary: rounds / avg / best / all-time best (only matters if played) */}
         <Card>

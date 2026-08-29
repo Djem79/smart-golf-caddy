@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { useLocaleSync } from './hooks/useLocaleSync'
 import { useT } from './i18n'
 import { Auth } from './screens/Auth'
 import { Home } from './screens/Home'
@@ -75,6 +76,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // T3: overrides the system-language default with the profile's saved
+  // `locale` once it loads (mounted once here — see useLocaleSync's docs).
+  useLocaleSync()
+
   return (
     <BrowserRouter>
       <Suspense fallback={<LoadingScreen />}>

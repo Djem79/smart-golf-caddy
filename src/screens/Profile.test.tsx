@@ -39,8 +39,15 @@ vi.mock('../services/account', () => ({
   deleteAccount: () => deleteAccountMock(),
 }))
 
+const updateLocaleMock = vi.fn()
+vi.mock('../services/users', () => ({
+  updateLocale: (...args: unknown[]) => updateLocaleMock(...args),
+}))
+
 import { Profile } from './Profile'
 import { en } from '../i18n/en'
+import { ru } from '../i18n/ru'
+import { setLocale } from '../i18n'
 
 // jsdom's default navigator.language is 'en-US', so useT() resolves to the
 // English dictionary in tests (no locale override here — T3 adds the
@@ -58,6 +65,7 @@ function renderProfile() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  setLocale('en') // jsdom's system default — reset between tests since setLocale is a module-level singleton
 })
 
 describe('Profile — account deletion', () => {
@@ -108,5 +116,36 @@ describe('Profile — account deletion', () => {
     expect(navigateMock).not.toHaveBeenCalledWith('/auth', { replace: true })
     // The account button is usable again — user is still logged in and can retry.
     expect(screen.getByRole('button', { name: t.deleteAccount })).not.toBeDisabled()
+  })
+})
+
+describe('Profile — language switcher', () => {
+  it('labels the two options in their own language, not translated', () => {
+    renderProfile()
+    expect(screen.getByRole('button', { name: 'Русский' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument()
+  })
+
+  it('clicking a language switches the UI immediately, without a reload', () => {
+    renderProfile()
+    // Page title (<h1>, from PageHeader) — a unique heading, unlike "Profile"
+    // as plain text, which also appears in BottomNav's own label.
+    expect(screen.getByRole('heading', { name: en.profile.title })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Русский' }))
+
+    expect(screen.getByRole('heading', { name: ru.profile.title })).toBeInTheDocument()
+  })
+
+  it('persists the choice to the profile', () => {
+    renderProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Русский' }))
+    expect(updateLocaleMock).toHaveBeenCalledWith('u1', 'ru')
+  })
+
+  it('clicking the already-active language is a no-op (no redundant write)', () => {
+    renderProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'English' })) // already en
+    expect(updateLocaleMock).not.toHaveBeenCalled()
   })
 })

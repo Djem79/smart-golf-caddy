@@ -10,6 +10,10 @@ export async function updateUnits(uid: string, units: DistanceUnit): Promise<voi
   await setDoc(doc(db, 'users', uid), { units }, { merge: true })
 }
 
+export async function updateLocale(uid: string, locale: AppUser['locale']): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { locale }, { merge: true })
+}
+
 export function subscribeToProfile(
   uid: string,
   callback: (profile: AppUser | null) => void,
