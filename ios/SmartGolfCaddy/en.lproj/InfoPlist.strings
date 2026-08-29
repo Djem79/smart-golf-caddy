@@ -1,0 +1,6 @@
+/* ios/SmartGolfCaddy/en.lproj/InfoPlist.strings
+   System-facing (App Store review, Settings > Privacy) strings for the
+   SmartGolfCaddy (phone) target. English wording per Apple's guidance:
+   explain the benefit to the user, not the fact of data collection. */
+
+"NSLocationWhenInUseUsageDescription" = "Used to find golf courses near you.";

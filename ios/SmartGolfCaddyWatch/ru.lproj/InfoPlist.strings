@@ -1,0 +1,6 @@
+/* ios/SmartGolfCaddyWatch/ru.lproj/InfoPlist.strings
+   System-facing strings for the SmartGolfCaddyWatch target. Keep in sync
+   with the fallback value in ios/project.yml's SmartGolfCaddyWatch.info
+   properties. */
+
+"NSLocationWhenInUseUsageDescription" = "Геолокация нужна, чтобы показывать дистанцию до грина и мерить длину ударов.";

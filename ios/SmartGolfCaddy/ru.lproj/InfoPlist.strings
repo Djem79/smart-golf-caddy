@@ -1,0 +1,6 @@
+/* ios/SmartGolfCaddy/ru.lproj/InfoPlist.strings
+   System-facing (App Store review, Settings > Privacy) strings for the
+   SmartGolfCaddy (phone) target. Keep in sync with the fallback value in
+   ios/project.yml's SmartGolfCaddy.info.properties. */
+
+"NSLocationWhenInUseUsageDescription" = "Геолокация нужна, чтобы найти гольф-поля рядом с вами.";

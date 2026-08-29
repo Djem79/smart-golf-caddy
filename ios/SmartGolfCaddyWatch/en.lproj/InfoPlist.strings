@@ -1,0 +1,6 @@
+/* ios/SmartGolfCaddyWatch/en.lproj/InfoPlist.strings
+   System-facing strings for the SmartGolfCaddyWatch target. English
+   wording per Apple's guidance: explain the benefit to the user, not the
+   fact of data collection. */
+
+"NSLocationWhenInUseUsageDescription" = "Used to show distance to the green and measure your shots.";
