@@ -7,7 +7,7 @@ import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, finishRound, updateHoleConfig } from '../services/rounds'
 import { recordShotQueued, getPendingShot, pendingCountForRound } from '../services/shotQueue'
 import type { Round } from '../types'
-import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_COLORS } from '../types'
+import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_COLORS, getPlayerDisplayName } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
@@ -302,9 +302,9 @@ export function HoleTracker() {
                       : 'bg-surface-container-lowest text-on-surface border-outline-variant/60 hover:border-outline-variant'
                   }`}
                 >
-                  <Avatar src={p.avatar} name={p.name} size={24} />
+                  <Avatar src={p.avatar} name={getPlayerDisplayName(p.name, t.common.deletedPlayerName)} size={24} />
                   <span className="font-semibold text-label-lg truncate max-w-[100px]">
-                    {isMe ? t.groupLobby.you : p.name}
+                    {isMe ? t.groupLobby.you : getPlayerDisplayName(p.name, t.common.deletedPlayerName)}
                   </span>
                   <span className={`text-label-lg font-bold tabular-nums ${active ? 'text-on-primary' : 'text-primary'}`}>
                     {count}
@@ -320,7 +320,7 @@ export function HoleTracker() {
         <p className="text-on-surface-variant text-label-lg font-semibold uppercase tracking-wider">
           {isSelf || !isMultiplayer
             ? t.holeTracker.yourShots
-            : t.holeTracker.shotsOf(round.players[activeUserId]?.name ?? '—')}
+            : t.holeTracker.shotsOf(getPlayerDisplayName(round.players[activeUserId]?.name ?? '—', t.common.deletedPlayerName))}
         </p>
         <div className="flex flex-col items-center gap-3">
           <div className="flex items-center gap-10">

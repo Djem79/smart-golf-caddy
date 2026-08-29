@@ -11,7 +11,7 @@ import { Resend } from 'resend'
 import * as React from 'react'
 
 import { RoundSummary } from './emails/RoundSummary'
-import { buildPayload, buildSubject, DELETED_PLAYER_NAME, type BagClubLite, type RoundLike } from './emails/buildPayload'
+import { buildPayload, buildSubject, DELETED_PLAYER_MARKER, type BagClubLite, type RoundLike } from './emails/buildPayload'
 import { findRecipientUid } from './emails/recipient'
 import { resolveLocale, type Locale } from './i18n'
 import type { ZodType } from 'zod'
@@ -650,12 +650,14 @@ export const deleteAccount = onCall(
       }
 
       const patch: Record<string, unknown> = {
-        // Stored as the Russian literal on purpose, unconditionally — see
-        // DELETED_PLAYER_NAME in emails/buildPayload.ts for why. Emails
-        // localize it at render time; web/iOS display it verbatim (both
-        // out of scope here, and both actively being worked on elsewhere),
-        // so the stored value must stay exactly what it always was.
-        [`players.${uid}.name`]: DELETED_PLAYER_NAME,
+        // Locale-neutral marker, not a Russian string — see
+        // DELETED_PLAYER_MARKER in emails/buildPayload.ts for why. Emails,
+        // web, and iOS all translate this marker at render time instead of
+        // storing display text. Rounds anonymised before this change still
+        // hold the old Russian literal ('Удалённый игрок') — that data
+        // belongs to other players and is never migrated, so every reader
+        // of this field must keep recognizing both values.
+        [`players.${uid}.name`]: DELETED_PLAYER_MARKER,
         [`players.${uid}.avatar`]: '',
         [`players.${uid}.email`]: FieldValue.delete(),
       }

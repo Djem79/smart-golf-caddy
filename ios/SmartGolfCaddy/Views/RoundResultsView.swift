@@ -94,7 +94,7 @@ struct RoundResultsView: View {
                     .font(DSFont.displayLG)
                     .foregroundStyle(DSColor.onPrimary)
                     .monospacedDigit()
-                Text(status.leaderUid.flatMap { round.players[$0]?.name } ?? lm.t.common.playersEven)
+                Text(status.leaderUid.flatMap { round.players[$0]?.displayName } ?? lm.t.common.playersEven)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onPrimary)
             } else if isSolo {
@@ -159,7 +159,7 @@ struct RoundResultsView: View {
                 if !usage.isEmpty {
                     sectionTitle(round.playerIds.count == 1
                                  ? lm.t.roundResults.clubsTitle
-                                 : lm.t.roundResults.clubsForPlayer(round.players[uid]?.name ?? ""))
+                                 : lm.t.roundResults.clubsForPlayer(round.players[uid]?.displayName ?? ""))
                     FlowLayoutCompat(items: Array(usage.enumerated()), spacing: 6) { _, stat in
                         Text(stat.avgDistanceMeters > 0
                              ? "\(Clubs.label(for: stat.club, in: viewerBag)) · \(stat.count) (\(stat.percent)%) · \(lm.t.roundResults.avgAbbrev) \(avgDistanceText(stat.avgDistanceMeters))"
@@ -197,7 +197,7 @@ struct RoundResultsView: View {
                     }
                     ForEach(round.playerIds, id: \.self) { uid in
                         HStack(spacing: 4) {
-                            cell(round.playerIds.count == 1 ? lm.t.roundResults.strokesRowHeader : (round.players[uid]?.name ?? ""), width: 72, header: true)
+                            cell(round.playerIds.count == 1 ? lm.t.roundResults.strokesRowHeader : (round.players[uid]?.displayName ?? ""), width: 72, header: true)
                             ForEach(round.holes, id: \.holeNumber) { hole in
                                 let shots = hole.shots[uid]?.count ?? 0
                                 if shots > 0 {

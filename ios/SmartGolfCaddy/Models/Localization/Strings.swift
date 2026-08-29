@@ -31,6 +31,13 @@ struct Strings {
         let km: String
         let par: String
         let playersEven: String
+        // Отображаемое имя для Players.deletedMarker (и старого литерала
+        // «Удалённый игрок», который несут раунды, обезличенные до появления
+        // маркера) — см. Players.displayName(_:) в Models/Round.swift.
+        // SYNC (формулировка, не хранимое значение): src/i18n/ru.ts+en.ts
+        // common.deletedPlayerName, functions/src/i18n/ru.ts+en.ts
+        // deletedPlayerName.
+        let deletedPlayerName: String
         let fallbackName: String
         let loadProfileError: String
         let holesWord: PluralForms
@@ -414,6 +421,7 @@ extension Strings {
             km: "км",
             par: "Пар",
             playersEven: "Игроки на равных",
+            deletedPlayerName: "Удалённый игрок",
             fallbackName: "Голфер",
             loadProfileError: "Не удалось загрузить профиль — проверьте сеть",
             holesWord: PluralForms(one: "лунка", few: "лунки", many: "лунок"),
@@ -725,6 +733,7 @@ extension Strings {
             km: "km",
             par: "Par",
             playersEven: "Players are even",
+            deletedPlayerName: "Removed player",
             fallbackName: "Golfer",
             loadProfileError: "Couldn't load your profile — check your connection",
             holesWord: PluralForms(one: "hole", few: "holes", many: "holes"),

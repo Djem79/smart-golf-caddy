@@ -201,7 +201,7 @@ struct GroupLobbyView: View {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 32))
                     .foregroundStyle(DSColor.primaryContainer)
-                Text(info.name)
+                Text(info.displayName)
                     .font(DSFont.bodyMD)
                     .foregroundStyle(DSColor.onSurface)
                     .lineLimit(1)

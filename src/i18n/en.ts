@@ -19,6 +19,7 @@ export const en: Dictionary = {
     player: 'Player',
     par: 'Par',
     playersEven: 'Players are even',
+    deletedPlayerName: 'Removed player',
     golfCourseFallback: 'Golf course',
     holesWord: { one: 'hole', other: 'holes' },
     playersWord: { one: 'player', other: 'players' },

@@ -5,6 +5,7 @@ import { Play, Check, Copy } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { subscribeToRound, startRound, leaveLobby } from '../services/rounds'
 import type { Round } from '../types'
+import { getPlayerDisplayName } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Avatar } from '../components/ui/Avatar'
@@ -158,8 +159,8 @@ export function GroupLobby() {
             {players.map(([uid, p]) => (
               <Card key={uid}>
                 <div className="flex items-center gap-3">
-                  <Avatar src={p.avatar} name={p.name} size={40} />
-                  <span className="flex-1 font-semibold text-body-md text-on-surface truncate">{p.name}</span>
+                  <Avatar src={p.avatar} name={getPlayerDisplayName(p.name, t.common.deletedPlayerName)} size={40} />
+                  <span className="flex-1 font-semibold text-body-md text-on-surface truncate">{getPlayerDisplayName(p.name, t.common.deletedPlayerName)}</span>
                   {uid === round.hostId && (
                     <span className="text-label-md font-semibold text-primary bg-primary-container/15 px-2 py-0.5 rounded-full uppercase tracking-wider">
                       {t.groupLobby.host}

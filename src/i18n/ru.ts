@@ -19,6 +19,12 @@ export const ru = {
     player: 'Игрок',
     par: 'Пар',
     playersEven: 'Игроки на равных',
+    // Display label for the DELETED_PLAYER_MARKER sentinel (and the legacy
+    // 'Удалённый игрок' literal old anonymised rounds still carry) —
+    // getPlayerDisplayName() in src/types/index.ts swaps either value for
+    // this at render time. SYNC (wording, not the stored value): functions/
+    // src/i18n/ru.ts deletedPlayerName, ios Strings.common.deletedPlayerName.
+    deletedPlayerName: 'Удалённый игрок',
     golfCourseFallback: 'Поле для гольфа',
     // Plural forms, consumed via `plural(n, locale, forms)`. Typed as
     // `PluralForms` (not inferred as an exact `{ one, few, many }` object)

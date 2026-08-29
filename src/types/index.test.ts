@@ -3,6 +3,7 @@ import {
   scoreColor, scoreDirection, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
   DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory, getClubLabel,
   metersToYards, yardsToMeters, getHoleDistances, PENALTY_ID, UNKNOWN_CLUB,
+  getPlayerDisplayName, DELETED_PLAYER_MARKER,
   type HoleShots,
 } from './index'
 
@@ -243,5 +244,21 @@ describe('getClubLabel', () => {
 
   it('returns the unknown fallback for the UNKNOWN_CLUB sentinel', () => {
     expect(getClubLabel(UNKNOWN_CLUB, [], fallbacks)).toBe('Unknown')
+  })
+})
+
+describe('getPlayerDisplayName', () => {
+  const deletedPlayerLabel = 'Removed player'
+
+  it('translates the DELETED_PLAYER_MARKER sentinel deleteAccount() writes today', () => {
+    expect(getPlayerDisplayName(DELETED_PLAYER_MARKER, deletedPlayerLabel)).toBe('Removed player')
+  })
+
+  it('translates the legacy Russian literal old (pre-marker) anonymised rounds still carry — that data is never migrated, so this must keep working', () => {
+    expect(getPlayerDisplayName('Удалённый игрок', deletedPlayerLabel)).toBe('Removed player')
+  })
+
+  it('leaves an ordinary player name unchanged', () => {
+    expect(getPlayerDisplayName('Alice', deletedPlayerLabel)).toBe('Alice')
   })
 })

@@ -86,6 +86,33 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(Clubs.label(for: "Weird", in: []), "Weird")
     }
 
+    // Players.displayName / PlayerInfo.displayName — deleteAccount() writes
+    // Players.deletedMarker into players.{uid}.name for departed group-round
+    // participants; rounds anonymised before that change still carry the old
+    // Russian literal directly. Both must translate for both locales, and
+    // real names must never be touched.
+    func testDeletedPlayerDisplayName() {
+        let previous = AppLocaleStore.current
+        defer { AppLocaleStore.set(previous) }
+
+        AppLocaleStore.set(.ru)
+        XCTAssertEqual(Players.displayName(Players.deletedMarker), "Удалённый игрок")
+        XCTAssertEqual(Players.displayName("Удалённый игрок"), "Удалённый игрок")
+        XCTAssertEqual(Players.displayName("Alice"), "Alice")
+
+        AppLocaleStore.set(.en)
+        XCTAssertEqual(Players.displayName(Players.deletedMarker), "Removed player")
+        // Legacy literal must translate even under English — old data is
+        // never migrated, so it needs recognizing regardless of viewer locale.
+        XCTAssertEqual(Players.displayName("Удалённый игрок"), "Removed player")
+        XCTAssertEqual(Players.displayName("Alice"), "Alice")
+
+        let deletedInfo = PlayerInfo(name: Players.deletedMarker, avatar: "", totalScore: 0, scoreDiff: 0, email: nil)
+        XCTAssertEqual(deletedInfo.displayName, "Removed player")
+        let legacyInfo = PlayerInfo(name: "Удалённый игрок", avatar: "", totalScore: 0, scoreDiff: 0, email: nil)
+        XCTAssertEqual(legacyInfo.displayName, "Removed player")
+    }
+
     func testDefaultBagShape() {
         XCTAssertEqual(Clubs.defaultBag.count, 20)
         XCTAssertEqual(Clubs.defaultBag.filter { $0.enabled }.count, 10)

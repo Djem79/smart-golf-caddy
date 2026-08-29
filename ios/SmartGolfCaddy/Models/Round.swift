@@ -103,6 +103,37 @@ struct PlayerInfo: Equatable {
         if let email { d["email"] = email }
         return d
     }
+
+    /// Локализованное имя для показа: переводит маркер удалённого игрока
+    /// (или старый русский литерал) через `Players.displayName(_:)`;
+    /// обычные имена возвращаются как есть.
+    var displayName: String { Players.displayName(name) }
+}
+
+enum Players {
+    /// Локально-нейтральный маркер: пишется `deleteAccount()`
+    /// (functions/src/index.ts) в `players.{uid}.name` при обезличивании
+    /// участника группового раунда, вместо строки на конкретном языке.
+    /// SYNC: DELETED_PLAYER_MARKER в src/types/index.ts и
+    /// functions/src/emails/buildPayload.ts — литерал должен совпадать
+    /// буквально во всех трёх местах.
+    static let deletedMarker = "__deleted_player__"
+
+    /// Значение, которое `deleteAccount()` писал ДО появления маркера.
+    /// Раунды, обезличенные до этого изменения, хранят именно эту русскую
+    /// строку — это чужие данные (принадлежат другим игрокам), поэтому
+    /// миграция исключена: displayName(_:) распознаёт оба значения
+    /// бессрочно.
+    private static let legacyDeletedNameRU = "Удалённый игрок"
+
+    /// Переводит маркер удалённого игрока (новый или старый литерал) в
+    /// текущий язык через `AppLocaleStore.strings.common.deletedPlayerName`;
+    /// любое другое имя возвращается без изменений.
+    static func displayName(_ name: String) -> String {
+        (name == deletedMarker || name == legacyDeletedNameRU)
+            ? AppLocaleStore.strings.common.deletedPlayerName
+            : name
+    }
 }
 
 struct HoleConfig: Equatable {

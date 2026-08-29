@@ -4,7 +4,7 @@ import { Trophy, Flag, Share2, Plus } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { subscribeToRound } from '../services/rounds'
 import { computePlayerTotals, computeClubUsage, computeMatchPlayStatus, computeLeaderboard } from '../services/scoring'
-import { scoreColor, scoreOnColor, scoreLabel, getBagFromUser, getClubLabel } from '../types'
+import { scoreColor, scoreOnColor, scoreLabel, getBagFromUser, getClubLabel, getPlayerDisplayName } from '../types'
 import type { Round } from '../types'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -17,10 +17,10 @@ import { useT, plural } from '../i18n'
 // Headline winner = top of the same leaderboard rendered below, so the two
 // never disagree. computeLeaderboard sinks players with no recorded shots and
 // has a deterministic name tiebreak; if nobody played there is no winner yet.
-function findWinner(round: Round, unknownLabel: string): string {
+function findWinner(round: Round, unknownLabel: string, deletedPlayerLabel: string): string {
   const [top] = computeLeaderboard(round)
   if (!top || top.thru === 0) return unknownLabel
-  return top.name
+  return getPlayerDisplayName(top.name, deletedPlayerLabel)
 }
 
 export function RoundResults() {
@@ -98,7 +98,7 @@ export function RoundResults() {
           </p>
           <p className="text-on-primary text-body-md mt-1 font-medium">
             {matchStatus.leaderUid
-              ? round.players[matchStatus.leaderUid]?.name ?? t.common.clubLabels.unknown
+              ? getPlayerDisplayName(round.players[matchStatus.leaderUid]?.name ?? t.common.clubLabels.unknown, t.common.deletedPlayerName)
               : t.common.playersEven}
           </p>
           <p className="text-on-primary/70 text-label-md mt-2">
@@ -135,7 +135,7 @@ export function RoundResults() {
             {t.roundResults.winner}
           </p>
           <p className="font-headline font-bold text-headline-lg text-on-primary mt-2 tracking-tight">
-            {findWinner(round, t.common.clubLabels.unknown)}
+            {findWinner(round, t.common.clubLabels.unknown, t.common.deletedPlayerName)}
           </p>
           <p className="text-on-primary/70 text-label-md mt-2">
             {round.courseName} · {round.totalHoles}{' '}
@@ -149,8 +149,8 @@ export function RoundResults() {
           <Card key={uid}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <Avatar src={avatar} name={name} size={40} />
-                <span className="font-semibold text-body-md text-on-surface truncate">{name}</span>
+                <Avatar src={avatar} name={getPlayerDisplayName(name, t.common.deletedPlayerName)} size={40} />
+                <span className="font-semibold text-body-md text-on-surface truncate">{getPlayerDisplayName(name, t.common.deletedPlayerName)}</span>
               </div>
               <div className="text-right shrink-0">
                 <p className="font-headline font-bold text-title-lg text-on-surface tabular-nums">{totalScore}</p>
@@ -180,7 +180,7 @@ export function RoundResults() {
             if (usage.length === 0) return null
             return (
               <Card key={uid}>
-                <p className="font-semibold text-body-md text-on-surface mb-2">{player.name}</p>
+                <p className="font-semibold text-body-md text-on-surface mb-2">{getPlayerDisplayName(player.name, t.common.deletedPlayerName)}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {usage.map(({ club, count, percent }) => (
                     <span
@@ -216,7 +216,7 @@ export function RoundResults() {
                 return (
                   <tr key={uid} className="border-t border-outline-variant/20">
                     <td className="py-2 px-3 text-left font-semibold text-on-surface sticky left-0 bg-surface-container-lowest truncate max-w-[80px]">
-                      {player.name}
+                      {getPlayerDisplayName(player.name, t.common.deletedPlayerName)}
                     </td>
                     {round.holes.map(hole => {
                       const shots = hole.shots[uid]?.count

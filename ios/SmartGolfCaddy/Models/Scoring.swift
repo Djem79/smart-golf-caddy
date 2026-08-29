@@ -120,7 +120,7 @@ enum Scoring {
             let totals = playerTotals(round: round, userId: uid)
             let thru = round.holes.filter { ($0.shots[uid]?.count ?? 0) > 0 }.count
             entries.append(LeaderboardEntry(
-                uid: uid, name: player.name, avatar: player.avatar,
+                uid: uid, name: player.displayName, avatar: player.avatar,
                 totalScore: totals.totalScore, scoreDiff: totals.scoreDiff, thru: thru
             ))
         }

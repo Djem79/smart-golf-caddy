@@ -243,6 +243,32 @@ export function getClubLabel(clubId: string, bag: BagClub[], fallbacks: ClubLabe
   return clubId
 }
 
+// Locale-neutral marker deleteAccount() (functions/src/index.ts) writes
+// into players.{uid}.name when anonymising a departed group-round
+// participant. SYNC: DELETED_PLAYER_MARKER in
+// functions/src/emails/buildPayload.ts and Players.deletedMarker in iOS
+// (ios/SmartGolfCaddy/Models/Round.swift) — the literal must match exactly
+// in all three places, same discipline as PENALTY_ID/UNKNOWN_CLUB above.
+export const DELETED_PLAYER_MARKER = '__deleted_player__'
+
+// Pre-marker value: every deleteAccount() run before this change wrote this
+// Russian literal instead of DELETED_PLAYER_MARKER. Those rounds belong to
+// other players and are never migrated, so getPlayerDisplayName keeps
+// recognizing it indefinitely alongside the marker.
+const LEGACY_DELETED_PLAYER_NAME_RU = 'Удалённый игрок'
+
+// Resolve a stored player name to its user-facing form: translates either
+// the current marker or the legacy Russian literal (old anonymised rounds)
+// into `deletedPlayerLabel`; any other name passes through unchanged.
+// `deletedPlayerLabel` is supplied by the caller (t.common.deletedPlayerName)
+// since this file has no inbound i18n dependency — same pattern as
+// getClubLabel's `fallbacks` above.
+export function getPlayerDisplayName(name: string, deletedPlayerLabel: string): string {
+  return name === DELETED_PLAYER_MARKER || name === LEGACY_DELETED_PLAYER_NAME_RU
+    ? deletedPlayerLabel
+    : name
+}
+
 export function metersToYards(m: number): number {
   return Math.round(m * 1.0936)
 }

@@ -107,7 +107,7 @@ struct LeaderboardView: View {
                 .font(DSFont.displayLG)
                 .foregroundStyle(DSColor.primary)
                 .monospacedDigit()
-            Text(status.leaderUid.flatMap { round.players[$0]?.name }.map { lm.t.leaderboard.leading($0) } ?? lm.t.common.playersEven)
+            Text(status.leaderUid.flatMap { round.players[$0]?.displayName }.map { lm.t.leaderboard.leading($0) } ?? lm.t.common.playersEven)
                 .font(DSFont.labelLG)
                 .foregroundStyle(DSColor.onSurface)
             if status.closed {

@@ -317,7 +317,7 @@ struct HoleTrackerView: View {
     private func playerChip(uid: String, round: Round, hole: HoleConfig) -> some View {
         let active = uid == model.activeUserId
         let isMe = uid == model.userId
-        let name = round.players[uid]?.name ?? "—"
+        let name = round.players[uid]?.displayName ?? "—"
         let count = hole.shots[uid]?.count ?? 0
         return Button {
             selectPlayer(uid)
@@ -374,7 +374,7 @@ struct HoleTrackerView: View {
               model.activeUserId != model.userId else {
             return lm.t.holeTracker.yourShots
         }
-        return lm.t.holeTracker.shotsOf(round.players[model.activeUserId]?.name ?? "—")
+        return lm.t.holeTracker.shotsOf(round.players[model.activeUserId]?.displayName ?? "—")
     }
 
     private var counter: some View {

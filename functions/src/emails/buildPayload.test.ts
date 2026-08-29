@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildPayload, buildSubject, DELETED_PLAYER_NAME, type RoundLike } from './buildPayload'
+import { buildPayload, buildSubject, DELETED_PLAYER_MARKER, type RoundLike } from './buildPayload'
+
+// The literal deleteAccount() wrote before DELETED_PLAYER_MARKER existed.
+// Real, already-anonymised rounds in Firestore still carry this exact
+// string — buildPayload must keep translating it forever, never migrated.
+const LEGACY_DELETED_PLAYER_NAME_RU = 'Удалённый игрок'
 
 // Two active, distinctly-named players finish a stroke-play round together.
 // Used to prove buildPayload renders EACH recipient independently — the
@@ -41,13 +46,13 @@ function makeStrokeRound(): RoundLike {
 }
 
 // A match-play round where the departed player (bob) has already been
-// anonymised by deleteAccount() — his stored name is the literal
-// DELETED_PLAYER_NAME string, and he's the match leader, so his name flows
-// into match.leaderName. Doubles as the "old data" fixture: deleteAccount
-// has only ever written this one literal, so there's no separate "legacy
-// format" to simulate — this IS what both old and new anonymised rounds
-// look like in Firestore.
-function makeMatchRoundWithDeletedLeader(): RoundLike {
+// anonymised by deleteAccount() — his stored name is whichever marker the
+// caller supplies, and he's the match leader, so his name flows into
+// match.leaderName. `deletedName` defaults to the current
+// DELETED_PLAYER_MARKER (new anonymisations) but tests also pass the old
+// LEGACY_DELETED_PLAYER_NAME_RU literal to prove rounds anonymised before
+// the marker existed still render correctly — that data is never migrated.
+function makeMatchRoundWithDeletedLeader(deletedName: string = DELETED_PLAYER_MARKER): RoundLike {
   return {
     id: 'round-2',
     courseName: 'Augusta National',
@@ -56,7 +61,7 @@ function makeMatchRoundWithDeletedLeader(): RoundLike {
     playMode: 'match',
     players: {
       alice: { name: 'Alice', email: 'alice@example.com' },
-      bob: { name: DELETED_PLAYER_NAME },
+      bob: { name: deletedName },
     },
     holes: [
       {
@@ -113,14 +118,26 @@ describe('buildPayload — per-recipient locale', () => {
 })
 
 describe('buildPayload — deleted-player name', () => {
-  it('translates the deleted-player literal in match.leaderName for a Russian recipient', () => {
+  it('translates the deleted-player marker in match.leaderName for a Russian recipient', () => {
     const round = makeMatchRoundWithDeletedLeader()
     const payload = buildPayload(round, 'alice', undefined, 'ru')
     expect(payload.match?.leaderName).toBe('Удалённый игрок')
   })
 
-  it('translates the SAME stored literal into English for an English recipient — proves old/existing anonymised data still renders correctly after localization', () => {
+  it('translates the SAME stored marker into English for an English recipient', () => {
     const round = makeMatchRoundWithDeletedLeader()
+    const payload = buildPayload(round, 'alice', undefined, 'en')
+    expect(payload.match?.leaderName).toBe('Removed player')
+  })
+
+  it('translates the legacy Russian literal in match.leaderName for a Russian recipient — proves rounds anonymised before the marker existed still render correctly', () => {
+    const round = makeMatchRoundWithDeletedLeader(LEGACY_DELETED_PLAYER_NAME_RU)
+    const payload = buildPayload(round, 'alice', undefined, 'ru')
+    expect(payload.match?.leaderName).toBe('Удалённый игрок')
+  })
+
+  it('translates the legacy Russian literal into English for an English recipient — old/existing anonymised data is never migrated, so this must keep working indefinitely', () => {
+    const round = makeMatchRoundWithDeletedLeader(LEGACY_DELETED_PLAYER_NAME_RU)
     const payload = buildPayload(round, 'alice', undefined, 'en')
     expect(payload.match?.leaderName).toBe('Removed player')
   })

@@ -46,23 +46,34 @@ const CLUB_ABBREV: Record<string, string> = {
 // «Неизвестно».
 const PENALTY_ID = 'Штраф'
 
-// The exact literal deleteAccount() (functions/src/index.ts) writes into
+// The exact sentinel deleteAccount() (functions/src/index.ts) writes into
 // players.{uid}.name when anonymising a departed group-round participant.
-// Exported and imported back into index.ts so the string lives in exactly
-// one place instead of being duplicated across the write site and this
-// read site (the same discipline CLAUDE.md already calls for on
-// CLUB_ABBREV). See localizeDeletedName() below for why the stored value
-// itself is never migrated to a locale-neutral marker: emails are the only
-// surface this task owns, and translating the known literal at render time
-// gets recipients a localized email without touching stored data or the
-// web/iOS display code that also reads this field verbatim.
-export const DELETED_PLAYER_NAME = 'Удалённый игрок'
+// Locale-neutral by design (mirrors PENALTY_ID/UNKNOWN_CLUB in
+// src/types/index.ts): the stored value must render correctly for every
+// viewer regardless of their language, so it can't itself be the Russian
+// (or any other) display string. SYNC: DELETED_PLAYER_MARKER in
+// src/types/index.ts and Players.deletedMarker in iOS
+// (ios/SmartGolfCaddy/Models/Round.swift) — the literal must match exactly
+// in all three places. Exported and imported back into index.ts so the
+// string lives in exactly one place instead of being duplicated across the
+// write site and this read site (the same discipline CLAUDE.md already
+// calls for on CLUB_ABBREV).
+export const DELETED_PLAYER_MARKER = '__deleted_player__'
 
-// Swaps the deleted-player literal for its localized form; passes any other
-// name through unchanged (including `undefined`, so callers can still
-// apply their own fallback — see playerName/leaderName below).
+// Pre-marker value: every deleteAccount() run before this change wrote this
+// Russian literal instead of DELETED_PLAYER_MARKER. Those rounds belong to
+// other players and are never migrated (see functions/src/index.ts), so
+// this stays recognized here (and in the web/iOS display code) indefinitely.
+const LEGACY_DELETED_PLAYER_NAME_RU = 'Удалённый игрок'
+
+// Swaps the deleted-player marker (new or legacy) for its localized form;
+// passes any other name through unchanged (including `undefined`, so
+// callers can still apply their own fallback — see playerName/leaderName
+// below).
 function localizeDeletedName(name: string | undefined, t: Dictionary): string | undefined {
-  return name === DELETED_PLAYER_NAME ? t.deletedPlayerName : name
+  return name === DELETED_PLAYER_MARKER || name === LEGACY_DELETED_PLAYER_NAME_RU
+    ? t.deletedPlayerName
+    : name
 }
 
 function resolveClubLabel(clubId: string, bag: BagClubLite[] | undefined, t: Dictionary): string {

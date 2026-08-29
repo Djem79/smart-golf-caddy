@@ -123,6 +123,33 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(Scoring.leaderboard(round: round).map(\.name), ["андрей", "Борис"])
     }
 
+    // Scoring.leaderboard builds entry.name from PlayerInfo.displayName, so a
+    // departed group-round participant's marker (new Players.deletedMarker,
+    // or the legacy Russian literal old anonymised rounds still carry) must
+    // already come out translated here — every leaderboard/results screen
+    // reads entry.name directly, with no further translation step of its own.
+    func testLeaderboardTranslatesDeletedPlayerNames() {
+        let previous = AppLocaleStore.current
+        AppLocaleStore.set(.en)
+        defer { AppLocaleStore.set(previous) }
+
+        let round = makeRound(
+            holes: [
+                hole(1, par: 4, shots: [
+                    "new": ["count": 4, "clubs": ["7i", "7i", "PW", "Putter"]],
+                    "legacy": ["count": 4, "clubs": ["7i", "7i", "PW", "Putter"]],
+                ]),
+            ],
+            players: [
+                "new": ["name": Players.deletedMarker, "avatar": "", "totalScore": 0, "scoreDiff": 0],
+                "legacy": ["name": "Удалённый игрок", "avatar": "", "totalScore": 0, "scoreDiff": 0],
+            ],
+            playerIds: ["new", "legacy"]
+        )
+        let names = Set(Scoring.leaderboard(round: round).map(\.name))
+        XCTAssertEqual(names, ["Removed player"])
+    }
+
     // MARK: playerStats
 
     func testPlayerStats() {

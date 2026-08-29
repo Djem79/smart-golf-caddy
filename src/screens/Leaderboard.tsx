@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import { subscribeToRound } from '../services/rounds'
 import { computeLeaderboard, computeMatchPlayStatus } from '../services/scoring'
 import type { Round } from '../types'
-import { scoreColor, scoreOnColor, scoreDirection } from '../types'
+import { scoreColor, scoreOnColor, scoreDirection, getPlayerDisplayName } from '../types'
 import { useT, plural } from '../i18n'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -43,7 +43,10 @@ export function Leaderboard() {
     )
   }
 
-  const entries = computeLeaderboard(round)
+  const entries = computeLeaderboard(round).map(entry => ({
+    ...entry,
+    name: getPlayerDisplayName(entry.name, t.common.deletedPlayerName),
+  }))
   const totalHoles = round.totalHoles
   const isMatchPlay = round.playMode === 'match' && round.playerIds.length === 2
   const matchStatus = isMatchPlay
@@ -91,7 +94,12 @@ export function Leaderboard() {
             </p>
             <p className="text-label-lg text-on-surface mt-1">
               {matchStatus.leaderUid
-                ? t.leaderboard.leading(round.players[matchStatus.leaderUid]?.name ?? t.common.clubLabels.unknown)
+                ? t.leaderboard.leading(
+                    getPlayerDisplayName(
+                      round.players[matchStatus.leaderUid]?.name ?? t.common.clubLabels.unknown,
+                      t.common.deletedPlayerName,
+                    ),
+                  )
                 : t.common.playersEven}
             </p>
             {matchStatus.closed && (
