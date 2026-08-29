@@ -1,5 +1,16 @@
 import SwiftUI
 
+// Публичные статические страницы сайта (App Store 5.1.1(v) — политика,
+// условия и поддержка должны быть доступны из приложения). Один домен —
+// правка адреса при переезде на свой домен делается в одном месте.
+private enum LegalLinks {
+    static let all: [(label: String, url: URL)] = [
+        ("Политика конфиденциальности", URL(string: "https://smart-golf-caddy.web.app/privacy")!),
+        ("Условия использования", URL(string: "https://smart-golf-caddy.web.app/terms")!),
+        ("Поддержка", URL(string: "https://smart-golf-caddy.web.app/support")!),
+    ]
+}
+
 struct ProfileView: View {
     @Environment(SessionViewModel.self) private var session
     @State private var model = ProfileViewModel()
@@ -20,6 +31,7 @@ struct ProfileView: View {
                 handicapCard
                 favoriteClubsCard
                 bagLink
+                legalLinks
                 DSButton(title: "Выйти из аккаунта", style: .secondary) {
                     session.signOut()
                 }
@@ -80,6 +92,32 @@ struct ProfileView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    // Юридические и справочные ссылки — намеренно отделены от кнопок
+    // выхода/удаления аккаунта, чтобы по ним не промахивались рядом с
+    // опасным действием. `Link` открывает системный браузер, не веб-вью в
+    // приложении.
+    private var legalLinks: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Rectangle()
+                .fill(DSColor.outlineVariant.opacity(0.3))
+                .frame(height: 1)
+                .padding(.bottom, 8)
+            ForEach(LegalLinks.all, id: \.url) { item in
+                Link(destination: item.url) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 14))
+                        Text(item.label)
+                            .font(DSFont.labelLG)
+                    }
+                    .foregroundStyle(DSColor.onSurfaceVariant)
+                    .frame(minHeight: DS.touchTarget, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
     }
 
     private var statsIfPlayed: PlayerStats? {

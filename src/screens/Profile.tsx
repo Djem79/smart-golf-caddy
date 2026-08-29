@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Briefcase, ChevronRight, Trash2 } from 'lucide-react'
+import { Briefcase, ChevronRight, ExternalLink, Trash2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
 import { signOut } from '../services/auth'
@@ -16,6 +16,15 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
 import { pluralRu } from '../utils/intl'
+
+// Публичные статические страницы сайта (App Store 5.1.1(v) — политика,
+// условия и поддержка должны быть доступны из приложения). Один домен —
+// правка адреса при переезде на свой домен делается в одном месте.
+const LEGAL_LINKS = [
+  { label: 'Политика конфиденциальности', href: 'https://smart-golf-caddy.web.app/privacy' },
+  { label: 'Условия использования', href: 'https://smart-golf-caddy.web.app/terms' },
+  { label: 'Поддержка', href: 'https://smart-golf-caddy.web.app/support' },
+] as const
 
 export function Profile() {
   const navigate = useNavigate()
@@ -276,6 +285,24 @@ export function Profile() {
             <ChevronRight size={20} strokeWidth={1.75} />
           </div>
         </button>
+
+        {/* Юридические и справочные ссылки — намеренно отделены от кнопок
+            выхода/удаления аккаунта, чтобы по ним не промахивались рядом с
+            опасным действием. Открываются во внешней вкладке. */}
+        <nav aria-label="Документы и поддержка" className="pt-2 border-t border-outline-variant/30 space-y-1">
+          {LEGAL_LINKS.map(link => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 min-h-touch px-1 text-label-lg text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <ExternalLink size={16} strokeWidth={1.75} className="shrink-0" />
+              {link.label}
+            </a>
+          ))}
+        </nav>
 
         <Button variant="secondary" onClick={handleSignOut} disabled={signingOut}>
           {signingOut ? 'Выходим...' : 'Выйти из аккаунта'}
