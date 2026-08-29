@@ -1,5 +1,12 @@
 import type { CourseResult } from '../types'
 import { haversineMetres } from './distance'
+import { getLocale } from '../i18n'
+import { ru } from '../i18n/ru'
+import { en } from '../i18n/en'
+
+// A plain service module (not a component/hook), so it can't call the
+// useT() hook — it reads the current locale directly instead.
+const t = () => (getLocale() === 'ru' ? ru : en)
 
 const API_KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY as string
 
@@ -37,7 +44,7 @@ export async function findNearbyCourses(
   lng: number,
 ): Promise<CourseResult[]> {
   if (!API_KEY) {
-    throw new CourseFetchError('config', 'API ключ Google Places не настроен')
+    throw new CourseFetchError('config', t().courseSearch.fetchErrors.apiKeyMissing)
   }
 
   // FieldMask tells the API which fields to return — required by the new API
@@ -73,7 +80,7 @@ export async function findNearbyCourses(
       }),
     })
   } catch (e) {
-    throw new CourseFetchError('network', 'Нет связи с серверами Google', String(e))
+    throw new CourseFetchError('network', t().courseSearch.fetchErrors.networkError, String(e))
   }
 
   if (!res.ok) {
@@ -87,15 +94,15 @@ export async function findNearbyCourses(
     if (res.status === 403) {
       throw new CourseFetchError(
         'denied',
-        'Доступ к Places API (New) запрещён',
-        detail || 'Проверьте, что Places API (New) включён в Google Cloud Console и что текущий домен добавлен в HTTP referrers для API-ключа: https://smart-golf-caddy.web.app/*',
+        t().courseSearch.fetchErrors.accessDeniedNew,
+        detail || t().courseSearch.fetchErrors.accessDeniedNewDetail,
       )
     }
     if (res.status === 429) {
-      throw new CourseFetchError('quota', 'Превышен лимит запросов к Places API', detail)
+      throw new CourseFetchError('quota', t().courseSearch.fetchErrors.quotaExceededNew, detail)
     }
     if (res.status === 400) {
-      throw new CourseFetchError('invalid', 'Некорректный запрос к Places API', detail)
+      throw new CourseFetchError('invalid', t().courseSearch.fetchErrors.invalidRequest, detail)
     }
     throw new CourseFetchError('unknown', `Places API HTTP ${res.status}`, detail)
   }
@@ -108,7 +115,7 @@ export async function findNearbyCourses(
     const placeLng = p.location?.longitude ?? lng
     return {
       placeId: p.id ?? '',
-      name: p.displayName?.text ?? 'Поле для гольфа',
+      name: p.displayName?.text ?? t().common.golfCourseFallback,
       vicinity: p.formattedAddress ?? '',
       rating: p.rating,
       userRatingsTotal: p.userRatingCount,
@@ -130,7 +137,7 @@ export async function searchCoursesByText(
   const q = query.trim()
   if (q.length === 0) return []
   if (!API_KEY) {
-    throw new CourseFetchError('config', 'API ключ Google Places не настроен')
+    throw new CourseFetchError('config', t().courseSearch.fetchErrors.apiKeyMissing)
   }
 
   const fieldMask = [
@@ -172,7 +179,7 @@ export async function searchCoursesByText(
       body: JSON.stringify(body),
     })
   } catch (e) {
-    throw new CourseFetchError('network', 'Нет связи с серверами Google', String(e))
+    throw new CourseFetchError('network', t().courseSearch.fetchErrors.networkError, String(e))
   }
 
   if (!res.ok) {
@@ -182,10 +189,10 @@ export async function searchCoursesByText(
       detail = errBody.error?.message ?? ''
     } catch { /* not json */ }
     if (res.status === 403) {
-      throw new CourseFetchError('denied', 'Доступ к Places API запрещён', detail)
+      throw new CourseFetchError('denied', t().courseSearch.fetchErrors.accessDenied, detail)
     }
     if (res.status === 429) {
-      throw new CourseFetchError('quota', 'Превышен лимит запросов', detail)
+      throw new CourseFetchError('quota', t().courseSearch.fetchErrors.quotaExceeded, detail)
     }
     throw new CourseFetchError('unknown', `Places API HTTP ${res.status}`, detail)
   }
@@ -201,7 +208,7 @@ export async function searchCoursesByText(
       : 0
     return {
       placeId: p.id ?? '',
-      name: p.displayName?.text ?? 'Поле для гольфа',
+      name: p.displayName?.text ?? t().common.golfCourseFallback,
       vicinity: p.formattedAddress ?? '',
       rating: p.rating,
       userRatingsTotal: p.userRatingCount,

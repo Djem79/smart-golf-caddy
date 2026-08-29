@@ -4,10 +4,11 @@ import { User, Users, BarChart3, Swords, type LucideIcon } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { createRound } from '../services/rounds'
 import type { CourseResult, TeeColor, PlayMode } from '../types'
-import { TEE_LABELS } from '../types'
+import { TEE_COLORS } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
+import { useT } from '../i18n'
 
 interface RoundSetupState {
   course?: CourseResult
@@ -18,6 +19,7 @@ export function RoundSetup() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
+  const { t } = useT()
   const state = (location.state as RoundSetupState | null) ?? {}
   const course = state.course
 
@@ -29,7 +31,7 @@ export function RoundSetup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const effectiveName = course?.name ?? (customName.trim() || 'Поле для гольфа')
+  const effectiveName = course?.name ?? (customName.trim() || t.common.golfCourseFallback)
 
   async function handleStart() {
     if (!user) return
@@ -42,7 +44,7 @@ export function RoundSetup() {
       const roundId = await createRound(
         user.uid,
         {
-          name: user.displayName ?? 'Голфер',
+          name: user.displayName ?? t.home.fallbackName,
           avatar: user.photoURL ?? '',
           totalScore: 0,
           scoreDiff: 0,
@@ -62,7 +64,7 @@ export function RoundSetup() {
       }
     } catch (e) {
       console.error('Failed to create round', e)
-      setError('Не удалось создать раунд. Попробуйте ещё раз.')
+      setError(t.roundSetup.createError)
     } finally {
       setLoading(false)
     }
@@ -70,30 +72,30 @@ export function RoundSetup() {
 
   return (
     <div className="screen pb-20">
-      <PageHeader title="Настройка раунда" />
+      <PageHeader title={t.roundSetup.title} />
 
       <div className="px-5 pt-6 space-y-6 flex-1">
         {course ? (
           <div className="card">
             <h2 className="font-headline font-bold text-title-lg text-on-surface">{course.name}</h2>
-            <p className="text-label-lg text-on-surface-variant mt-1">{course.vicinity} · {course.distanceKm} км</p>
+            <p className="text-label-lg text-on-surface-variant mt-1">{course.vicinity} · {course.distanceKm} {t.common.km}</p>
             <button
               type="button"
               onClick={() => navigate('/courses')}
               className="text-label-lg text-primary font-semibold mt-3"
             >
-              Сменить поле
+              {t.roundSetup.changeCourse}
             </button>
           </div>
         ) : (
           <div className="space-y-2">
             <p className="font-semibold text-label-lg text-on-surface-variant uppercase tracking-wider">
-              Название поля
+              {t.roundSetup.courseNameLabel}
             </p>
             <input
               type="text"
-              aria-label="Название поля"
-              placeholder="Например: Гольф клуб Москва"
+              aria-label={t.roundSetup.courseNameLabel}
+              placeholder={t.roundSetup.courseNamePlaceholder}
               value={customName}
               onChange={e => setCustomName(e.target.value)}
               className="w-full border border-outline-variant rounded px-4 py-3 text-body-md bg-surface-container-lowest focus:border-primary"
@@ -103,14 +105,14 @@ export function RoundSetup() {
               onClick={() => navigate('/courses')}
               className="text-label-lg text-primary font-semibold"
             >
-              Найти ближайшее поле
+              {t.roundSetup.findNearest}
             </button>
           </div>
         )}
 
         <div>
           <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
-            Количество лунок
+            {t.roundSetup.holesCount}
           </p>
           <div className="flex gap-3">
             {([9, 18] as const).map(n => (
@@ -132,17 +134,18 @@ export function RoundSetup() {
 
         <div>
           <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
-            Тии (откуда играем)
+            {t.roundSetup.teeLabel}
           </p>
           <div className="grid grid-cols-2 gap-2">
-            {(['pro', 'men', 'senior', 'ladies'] as const).map(t => {
-              const info = TEE_LABELS[t]
-              const selected = tee === t
+            {(['pro', 'men', 'senior', 'ladies'] as const).map(teeColor => {
+              const colors = TEE_COLORS[teeColor]
+              const info = t.common.tee[teeColor]
+              const selected = tee === teeColor
               return (
                 <button
-                  key={t}
+                  key={teeColor}
                   type="button"
-                  onClick={() => setTee(t)}
+                  onClick={() => setTee(teeColor)}
                   aria-pressed={selected}
                   className={`flex flex-col items-start gap-2 p-3 rounded-lg border-2 transition-colors text-left min-h-[96px] ${
                     selected
@@ -152,7 +155,7 @@ export function RoundSetup() {
                 >
                   <div
                     className="w-7 h-7 shrink-0 rounded-full border border-outline-variant/40 flex items-center justify-center font-bold text-label-md"
-                    style={{ backgroundColor: info.bg, color: info.text }}
+                    style={{ backgroundColor: colors.bg, color: colors.text }}
                   >
                     T
                   </div>
@@ -172,12 +175,12 @@ export function RoundSetup() {
 
         <div>
           <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
-            Режим игры
+            {t.roundSetup.modeLabel}
           </p>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { id: 'solo' as const,  Icon: User,  title: 'Соло',   desc: 'Только вы' },
-              { id: 'group' as const, Icon: Users, title: 'Группа', desc: 'С друзьями' },
+              { id: 'solo' as const,  Icon: User,  title: t.roundSetup.soloTitle,  desc: t.roundSetup.soloDesc },
+              { id: 'group' as const, Icon: Users, title: t.roundSetup.groupTitle, desc: t.roundSetup.groupDesc },
             ] satisfies { id: 'solo' | 'group'; Icon: LucideIcon; title: string; desc: string }[]).map(opt => (
               <ChoiceCard
                 key={opt.id}
@@ -191,7 +194,7 @@ export function RoundSetup() {
           </div>
           {mode === 'group' && (
             <p className="text-label-md text-on-surface-variant mt-2 text-center">
-              После создания раунда вы получите код, чтобы пригласить друзей
+              {t.roundSetup.groupHint}
             </p>
           )}
         </div>
@@ -200,12 +203,12 @@ export function RoundSetup() {
         {mode === 'group' && (
           <div>
             <p className="font-semibold text-label-lg text-on-surface-variant mb-3 uppercase tracking-wider">
-              Формат игры
+              {t.roundSetup.formatLabel}
             </p>
             <div className="grid grid-cols-2 gap-3">
               {([
-                { id: 'stroke' as const, Icon: BarChart3, title: 'Stroke', desc: 'Общий счёт по ударам' },
-                { id: 'match'  as const, Icon: Swords,    title: 'Match',  desc: '2 игрока · по лункам' },
+                { id: 'stroke' as const, Icon: BarChart3, title: t.roundSetup.strokeTitle, desc: t.roundSetup.strokeDesc },
+                { id: 'match'  as const, Icon: Swords,    title: t.roundSetup.matchTitle,  desc: t.roundSetup.matchDesc },
               ] satisfies { id: 'stroke' | 'match'; Icon: LucideIcon; title: string; desc: string }[]).map(opt => (
                 <ChoiceCard
                   key={opt.id}
@@ -219,7 +222,7 @@ export function RoundSetup() {
             </div>
             {playMode === 'match' && (
               <p className="text-label-md text-on-surface-variant mt-2 text-center">
-                Match play считается по победам в каждой лунке. Лучше всего работает 1v1.
+                {t.roundSetup.matchHint}
               </p>
             )}
           </div>
@@ -232,10 +235,10 @@ export function RoundSetup() {
       >
         <Button onClick={handleStart} disabled={loading}>
           {loading
-            ? 'Создаём раунд...'
+            ? t.roundSetup.creating
             : mode === 'group'
-              ? 'Создать лобби'
-              : 'Начать игру'}
+              ? t.roundSetup.createLobby
+              : t.roundSetup.startGame}
         </Button>
         {error && (
           <p className="text-center text-label-lg text-error">{error}</p>

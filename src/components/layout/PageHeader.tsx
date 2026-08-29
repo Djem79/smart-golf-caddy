@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
+import { useT } from '../../i18n'
 
 interface PageHeaderProps {
   title: string
@@ -9,6 +10,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, showBack = true, right }: PageHeaderProps) {
   const navigate = useNavigate()
+  const { t } = useT()
   return (
     <header className="flex items-center px-4 h-14 bg-surface-container-lowest border-b border-outline-variant/30">
       <div className="w-12 flex items-center">
@@ -16,7 +18,7 @@ export function PageHeader({ title, showBack = true, right }: PageHeaderProps) {
           <button
             onClick={() => navigate(-1)}
             className="min-h-touch min-w-touch -ml-3 flex items-center justify-center text-on-surface rounded-full active:bg-surface-container-high/60 transition-colors"
-            aria-label="Назад"
+            aria-label={t.common.back}
           >
             <ChevronLeft size={24} strokeWidth={1.75} />
           </button>

@@ -1,20 +1,23 @@
 import { describe, it, expect } from 'vitest'
 import { plural } from './index'
-import { pluralRu } from '../utils/intl'
 
-// Proves the new `Intl.PluralRules`-backed mechanism produces the exact same
-// Russian forms as the existing `pluralRu` helper, for the numbers called
-// out in the localization plan. `pluralRu` stays in place until its 29
-// call sites migrate in T2 — the two must agree in the meantime.
-describe('plural (ru) matches pluralRu', () => {
+// `one` covers 1, 21, 31, ... (genitive sing.: "лунка")
+// `few` covers 2-4, 22-24, ... (genitive plural sing.: "лунки")
+// `many` covers 0, 5-20, 25-30, ... (genitive plural: "лунок")
+// Values mirror the old pluralRu() helper (removed in T2 once its 29 call
+// sites migrated to this Intl.PluralRules-backed mechanism) so the same
+// edge cases — teens as an exception to the few/many split — stay covered.
+describe('plural (ru)', () => {
   const forms = { one: 'лунка', few: 'лунки', many: 'лунок' }
-  const numbers = [1, 2, 5, 11, 21, 22, 25, 101, 111]
+  const cases: Array<[number, string]> = [
+    [1, 'лунка'], [2, 'лунки'], [5, 'лунок'],
+    [11, 'лунок'], [21, 'лунка'], [22, 'лунки'],
+    [25, 'лунок'], [101, 'лунка'], [111, 'лунок'],
+  ]
 
-  for (const n of numbers) {
-    it(`n=${n}`, () => {
-      const legacy = pluralRu(n, 'лунка', 'лунки', 'лунок')
-      const next = plural(n, 'ru', forms)
-      expect(next).toBe(legacy)
+  for (const [n, expected] of cases) {
+    it(`n=${n} → "${expected}"`, () => {
+      expect(plural(n, 'ru', forms)).toBe(expected)
     })
   }
 })

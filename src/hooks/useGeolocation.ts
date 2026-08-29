@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useT } from '../i18n'
 
 export interface GeoState {
   lat: number | null
@@ -17,6 +18,7 @@ const WATCH_OPTIONS: PositionOptions = {
 }
 
 export function useGeolocation(): GeoState {
+  const { t } = useT()
   const [state, setState] = useState<Omit<GeoState, 'request'>>({
     lat: null, lng: null, error: null, loading: true,
   })
@@ -24,7 +26,7 @@ export function useGeolocation(): GeoState {
 
   const start = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setState({ lat: null, lng: null, error: 'Геолокация не поддерживается', loading: false })
+      setState({ lat: null, lng: null, error: t.courseSearch.geo.notSupported, loading: false })
       return
     }
     // Stop any prior watch before starting a new one.
@@ -41,15 +43,15 @@ export function useGeolocation(): GeoState {
       (err) => {
         // Code 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
         const message =
-          err.code === 1 ? 'Доступ к геолокации запрещён. Включите его в настройках браузера.'
-          : err.code === 2 ? 'Не удалось определить позицию. Проверьте, включён ли GPS / службы геолокации.'
-          : err.code === 3 ? 'Время ожидания геолокации истекло. Попробуйте ещё раз.'
-          : (err.message || 'Не удалось получить позицию')
+          err.code === 1 ? t.courseSearch.geo.permissionDenied
+          : err.code === 2 ? t.courseSearch.geo.positionUnavailable
+          : err.code === 3 ? t.courseSearch.geo.timeout
+          : (err.message || t.courseSearch.geo.unknown)
         setState({ lat: null, lng: null, error: message, loading: false })
       },
       WATCH_OPTIONS,
     )
-  }, [])
+  }, [t])
 
   useEffect(() => {
     // `start` synchronously calls setState in the "geolocation not supported" branch;

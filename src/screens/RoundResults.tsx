@@ -12,14 +12,14 @@ import { Avatar } from '../components/ui/Avatar'
 import { ShareDialog } from '../components/ui/ShareDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-import { pluralRu } from '../utils/intl'
+import { useT, plural } from '../i18n'
 
 // Headline winner = top of the same leaderboard rendered below, so the two
 // never disagree. computeLeaderboard sinks players with no recorded shots and
 // has a deterministic name tiebreak; if nobody played there is no winner yet.
-function findWinner(round: Round): string {
+function findWinner(round: Round, unknownLabel: string): string {
   const [top] = computeLeaderboard(round)
-  if (!top || top.thru === 0) return 'Неизвестно'
+  if (!top || top.thru === 0) return unknownLabel
   return top.name
 }
 
@@ -27,20 +27,21 @@ export function RoundResults() {
   const { roundId } = useParams<{ roundId: string }>()
   const navigate = useNavigate()
   const { profile } = useProfile()
+  const { t, locale } = useT()
   const [round, setRound] = useState<Round | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   // Resolve display names for clubs using the current viewer's bag.
-  // Custom clubs owned by other players show as "Клюшка" — acceptable
-  // until we snapshot the display name into each shot.
+  // Custom clubs owned by other players show as t.common.clubLabels.missingCustom
+  // — acceptable until we snapshot the display name into each shot.
   const viewerBag = useMemo(() => getBagFromUser(profile), [profile])
 
   useEffect(() => {
     if (!roundId) return
     return subscribeToRound(roundId, setRound, () => {
-      setLoadError('Не удалось загрузить итоги. Проверьте связь.')
+      setLoadError(t.roundResults.loadError)
     })
-  }, [roundId])
+  }, [roundId, t])
 
   if (!round) {
     return (
@@ -49,11 +50,11 @@ export function RoundResults() {
           <>
             <p className="text-error text-body-md">{loadError}</p>
             <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
-              На главную
+              {t.common.goHome}
             </Button>
           </>
         ) : (
-          <p className="text-on-surface-variant text-body-md">Загрузка результатов...</p>
+          <p className="text-on-surface-variant text-body-md">{t.roundResults.loading}</p>
         )}
       </div>
     )
@@ -67,7 +68,7 @@ export function RoundResults() {
     ? computeMatchPlayStatus(round, round.playerIds[0], round.playerIds[1])
     : null
 
-  // Solo round: a single "Победитель" makes no sense (you're the only player),
+  // Solo round: a single "Winner" makes no sense (you're the only player),
   // so show the player's own result (strokes + vs-par) instead.
   const isSolo = round.playerIds.length === 1
   const soloTotals = isSolo
@@ -75,14 +76,14 @@ export function RoundResults() {
     : { totalScore: 0, scoreDiff: 0 }
 
   const shareUrl = `${window.location.origin}/round/${roundId}/results`
-  const shareTitle = `${round.courseName} — Smart Golf Caddy`
+  const shareTitle = `${round.courseName}${t.roundResults.shareTitleSuffix}`
   const shareText = isMatchPlay && matchStatus
-    ? `Match play: ${matchStatus.label}. ${round.courseName}.`
-    : `${round.totalHoles} лунок на ${round.courseName}. Итоги в Smart Golf Caddy.`
+    ? t.roundResults.shareTextMatch(matchStatus.label, round.courseName)
+    : t.roundResults.shareTextStroke(round.totalHoles, plural(round.totalHoles, locale, t.common.holesWord), round.courseName)
 
   return (
     <div className="screen pb-24">
-      <PageHeader title="Итоги раунда" showBack={false} />
+      <PageHeader title={t.roundResults.title} showBack={false} />
 
       {isMatchPlay && matchStatus ? (
         <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-8 text-center">
@@ -90,19 +91,19 @@ export function RoundResults() {
             <Trophy size={24} strokeWidth={1.5} />
           </div>
           <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
-            Match play
+            {t.roundResults.matchPlay}
           </p>
           <p className="font-headline font-bold text-display-lg text-on-primary mt-2 tracking-tight tabular-nums">
             {matchStatus.label}
           </p>
           <p className="text-on-primary text-body-md mt-1 font-medium">
             {matchStatus.leaderUid
-              ? round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'
-              : 'Игроки на равных'}
+              ? round.players[matchStatus.leaderUid]?.name ?? t.common.clubLabels.unknown
+              : t.common.playersEven}
           </p>
           <p className="text-on-primary/70 text-label-md mt-2">
             {round.courseName} · {round.totalHoles}{' '}
-            {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+            {plural(round.totalHoles, locale, t.common.holesWord)}
           </p>
         </div>
       ) : isSolo ? (
@@ -111,18 +112,18 @@ export function RoundResults() {
             <Flag size={24} strokeWidth={1.5} />
           </div>
           <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
-            Ваш результат
+            {t.roundResults.soloResult}
           </p>
           <p className="font-headline font-bold text-display-lg text-on-primary mt-2 tracking-tight tabular-nums">
             {soloTotals.totalScore}
-            <span className="text-title-lg font-normal text-on-primary/80"> уд.</span>
+            <span className="text-title-lg font-normal text-on-primary/80"> {t.roundResults.strokesShort}</span>
           </p>
           <p className="text-on-primary text-body-md mt-1 font-medium">
             {soloTotals.scoreDiff >= 0 ? '+' : ''}{soloTotals.scoreDiff} ({scoreLabel(soloTotals.scoreDiff)})
           </p>
           <p className="text-on-primary/70 text-label-md mt-2">
             {round.courseName} · {round.totalHoles}{' '}
-            {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+            {plural(round.totalHoles, locale, t.common.holesWord)}
           </p>
         </div>
       ) : (
@@ -131,14 +132,14 @@ export function RoundResults() {
             <Trophy size={24} strokeWidth={1.5} />
           </div>
           <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
-            Победитель
+            {t.roundResults.winner}
           </p>
           <p className="font-headline font-bold text-headline-lg text-on-primary mt-2 tracking-tight">
-            {findWinner(round)}
+            {findWinner(round, t.common.clubLabels.unknown)}
           </p>
           <p className="text-on-primary/70 text-label-md mt-2">
             {round.courseName} · {round.totalHoles}{' '}
-            {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+            {plural(round.totalHoles, locale, t.common.holesWord)}
           </p>
         </div>
       )}
@@ -172,7 +173,7 @@ export function RoundResults() {
       </div>
 
       <div className="px-5 pt-6">
-        <h2 className="font-headline font-semibold text-title-lg text-on-surface mb-3">Клюшки в этом раунде</h2>
+        <h2 className="font-headline font-semibold text-title-lg text-on-surface mb-3">{t.roundResults.clubsInRound}</h2>
         <div className="space-y-3">
           {players.map(([uid, player]) => {
             const usage = computeClubUsage(round, uid)
@@ -186,7 +187,7 @@ export function RoundResults() {
                       key={club}
                       className="px-2 py-1 rounded-full bg-primary-container/15 text-on-surface text-label-md font-semibold"
                     >
-                      {getClubLabel(club, viewerBag)} · {count} ({percent}%)
+                      {getClubLabel(club, viewerBag, t.common.clubLabels)} · {count} ({percent}%)
                     </span>
                   ))}
                 </div>
@@ -197,12 +198,12 @@ export function RoundResults() {
       </div>
 
       <div className="px-5 pt-6">
-        <h2 className="font-headline font-semibold text-title-lg text-on-surface mb-3">Карта счёта</h2>
+        <h2 className="font-headline font-semibold text-title-lg text-on-surface mb-3">{t.roundResults.scorecard}</h2>
         <div className="overflow-x-auto rounded-lg border border-outline-variant/30">
           <table className="w-full text-center text-label-md min-w-max">
             <thead>
               <tr className="bg-surface-container">
-                <th className="py-2 px-3 text-left text-on-surface-variant font-semibold sticky left-0 bg-surface-container">Игрок</th>
+                <th className="py-2 px-3 text-left text-on-surface-variant font-semibold sticky left-0 bg-surface-container">{t.common.player}</th>
                 {round.holes.map(h => (
                   <th key={h.holeNumber} className="py-2 px-2 text-on-surface-variant font-semibold">{h.holeNumber}</th>
                 ))}
@@ -238,7 +239,7 @@ export function RoundResults() {
                 )
               })}
               <tr className="border-t-2 border-outline-variant/50 bg-surface-container">
-                <td className="py-2 px-3 text-left font-semibold text-on-surface-variant sticky left-0 bg-surface-container">Пар</td>
+                <td className="py-2 px-3 text-left font-semibold text-on-surface-variant sticky left-0 bg-surface-container">{t.common.par}</td>
                 {round.holes.map(hole => (
                   <td key={hole.holeNumber} className="py-2 px-2 text-on-surface-variant">{hole.par}</td>
                 ))}
@@ -255,7 +256,7 @@ export function RoundResults() {
           onClick={() => setShareOpen(true)}
           className="uppercase tracking-wider"
         >
-          Поделиться результатом
+          {t.roundResults.shareResult}
         </Button>
         <Button
           variant="secondary"
@@ -263,7 +264,7 @@ export function RoundResults() {
           onClick={() => navigate('/courses')}
           className="uppercase tracking-wider"
         >
-          Новая игра
+          {t.roundResults.newGame}
         </Button>
       </div>
 

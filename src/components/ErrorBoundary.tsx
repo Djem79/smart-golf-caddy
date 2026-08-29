@@ -2,6 +2,14 @@ import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { captureError } from '../sentry'
+import { getLocale } from '../i18n'
+import { ru } from '../i18n/ru'
+import { en } from '../i18n/en'
+
+// React error boundaries are class components, so they can't call the
+// useT() hook. Locale changes (T3) won't re-render this rarely-mounted
+// screen anyway — a plain lookup by the current locale is enough.
+const t = () => (getLocale() === 'ru' ? ru : en)
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -42,11 +50,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         </div>
         <div className="space-y-2">
           <h1 className="font-headline font-bold text-headline-md text-on-surface tracking-tight">
-            Что-то пошло не так
+            {t().errorBoundary.title}
           </h1>
           <p className="text-body-md text-on-surface-variant">
-            Приложение столкнулось с неожиданной ошибкой. Попробуйте обновить страницу
-            или вернуться на главную.
+            {t().errorBoundary.body}
           </p>
         </div>
 
@@ -62,14 +69,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             onClick={this.handleReload}
             className="w-full min-h-touch bg-primary text-on-primary font-headline font-semibold text-label-lg rounded-md active:scale-[0.985] transition-transform"
           >
-            Обновить страницу
+            {t().errorBoundary.reload}
           </button>
           <button
             type="button"
             onClick={this.handleHome}
             className="w-full min-h-touch border border-outline-variant text-on-surface font-headline font-semibold text-label-lg rounded-md active:scale-[0.985] transition-transform"
           >
-            На главную
+            {t().common.goHome}
           </button>
         </div>
       </div>

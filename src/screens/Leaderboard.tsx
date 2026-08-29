@@ -6,7 +6,7 @@ import { subscribeToRound } from '../services/rounds'
 import { computeLeaderboard, computeMatchPlayStatus } from '../services/scoring'
 import type { Round } from '../types'
 import { scoreColor, scoreOnColor, scoreDirection } from '../types'
-import { pluralRu } from '../utils/intl'
+import { useT, plural } from '../i18n'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -15,15 +15,16 @@ export function Leaderboard() {
   const { roundId } = useParams<{ roundId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t, locale } = useT()
   const [round, setRound] = useState<Round | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!roundId) return
     return subscribeToRound(roundId, setRound, () => {
-      setLoadError('Не удалось загрузить таблицу. Проверьте связь.')
+      setLoadError(t.leaderboard.loadError)
     })
-  }, [roundId])
+  }, [roundId, t])
 
   if (!round || !roundId) {
     return (
@@ -32,11 +33,11 @@ export function Leaderboard() {
           <>
             <p className="text-error text-body-md">{loadError}</p>
             <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
-              На главную
+              {t.common.goHome}
             </Button>
           </>
         ) : (
-          <p className="text-on-surface-variant text-body-md">Загрузка...</p>
+          <p className="text-on-surface-variant text-body-md">{t.common.loading}</p>
         )}
       </div>
     )
@@ -59,7 +60,7 @@ export function Leaderboard() {
 
   return (
     <div className="screen pb-6">
-      <PageHeader title="Турнирная таблица" />
+      <PageHeader title={t.leaderboard.title} />
 
       <div className="bg-gradient-to-br from-primary-container to-primary px-5 py-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-md bg-on-primary/10 flex items-center justify-center text-on-primary shrink-0">
@@ -70,10 +71,10 @@ export function Leaderboard() {
             {round.courseName}
           </p>
           <p className="text-on-primary font-headline font-bold text-title-lg tracking-tight">
-            {round.status === 'lobby' ? 'Лобби (ещё не начали)'
-            : round.status === 'finished' ? 'Раунд завершён'
-            : `${round.totalHoles} ${pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}`}
-            {isMatchPlay && <span className="text-on-primary/80 font-normal"> · Match 1 v 1</span>}
+            {round.status === 'lobby' ? t.leaderboard.lobbyNotStarted
+            : round.status === 'finished' ? t.leaderboard.roundFinished
+            : `${round.totalHoles} ${plural(round.totalHoles, locale, t.common.holesWord)}`}
+            {isMatchPlay && <span className="text-on-primary/80 font-normal">{t.leaderboard.match1v1}</span>}
           </p>
         </div>
       </div>
@@ -83,24 +84,24 @@ export function Leaderboard() {
         <div className="px-5 pt-4">
           <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-5 text-center shadow-card">
             <p className="text-label-md text-on-surface-variant uppercase tracking-[0.15em] font-semibold">
-              Match status
+              {t.leaderboard.matchStatus}
             </p>
             <p className="font-headline font-bold text-display-lg text-primary mt-1 tabular-nums tracking-tight">
               {matchStatus.label}
             </p>
             <p className="text-label-lg text-on-surface mt-1">
               {matchStatus.leaderUid
-                ? `Ведёт: ${round.players[matchStatus.leaderUid]?.name ?? 'Неизвестно'}`
-                : 'Игроки на равных'}
+                ? t.leaderboard.leading(round.players[matchStatus.leaderUid]?.name ?? t.common.clubLabels.unknown)
+                : t.common.playersEven}
             </p>
             {matchStatus.closed && (
               <p className="text-label-md text-primary font-semibold mt-2 inline-flex items-center gap-1.5">
                 <Check size={14} strokeWidth={2.5} />
-                Матч решён
+                {t.leaderboard.matchDecided}
               </p>
             )}
             <p className="text-label-md text-on-surface-variant mt-2">
-              Сыграно: {matchStatus.holesPlayed} · Осталось: {matchStatus.holesRemaining}
+              {t.leaderboard.playedRemaining(matchStatus.holesPlayed, matchStatus.holesRemaining)}
             </p>
           </div>
         </div>
@@ -110,8 +111,8 @@ export function Leaderboard() {
         {/* Column headers — three columns: rank, player+score, diff. Thru is now under the name. */}
         <div className="grid grid-cols-[28px_minmax(0,1fr)_64px] gap-3 px-3 text-label-md text-on-surface-variant uppercase tracking-wider font-semibold">
           <span>#</span>
-          <span>Игрок</span>
-          <span className="text-right">К пару</span>
+          <span>{t.common.player}</span>
+          <span className="text-right">{t.leaderboard.columnToPar}</span>
         </div>
 
         {entries.map((entry, idx) => {
@@ -138,10 +139,10 @@ export function Leaderboard() {
                 <Avatar src={entry.avatar} name={entry.name} size={32} />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-body-md text-on-surface truncate">
-                    {isMe ? `${entry.name} (вы)` : entry.name}
+                    {isMe ? `${entry.name} (${t.leaderboard.you})` : entry.name}
                   </p>
                   <p className="text-label-md text-on-surface-variant tabular-nums">
-                    {entry.thru > 0 ? entry.totalScore : '—'} удар.{' '}
+                    {entry.thru > 0 ? entry.totalScore : '—'} {t.leaderboard.strokesShort}{' '}
                     <span className="opacity-70">· {entry.thru}/{totalHoles}</span>
                   </p>
                 </div>
@@ -168,7 +169,7 @@ export function Leaderboard() {
 
         {entries.length === 0 && (
           <p className="text-center text-on-surface-variant text-body-md pt-8">
-            Игроков пока нет
+            {t.leaderboard.noPlayers}
           </p>
         )}
       </div>
@@ -176,12 +177,12 @@ export function Leaderboard() {
       <div className="px-5 pb-6">
         {round.status === 'active' && (
           <Button icon={ChevronLeft} onClick={() => navigate(`/round/${roundId}/hole/1`)}>
-            Назад к лунке
+            {t.leaderboard.backToHole}
           </Button>
         )}
         {round.status === 'finished' && (
           <Button onClick={() => navigate(`/round/${roundId}/results`)}>
-            Итоги раунда
+            {t.leaderboard.roundResults}
           </Button>
         )}
       </div>

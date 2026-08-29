@@ -15,21 +15,22 @@ import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-import { pluralRu } from '../utils/intl'
-
-// Публичные статические страницы сайта (App Store 5.1.1(v) — политика,
-// условия и поддержка должны быть доступны из приложения). Один домен —
-// правка адреса при переезде на свой домен делается в одном месте.
-const LEGAL_LINKS = [
-  { label: 'Политика конфиденциальности', href: 'https://smart-golf-caddy.web.app/privacy' },
-  { label: 'Условия использования', href: 'https://smart-golf-caddy.web.app/terms' },
-  { label: 'Поддержка', href: 'https://smart-golf-caddy.web.app/support' },
-] as const
+import { useT, plural } from '../i18n'
 
 export function Profile() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { profile } = useProfile()
+  const { t, locale } = useT()
+
+  // Public static site pages (App Store 5.1.1(v) — privacy, terms, and
+  // support must be reachable from inside the app). One domain — updating
+  // the address if we move to our own domain happens in one place.
+  const LEGAL_LINKS = [
+    { label: t.profile.privacyPolicy, href: 'https://smart-golf-caddy.web.app/privacy' },
+    { label: t.profile.termsOfUse, href: 'https://smart-golf-caddy.web.app/terms' },
+    { label: t.profile.support, href: 'https://smart-golf-caddy.web.app/support' },
+  ] as const
   const [signingOut, setSigningOut] = useState(false)
   const [rounds, setRounds] = useState<Round[]>([])
   const [loadError, setLoadError] = useState(false)
@@ -94,7 +95,7 @@ export function Profile() {
       // error, they may still need to retry.
       setShowDeleteConfirm(false)
       setDeletingAccount(false)
-      setDeleteError('Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз.')
+      setDeleteError(t.profile.deleteAccountError)
     }
   }
 
@@ -104,18 +105,18 @@ export function Profile() {
 
   return (
     <div className="screen pb-20">
-      <PageHeader title="Профиль" showBack={false} />
+      <PageHeader title={t.profile.title} showBack={false} />
 
       <div className="flex-1 px-5 pt-5 space-y-5 overflow-y-auto">
         {loadError && (
           <div className="bg-error-container/40 border border-error/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-            <p className="text-label-lg text-on-surface">Не удалось загрузить статистику</p>
+            <p className="text-label-lg text-on-surface">{t.profile.loadError}</p>
             <button
               type="button"
               onClick={() => setReloadKey(k => k + 1)}
               className="text-label-lg font-semibold text-primary underline-offset-4 hover:underline shrink-0"
             >
-              Повторить
+              {t.common.retry}
             </button>
           </div>
         )}
@@ -124,7 +125,7 @@ export function Profile() {
             <Avatar src={user?.photoURL} name={user?.displayName} size={64} />
             <div className="min-w-0 flex-1">
               <p className="font-headline font-bold text-title-lg text-on-surface truncate tracking-tight">
-                {user?.displayName ?? 'Голфер'}
+                {user?.displayName ?? t.home.fallbackName}
               </p>
               <p className="text-label-lg text-on-surface-variant truncate">{user?.email ?? ''}</p>
             </div>
@@ -133,23 +134,23 @@ export function Profile() {
 
         {/* Stats summary: rounds / avg / best / all-time best (only matters if played) */}
         <Card>
-          <h3 className="font-headline font-semibold text-title-lg text-on-surface">Статистика</h3>
+          <h3 className="font-headline font-semibold text-title-lg text-on-surface">{t.profile.stats}</h3>
           {stats && stats.roundsPlayed > 0 ? (
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
-                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">Раундов</p>
+                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{t.profile.rounds}</p>
                 <p className="font-headline font-bold text-headline-md text-primary mt-1">{stats.roundsPlayed}</p>
               </div>
               <div>
-                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">Ср. удары</p>
+                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{t.profile.avgShots}</p>
                 <p className="font-headline font-bold text-headline-md text-primary mt-1">{stats.avgShots.toFixed(stats.avgShots % 1 === 0 ? 0 : 1)}</p>
               </div>
               <div>
-                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">Лучший счёт</p>
+                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{t.profile.bestScore}</p>
                 <p className="font-headline font-bold text-headline-md text-primary mt-1">{stats.bestScore}</p>
               </div>
               <div>
-                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">Best vs Par</p>
+                <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{t.profile.bestVsPar}</p>
                 <p className="font-headline font-bold text-headline-md text-primary mt-1">
                   {stats.bestScoreDiff != null
                     ? (stats.bestScoreDiff > 0 ? `+${stats.bestScoreDiff}` : stats.bestScoreDiff)
@@ -159,7 +160,7 @@ export function Profile() {
             </div>
           ) : (
             <p className="text-label-lg text-on-surface-variant mt-2">
-              Сыграйте первый раунд, чтобы увидеть статистику.
+              {t.profile.noStatsYet}
             </p>
           )}
         </Card>
@@ -167,9 +168,9 @@ export function Profile() {
         {/* Hole result distribution — only render when there are holes to summarize */}
         {stats && stats.totalHolesPlayed > 0 && (
           <Card>
-            <h3 className="font-headline font-semibold text-title-lg text-on-surface">Распределение по лункам</h3>
+            <h3 className="font-headline font-semibold text-title-lg text-on-surface">{t.profile.holeDistribution}</h3>
             <p className="text-label-md text-on-surface-variant mt-1">
-              За все {stats.totalHolesPlayed} {pluralRu(stats.totalHolesPlayed, 'сыгранную лунку', 'сыгранных лунки', 'сыгранных лунок')}
+              {t.profile.overAllHoles(stats.totalHolesPlayed, plural(stats.totalHolesPlayed, locale, t.profile.playedHolesWord))}
             </p>
             {/* Stacked bar */}
             <div className="flex h-3 w-full rounded-full overflow-hidden mt-3 bg-surface-container">
@@ -197,7 +198,7 @@ export function Profile() {
                 { key: 'par',    label: 'Par',     count: stats.holeStats.par,    color: scoreColor(0) },
                 { key: 'bogey',  label: 'Bogey',   count: stats.holeStats.bogey,  color: scoreColor(1) },
                 { key: 'double', label: 'Double',  count: stats.holeStats.double, color: scoreColor(2) },
-                { key: 'worse',  label: 'Хуже',    count: stats.holeStats.worse,  color: scoreColor(3) },
+                { key: 'worse',  label: t.profile.worseLabel, count: stats.holeStats.worse,  color: scoreColor(3) },
               ]).map(item => (
                 <div key={item.key} className="flex items-center gap-2 min-w-0">
                   <span
@@ -217,7 +218,7 @@ export function Profile() {
         )}
 
         <Card>
-          <h3 className="font-headline font-semibold text-title-lg text-on-surface">Гандикап</h3>
+          <h3 className="font-headline font-semibold text-title-lg text-on-surface">{t.profile.handicap}</h3>
           {handicap ? (
             <>
               <p className="font-headline font-bold text-display-lg text-primary mt-2">
@@ -225,32 +226,32 @@ export function Profile() {
               </p>
               <p className="text-label-md text-on-surface-variant">
                 {handicap.bestUsed === 8
-                  ? `по лучшим 8 из ${handicap.basedOnRounds} раундов · WHS-метод (без course rating / slope)`
-                  : `по ${handicap.basedOnRounds} ${pluralRu(handicap.basedOnRounds, 'раунду', 'раундам', 'раундам')}, среднее × 0.96`
+                  ? t.profile.handicapBest8(handicap.basedOnRounds)
+                  : t.profile.handicapAvg(handicap.basedOnRounds, plural(handicap.basedOnRounds, locale, t.profile.roundsWord))
                 }
               </p>
             </>
           ) : (
             <p className="text-label-lg text-on-surface-variant mt-1">
-              Сыграйте минимум 3 раунда — рассчитаем по WHS (best 8 из последних 20 × 0.96).
+              {t.profile.handicapEmpty}
             </p>
           )}
         </Card>
 
         <Card>
-          <h3 className="font-headline font-semibold text-title-lg text-on-surface">Любимые клюшки</h3>
+          <h3 className="font-headline font-semibold text-title-lg text-on-surface">{t.profile.favoriteClubs}</h3>
           {clubStats.length === 0 ? (
             <p className="text-label-lg text-on-surface-variant mt-2">
-              Статистика появится после первых ударов.
+              {t.profile.favoriteClubsEmpty}
             </p>
           ) : (
             <div className="space-y-2.5 mt-3">
               {clubStats.map(({ club, count, percent }) => (
                 <div key={club}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-body-md text-on-surface">{getClubLabel(club, bag)}</span>
+                    <span className="font-semibold text-body-md text-on-surface">{getClubLabel(club, bag, t.common.clubLabels)}</span>
                     <span className="text-label-md text-on-surface-variant">
-                      {count} {pluralRu(count, 'удар', 'удара', 'ударов')} · {percent}%
+                      {count} {plural(count, locale, t.profile.shotsWord)} · {percent}%
                     </span>
                   </div>
                   <div className="h-2 bg-surface-container rounded-full overflow-hidden">
@@ -275,21 +276,25 @@ export function Profile() {
               <Briefcase size={20} strokeWidth={1.75} />
             </div>
             <p className="font-headline font-semibold text-label-lg uppercase tracking-[0.18em]">
-              Моя сумка
+              {t.profile.myBag}
             </p>
           </div>
           <div className="flex items-center justify-between mt-4">
             <p className="text-body-md text-on-primary/85">
-              {bag.filter(c => c.enabled).length} клюшек · {profile?.units === 'yd' ? 'ярды' : 'метры'}
+              {t.profile.bagSummary(
+                bag.filter(c => c.enabled).length,
+                plural(bag.filter(c => c.enabled).length, locale, t.common.clubsWord),
+                profile?.units === 'yd' ? t.myBag.yardsUnitWord : t.myBag.metersUnitWord,
+              )}
             </p>
             <ChevronRight size={20} strokeWidth={1.75} />
           </div>
         </button>
 
-        {/* Юридические и справочные ссылки — намеренно отделены от кнопок
-            выхода/удаления аккаунта, чтобы по ним не промахивались рядом с
-            опасным действием. Открываются во внешней вкладке. */}
-        <nav aria-label="Документы и поддержка" className="pt-2 border-t border-outline-variant/30 space-y-1">
+        {/* Legal / support links — deliberately separated from the
+            sign-out/delete-account buttons so they aren't mis-tapped next to
+            a destructive action. Open in an external tab. */}
+        <nav aria-label={t.profile.legalLinksAria} className="pt-2 border-t border-outline-variant/30 space-y-1">
           {LEGAL_LINKS.map(link => (
             <a
               key={link.href}
@@ -305,7 +310,7 @@ export function Profile() {
         </nav>
 
         <Button variant="secondary" onClick={handleSignOut} disabled={signingOut}>
-          {signingOut ? 'Выходим...' : 'Выйти из аккаунта'}
+          {signingOut ? t.profile.signingOut : t.profile.signOut}
         </Button>
 
         <div className="pt-2 space-y-2 border-t border-outline-variant/30">
@@ -319,7 +324,7 @@ export function Profile() {
             disabled={deletingAccount}
             className="mt-3"
           >
-            Удалить аккаунт
+            {t.profile.deleteAccount}
           </Button>
         </div>
       </div>
@@ -328,10 +333,10 @@ export function Profile() {
 
       <ConfirmDialog
         open={showDeleteConfirm}
-        title="Удалить аккаунт?"
-        body="Профиль, статистика и метки гринов удаляются навсегда. Ваши соло-раунды будут удалены. В совместных раундах вместо вашего имени останется «Удалённый игрок» — счёт партнёров не пострадает. Это действие необратимо."
-        confirmLabel="Удалить"
-        cancelLabel="Отмена"
+        title={t.profile.deleteConfirmTitle}
+        body={t.profile.deleteConfirmBody}
+        confirmLabel={t.profile.delete}
+        cancelLabel={t.common.cancel}
         destructive
         loading={deletingAccount}
         onConfirm={handleDeleteAccount}

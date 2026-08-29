@@ -1,3 +1,5 @@
+import { useT } from '../../i18n'
+
 interface AvatarProps {
   src?: string | null
   name?: string | null
@@ -22,6 +24,7 @@ const sizeMap: Record<NonNullable<AvatarProps['size']>, { box: string; text: str
 }
 
 export function Avatar({ src, name, size = 40, className = '' }: AvatarProps) {
+  const { t } = useT()
   const { box, text } = sizeMap[size]
   if (src) {
     return (
@@ -34,7 +37,7 @@ export function Avatar({ src, name, size = 40, className = '' }: AvatarProps) {
   }
   return (
     <div
-      aria-label={name ?? 'Игрок'}
+      aria-label={name ?? t.avatar.fallback}
       className={
         `${box} rounded-full shrink-0 bg-primary-container text-on-primary ` +
         `flex items-center justify-center font-headline font-semibold tracking-wide ${text} ${className}`

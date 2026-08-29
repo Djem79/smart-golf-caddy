@@ -40,6 +40,13 @@ vi.mock('../services/account', () => ({
 }))
 
 import { Profile } from './Profile'
+import { en } from '../i18n/en'
+
+// jsdom's default navigator.language is 'en-US', so useT() resolves to the
+// English dictionary in tests (no locale override here — T3 adds the
+// language switcher). Building selectors from the dictionary keeps this
+// test correct if the copy changes, instead of hardcoding English strings.
+const t = en.profile
 
 function renderProfile() {
   return render(
@@ -54,22 +61,22 @@ beforeEach(() => {
 })
 
 describe('Profile — account deletion', () => {
-  it('shows a visible "Удалить аккаунт" button', () => {
+  it('shows a visible "Delete account" button', () => {
     renderProfile()
-    expect(screen.getByRole('button', { name: /удалить аккаунт/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.deleteAccount })).toBeInTheDocument()
   })
 
   it('clicking the button opens a confirmation dialog without calling deleteAccount yet', () => {
     renderProfile()
-    fireEvent.click(screen.getByRole('button', { name: /удалить аккаунт/i }))
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(deleteAccountMock).not.toHaveBeenCalled()
   })
 
   it('cancelling the dialog does not call deleteAccount', () => {
     renderProfile()
-    fireEvent.click(screen.getByRole('button', { name: /удалить аккаунт/i }))
-    fireEvent.click(screen.getByRole('button', { name: /отмена/i }))
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    fireEvent.click(screen.getByRole('button', { name: en.common.cancel }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(deleteAccountMock).not.toHaveBeenCalled()
   })
@@ -77,10 +84,10 @@ describe('Profile — account deletion', () => {
   it('on confirm: calls the callable, then signs out and redirects to /auth', async () => {
     deleteAccountMock.mockResolvedValueOnce(undefined)
     renderProfile()
-    fireEvent.click(screen.getByRole('button', { name: /удалить аккаунт/i }))
-    // Dialog's confirm button label is exactly "Удалить" (distinct from the
-    // trigger button's "Удалить аккаунт").
-    fireEvent.click(screen.getByRole('button', { name: /^удалить$/i }))
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    // Dialog's confirm button label is exactly "Delete" (distinct from the
+    // trigger button's "Delete account").
+    fireEvent.click(screen.getByRole('button', { name: t.delete }))
 
     await waitFor(() => expect(deleteAccountMock).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1))
@@ -92,14 +99,14 @@ describe('Profile — account deletion', () => {
   it('on error: does not sign out or navigate, and shows an error message', async () => {
     deleteAccountMock.mockRejectedValueOnce(new Error('network down'))
     renderProfile()
-    fireEvent.click(screen.getByRole('button', { name: /удалить аккаунт/i }))
-    fireEvent.click(screen.getByRole('button', { name: /^удалить$/i }))
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    fireEvent.click(screen.getByRole('button', { name: t.delete }))
 
     await waitFor(() => expect(deleteAccountMock).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText(/не удалось удалить аккаунт/i)).toBeInTheDocument()
+    expect(await screen.findByText(t.deleteAccountError)).toBeInTheDocument()
     expect(signOutMock).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalledWith('/auth', { replace: true })
     // The account button is usable again — user is still logged in and can retry.
-    expect(screen.getByRole('button', { name: /удалить аккаунт/i })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: t.deleteAccount })).not.toBeDisabled()
   })
 })

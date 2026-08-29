@@ -10,12 +10,13 @@ import { Card } from '../components/ui/Card'
 import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
-import { pluralRu } from '../utils/intl'
+import { useT, plural } from '../i18n'
 
 export function GroupLobby() {
   const { roundId } = useParams<{ roundId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t, locale } = useT()
   const [round, setRound] = useState<Round | null>(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,9 +27,9 @@ export function GroupLobby() {
   useEffect(() => {
     if (!roundId) return
     return subscribeToRound(roundId, setRound, () => {
-      setLoadError('Не удалось загрузить лобби. Возможно, вы не участник этого раунда или пропала связь.')
+      setLoadError(t.groupLobby.loadError)
     })
-  }, [roundId])
+  }, [roundId, t])
 
   // Auto-navigate to hole 1 once host starts the round
   useEffect(() => {
@@ -47,11 +48,11 @@ export function GroupLobby() {
           <>
             <p className="text-error text-body-md">{loadError}</p>
             <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
-              На главную
+              {t.common.goHome}
             </Button>
           </>
         ) : (
-          <p className="text-on-surface-variant text-body-md">Загрузка лобби...</p>
+          <p className="text-on-surface-variant text-body-md">{t.groupLobby.loading}</p>
         )}
       </div>
     )
@@ -71,7 +72,7 @@ export function GroupLobby() {
       await startRound(roundId!)
       // Subscriber effect will navigate everyone to /hole/1
     } catch {
-      setError('Не удалось запустить раунд. Попробуйте ещё раз.')
+      setError(t.groupLobby.startError)
       setStarting(false)
     }
   }
@@ -97,18 +98,18 @@ export function GroupLobby() {
 
   return (
     <div className="screen pb-6">
-      <PageHeader title="Лобби группы" />
+      <PageHeader title={t.groupLobby.title} />
 
       <div className="flex-1 px-5 pt-5 space-y-5 overflow-y-auto">
         <div className="text-center space-y-1">
           <p className="text-label-md text-on-surface-variant uppercase tracking-wider">{round.courseName}</p>
-          <p className="text-label-md text-on-surface-variant">{round.totalHoles} {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}</p>
+          <p className="text-label-md text-on-surface-variant">{round.totalHoles} {plural(round.totalHoles, locale, t.common.holesWord)}</p>
         </div>
 
         {/* Lobby code */}
         <Card>
           <p className="text-label-md text-on-surface-variant uppercase tracking-[0.15em] font-semibold text-center">
-            Код лобби
+            {t.groupLobby.lobbyCode}
           </p>
           <button
             type="button"
@@ -120,11 +121,11 @@ export function GroupLobby() {
           <p className="text-center text-label-md text-on-surface-variant mt-1 inline-flex items-center justify-center gap-1 w-full">
             {copied ? (
               <>
-                <Check size={14} strokeWidth={2.5} className="text-primary" /> Скопировано
+                <Check size={14} strokeWidth={2.5} className="text-primary" /> {t.shareDialog.copied}
               </>
             ) : (
               <>
-                <Copy size={14} strokeWidth={1.75} /> Тап чтобы скопировать
+                <Copy size={14} strokeWidth={1.75} /> {t.groupLobby.tapToCopy}
               </>
             )}
           </p>
@@ -133,7 +134,7 @@ export function GroupLobby() {
         {/* QR */}
         <Card>
           <p className="text-label-md text-on-surface-variant uppercase tracking-[0.15em] font-semibold text-center mb-3">
-            Или отсканируйте QR
+            {t.groupLobby.scanQr}
           </p>
           <div className="flex justify-center bg-surface-container-lowest p-3 rounded-lg">
             <QRCodeSVG value={joinUrl} size={200} level="M" bgColor="#FFFFFF" fgColor="#1A1C1C" />
@@ -143,14 +144,14 @@ export function GroupLobby() {
             onClick={copyLink}
             className="block w-full text-center text-label-lg text-primary font-semibold mt-3 active:scale-95"
           >
-            Скопировать ссылку
+            {t.groupLobby.copyLink}
           </button>
         </Card>
 
         {/* Players list */}
         <div>
           <div className="flex items-baseline justify-between mb-2 px-1">
-            <h3 className="font-headline font-semibold text-title-lg text-on-surface">Игроки</h3>
+            <h3 className="font-headline font-semibold text-title-lg text-on-surface">{t.groupLobby.players}</h3>
             <span className="text-label-md text-on-surface-variant">{players.length}</span>
           </div>
           <div className="space-y-2">
@@ -161,11 +162,11 @@ export function GroupLobby() {
                   <span className="flex-1 font-semibold text-body-md text-on-surface truncate">{p.name}</span>
                   {uid === round.hostId && (
                     <span className="text-label-md font-semibold text-primary bg-primary-container/15 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Хост
+                      {t.groupLobby.host}
                     </span>
                   )}
                   {uid === user?.uid && uid !== round.hostId && (
-                    <span className="text-label-md text-on-surface-variant uppercase tracking-wider">Вы</span>
+                    <span className="text-label-md text-on-surface-variant uppercase tracking-wider">{t.groupLobby.you}</span>
                   )}
                 </div>
               </Card>
@@ -183,25 +184,25 @@ export function GroupLobby() {
         {isHost ? (
           <Button icon={Play} onClick={handleStart} disabled={starting || players.length === 0}>
             {starting
-              ? 'Запускаем...'
-              : `Начать раунд (${players.length} ${pluralRu(players.length, 'игрок', 'игрока', 'игроков')})`}
+              ? t.groupLobby.starting
+              : t.groupLobby.startRound(players.length, plural(players.length, locale, t.common.playersWord))}
           </Button>
         ) : (
           <div className="text-center text-body-md text-on-surface-variant py-3">
-            Ожидаем хоста...
+            {t.groupLobby.waitingHost}
           </div>
         )}
         <Button variant="secondary" onClick={() => setShowLeaveConfirm(true)}>
-          Покинуть лобби
+          {t.groupLobby.leaveLobby}
         </Button>
       </div>
 
       <ConfirmDialog
         open={showLeaveConfirm}
-        title="Покинуть лобби?"
-        body={isHost ? 'Вы хост — без вас раунд не запустится. Лобби останется доступным по коду, но другим игрокам придётся ждать.' : 'Вы выйдете из этого лобби. Можно вернуться по коду.'}
-        confirmLabel="Покинуть"
-        cancelLabel="Остаться"
+        title={t.groupLobby.leaveConfirmTitle}
+        body={isHost ? t.groupLobby.leaveConfirmBodyHost : t.groupLobby.leaveConfirmBodyGuest}
+        confirmLabel={t.groupLobby.leave}
+        cancelLabel={t.groupLobby.stay}
         onConfirm={handleLeave}
         onCancel={() => setShowLeaveConfirm(false)}
       />

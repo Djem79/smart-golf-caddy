@@ -3,6 +3,7 @@ import { Check, Copy, Mail, Send, X } from 'lucide-react'
 import { Button } from './Button'
 import { shareRoundByEmail } from '../../services/share'
 import { trapTab, useDialogA11y } from '../../hooks/useDialogA11y'
+import { useT } from '../../i18n'
 
 interface ShareDialogProps {
   open: boolean
@@ -21,6 +22,7 @@ export function ShareDialog({
   shareText,
   onClose,
 }: ShareDialogProps) {
+  const { t } = useT()
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,7 +72,7 @@ export function ShareDialog({
       setLinkCopied(true)
       window.setTimeout(() => setLinkCopied(false), 1500)
     } catch {
-      setError('Не удалось скопировать ссылку')
+      setError(t.shareDialog.copyLinkError)
     }
   }
 
@@ -78,16 +80,16 @@ export function ShareDialog({
     setError(null)
     setSuccess(null)
     if (!/.+@.+\..+/.test(email)) {
-      setError('Введите корректный email')
+      setError(t.shareDialog.invalidEmail)
       return
     }
     setSending(true)
     try {
       await shareRoundByEmail(roundId, email.trim())
-      setSuccess(`Письмо отправлено на ${email.trim()}`)
+      setSuccess(t.shareDialog.emailSent(email.trim()))
       setEmail('')
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Не удалось отправить письмо'
+      const msg = e instanceof Error ? e.message : t.shareDialog.emailSendError
       setError(msg)
     } finally {
       setSending(false)
@@ -113,12 +115,12 @@ export function ShareDialog({
             id="share-title"
             className="font-headline font-bold text-title-lg text-on-surface tracking-tight"
           >
-            Поделиться раундом
+            {t.shareDialog.title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label={t.shareDialog.close}
             data-autofocus
             className="min-h-touch min-w-touch -mr-2 flex items-center justify-center text-on-surface-variant rounded-full active:bg-surface-container/60"
           >
@@ -130,7 +132,7 @@ export function ShareDialog({
         <div className="flex gap-2">
           {canNativeShare && (
             <Button variant="secondary" icon={Send} onClick={handleNativeShare} className="flex-1">
-              Поделиться
+              {t.shareDialog.share}
             </Button>
           )}
           <Button
@@ -139,7 +141,7 @@ export function ShareDialog({
             onClick={handleCopyLink}
             className="flex-1"
           >
-            {linkCopied ? 'Скопировано' : 'Скопировать'}
+            {linkCopied ? t.shareDialog.copied : t.shareDialog.copy}
           </Button>
         </div>
 
@@ -149,7 +151,7 @@ export function ShareDialog({
           </div>
           <div className="relative flex justify-center">
             <span className="bg-surface-container-lowest px-3 text-label-md text-on-surface-variant uppercase tracking-wider">
-              или email
+              {t.shareDialog.orEmail}
             </span>
           </div>
         </div>
@@ -157,7 +159,7 @@ export function ShareDialog({
         {/* Email form */}
         <div className="space-y-2">
           <label className="text-label-md text-on-surface-variant font-semibold uppercase tracking-wider">
-            Отправить отчёт по email
+            {t.shareDialog.emailLabel}
           </label>
           <div className="relative">
             <Mail
@@ -179,7 +181,7 @@ export function ShareDialog({
             />
           </div>
           <Button onClick={handleEmailSend} disabled={sending || email.length === 0}>
-            {sending ? 'Отправляем...' : 'Отправить'}
+            {sending ? t.shareDialog.sending : t.shareDialog.send}
           </Button>
         </div>
 

@@ -1,5 +1,5 @@
 import type { Round } from '../types'
-import { getHoleClubs, PENALTY_ID } from '../types'
+import { getHoleClubs, PENALTY_ID, UNKNOWN_CLUB } from '../types'
 
 // ============================================================================
 // Per-round computations
@@ -31,7 +31,7 @@ export interface ClubStat {
 }
 
 // Aggregate club usage for a user across one round or multiple rounds.
-// Returns clubs sorted by usage descending. Excludes 'Неизвестно' from results.
+// Returns clubs sorted by usage descending. Excludes UNKNOWN_CLUB from results.
 export function computeClubUsage(
   source: Round | Round[],
   userId: string,
@@ -44,7 +44,7 @@ export function computeClubUsage(
     for (const hole of round.holes) {
       const clubs = getHoleClubs(hole.shots[userId])
       for (const club of clubs) {
-        if (club === 'Неизвестно' || club === PENALTY_ID) continue
+        if (club === UNKNOWN_CLUB || club === PENALTY_ID) continue
         counts.set(club, (counts.get(club) ?? 0) + 1)
         total += 1
       }

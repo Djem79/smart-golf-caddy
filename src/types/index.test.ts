@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   scoreColor, scoreDirection, scoreLabel, DEFAULT_CLUBS, CLUB_ABBREV, DEFAULT_HOLE_PARS,
   DEFAULT_BAG, getBagFromUser, enabledBagClubs, getClubCategory, getClubLabel,
-  metersToYards, yardsToMeters, getHoleDistances,
+  metersToYards, yardsToMeters, getHoleDistances, PENALTY_ID, UNKNOWN_CLUB,
   type HoleShots,
 } from './index'
 
@@ -211,26 +211,37 @@ describe('getClubLabel', () => {
     { id: 'custom-abc', customName: 'Hybrid 3', distanceMeters: 180, enabled: true, category: 'wood' as const, custom: true },
     { id: 'custom-noname', customName: undefined, distanceMeters: 0, enabled: true, category: 'iron' as const, custom: true },
   ]
+  // Mirrors t.common.clubLabels — kept as a local fixture so this test
+  // doesn't need to import the i18n dictionaries.
+  const fallbacks = { unknown: 'Unknown', missingCustom: 'Club', penalty: 'Penalty' }
 
   it('returns abbreviation for default clubs', () => {
-    expect(getClubLabel('Driver', DEFAULT_BAG)).toBe('DRV')
-    expect(getClubLabel('7i', DEFAULT_BAG)).toBe('7i')
-    expect(getClubLabel('Putter', DEFAULT_BAG)).toBe('PT')
+    expect(getClubLabel('Driver', DEFAULT_BAG, fallbacks)).toBe('DRV')
+    expect(getClubLabel('7i', DEFAULT_BAG, fallbacks)).toBe('7i')
+    expect(getClubLabel('Putter', DEFAULT_BAG, fallbacks)).toBe('PT')
   })
 
   it('returns customName for custom clubs present in the bag', () => {
-    expect(getClubLabel('custom-abc', customBag)).toBe('Hybrid 3')
+    expect(getClubLabel('custom-abc', customBag, fallbacks)).toBe('Hybrid 3')
   })
 
-  it('returns "Клюшка" for custom ids missing from the bag', () => {
-    expect(getClubLabel('custom-deleted', [])).toBe('Клюшка')
+  it('returns the missingCustom fallback for custom ids missing from the bag', () => {
+    expect(getClubLabel('custom-deleted', [], fallbacks)).toBe('Club')
   })
 
-  it('returns "Клюшка" for custom clubs in the bag but without a customName', () => {
-    expect(getClubLabel('custom-noname', customBag)).toBe('Клюшка')
+  it('returns the missingCustom fallback for custom clubs in the bag but without a customName', () => {
+    expect(getClubLabel('custom-noname', customBag, fallbacks)).toBe('Club')
   })
 
   it('returns the id unchanged for unknown non-custom ids', () => {
-    expect(getClubLabel('Wedge99', [])).toBe('Wedge99')
+    expect(getClubLabel('Wedge99', [], fallbacks)).toBe('Wedge99')
+  })
+
+  it('returns the penalty fallback for the penalty pseudo-club', () => {
+    expect(getClubLabel(PENALTY_ID, [], fallbacks)).toBe('Penalty')
+  })
+
+  it('returns the unknown fallback for the UNKNOWN_CLUB sentinel', () => {
+    expect(getClubLabel(UNKNOWN_CLUB, [], fallbacks)).toBe('Unknown')
   })
 })

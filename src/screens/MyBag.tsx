@@ -22,12 +22,14 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
+import { useT } from '../i18n'
 
 const TOTAL_SLOTS = 14
 
 export function MyBag() {
   const { user } = useAuth()
   const { profile, loading } = useProfile()
+  const { t } = useT()
   const [bag, setBag] = useState<BagClub[]>(DEFAULT_BAG)
   const [units, setUnits] = useState<DistanceUnit>('m')
   const [saving, setSaving] = useState(false)
@@ -52,7 +54,7 @@ export function MyBag() {
     try {
       await updateBag(user.uid, next)
     } catch {
-      setError('Не удалось сохранить изменения')
+      setError(t.myBag.saveError)
     } finally {
       setSaving(false)
     }
@@ -156,10 +158,10 @@ export function MyBag() {
   return (
     <div className="screen pb-20">
       <PageHeader
-        title="Моя сумка"
+        title={t.myBag.title}
         right={
           saving
-            ? <span className="text-label-md text-on-surface-variant min-h-touch flex items-center">Сохранение...</span>
+            ? <span className="text-label-md text-on-surface-variant min-h-touch flex items-center">{t.myBag.saving}</span>
             : null
         }
       />
@@ -169,8 +171,8 @@ export function MyBag() {
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
-              <h2 className="font-headline font-bold text-headline-md text-primary">Состав сумки</h2>
-              <p className="text-label-md text-on-surface-variant mt-0.5">До 14 клюшек по правилам</p>
+              <h2 className="font-headline font-bold text-headline-md text-primary">{t.myBag.bagComposition}</h2>
+              <p className="text-label-md text-on-surface-variant mt-0.5">{t.myBag.ruleHint}</p>
             </div>
             <div className="text-right shrink-0">
               <span className="font-headline font-bold text-display-lg text-primary">
@@ -187,7 +189,7 @@ export function MyBag() {
           </div>
           {enabledCount < TOTAL_SLOTS && (
             <p className="text-label-md text-on-surface-variant text-center mt-2">
-              Свободных слотов: {TOTAL_SLOTS - enabledCount}
+              {t.myBag.freeSlots(TOTAL_SLOTS - enabledCount)}
             </p>
           )}
         </Card>
@@ -206,7 +208,7 @@ export function MyBag() {
                     : 'text-on-surface-variant'
                 }`}
               >
-                {u === 'm' ? 'Метры' : 'Ярды'}
+                {u === 'm' ? t.myBag.metersFull : t.myBag.yardsFull}
               </button>
             ))}
           </div>
@@ -226,7 +228,7 @@ export function MyBag() {
             <div key={group.category} className="space-y-2.5">
               <div className="flex items-center justify-between px-1">
                 <h3 className="font-headline font-semibold text-title-lg text-on-surface">
-                  {group.label}
+                  {t.myBag.categoryLabels[group.category]}
                 </h3>
                 <span className="text-label-md text-on-surface-variant">
                   {clubs.filter(c => c.enabled).length}/{clubs.length}
@@ -265,7 +267,7 @@ export function MyBag() {
                     onClick={() => setAdding(group.category)}
                     className="w-full min-h-touch flex items-center justify-center gap-2 text-label-lg font-semibold text-primary border-2 border-dashed border-outline-variant rounded-lg hover:bg-primary-container/10 transition-colors active:scale-[0.99]"
                   >
-                    + Добавить клюшку
+                    {t.myBag.addClub}
                   </button>
                 )}
               </div>
@@ -295,7 +297,8 @@ function ClubRow({
   club, units, distanceValue, isPutter,
   onToggle, onSetName, onSetDistance, onDelete,
 }: ClubRowProps) {
-  const displayLabel = club.custom ? (club.customName || 'Клюшка') : club.id
+  const { t } = useT()
+  const displayLabel = club.custom ? (club.customName || t.common.clubLabels.missingCustom) : club.id
 
   // useSortable wires this row into the surrounding SortableContext.
   // `setNodeRef` is the whole row; `setActivatorNodeRef` + listeners go on
@@ -326,7 +329,7 @@ function ClubRow({
       <button
         type="button"
         ref={setActivatorNodeRef}
-        aria-label={`Перетащить ${displayLabel}`}
+        aria-label={t.myBag.dragAria(displayLabel)}
         {...attributes}
         {...listeners}
         className="min-w-touch h-10 -mx-1 shrink-0 flex items-center justify-center text-on-surface-variant/50 cursor-grab active:cursor-grabbing touch-none select-none"
@@ -352,8 +355,8 @@ function ClubRow({
         <p className="font-semibold text-label-lg text-on-surface truncate">{displayLabel}</p>
         <input
           type="text"
-          aria-label={`${club.custom ? 'Название' : 'Модель'} клюшки ${displayLabel}`}
-          placeholder={club.custom ? 'Название' : 'Модель'}
+          aria-label={club.custom ? t.myBag.customNameAria(displayLabel) : t.myBag.modelAria(displayLabel)}
+          placeholder={club.custom ? t.myBag.customNameLabel : t.myBag.modelLabel}
           defaultValue={club.customName ?? ''}
           onBlur={e => onSetName(e.target.value)}
           className="w-full h-6 px-0 text-label-md bg-transparent border-none text-on-surface-variant placeholder:text-on-surface-variant/50"
@@ -365,14 +368,14 @@ function ClubRow({
             key={`${club.id}-${units}-${club.distanceMeters}`}
             type="number"
             inputMode="numeric"
-            aria-label={`Дистанция ${displayLabel}, ${units === 'yd' ? 'ярды' : 'метры'}`}
+            aria-label={t.myBag.distanceAria(displayLabel, units === 'yd' ? t.myBag.yardsUnitWord : t.myBag.metersUnitWord)}
             min={0}
             max={400}
             defaultValue={distanceValue}
             onBlur={e => onSetDistance(e.target.value)}
             className="w-10 bg-transparent border-none text-right text-label-md font-semibold text-on-surface p-0"
           />
-          <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? 'я' : 'м'}</span>
+          <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? t.common.yardsShort : t.common.metersShort}</span>
         </div>
       ) : (
         <div className="text-label-md text-on-surface-variant w-10 text-center shrink-0">—</div>
@@ -382,7 +385,7 @@ function ClubRow({
           type="checkbox"
           checked={club.enabled}
           onChange={onToggle}
-          aria-label={`Включить ${displayLabel} в сумку`}
+          aria-label={t.myBag.enableAria(displayLabel)}
           className="w-5 h-5 accent-primary cursor-pointer"
         />
       </label>
@@ -390,7 +393,7 @@ function ClubRow({
         <button
           type="button"
           onClick={onDelete}
-          aria-label="Удалить клюшку"
+          aria-label={t.myBag.deleteAria}
           className="min-h-touch min-w-touch shrink-0 flex items-center justify-center text-error text-title-lg leading-none rounded-full hover:bg-error-container/30 transition-colors"
         >
           ×
@@ -408,6 +411,7 @@ interface AddClubFormProps {
 }
 
 function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
+  const { t } = useT()
   const [name, setName] = useState('')
   const [distance, setDistance] = useState('')
 
@@ -422,8 +426,8 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
       <div className="flex items-center gap-2">
         <input
           type="text"
-          aria-label="Название новой клюшки"
-          placeholder="Например: Hybrid 3"
+          aria-label={t.myBag.newClubNameAria}
+          placeholder={t.myBag.newClubNamePlaceholder}
           value={name}
           onChange={e => setName(e.target.value)}
           autoFocus
@@ -433,7 +437,7 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
           <input
             type="number"
             inputMode="numeric"
-            aria-label="Дистанция новой клюшки"
+            aria-label={t.myBag.newClubDistanceAria}
             min={0}
             max={400}
             placeholder="0"
@@ -441,15 +445,15 @@ function AddClubForm({ units, category, onAdd, onCancel }: AddClubFormProps) {
             onChange={e => setDistance(e.target.value)}
             className="w-14 bg-transparent border-none text-right text-label-md font-semibold text-on-surface p-0"
           />
-          <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? 'я' : 'м'}</span>
+          <span className="ml-1 text-label-md text-on-surface-variant">{units === 'yd' ? t.common.yardsShort : t.common.metersShort}</span>
         </div>
       </div>
       <div className="flex gap-2">
         <Button onClick={submit} disabled={!name.trim()} className="flex-1">
-          Добавить
+          {t.myBag.add}
         </Button>
         <Button variant="secondary" onClick={onCancel} className="flex-1">
-          Отмена
+          {t.common.cancel}
         </Button>
       </div>
     </div>

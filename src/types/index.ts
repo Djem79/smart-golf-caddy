@@ -29,12 +29,21 @@ export interface HoleShots {
   updatedAt: Date
 }
 
+// Sentinel for a stroke with no recorded club (very old data written before
+// per-shot club tracking existed). Never persisted under this value — it's
+// produced only by getHoleClubs as an in-memory fallback, resolved to a
+// translated label by getClubLabel and excluded from usage stats by callers
+// comparing against this constant directly. Kept out of user-facing text so
+// this file (imported by everything, importing nothing per the layering
+// rule in CLAUDE.md) doesn't need to depend on the i18n layer.
+export const UNKNOWN_CLUB = '__unknown_club__'
+
 // Canonical clubs[] for both new and legacy data
 export function getHoleClubs(shots: HoleShots | undefined): string[] {
   if (!shots) return []
   if (Array.isArray(shots.clubs) && shots.clubs.length > 0) return shots.clubs
   if (shots.club) return new Array<string>(shots.count).fill(shots.club)
-  return new Array<string>(shots.count).fill('Неизвестно')
+  return new Array<string>(shots.count).fill(UNKNOWN_CLUB)
 }
 
 // Дистанции ударов, выровненные по длине серии (0 = неизвестна). Веб их не
@@ -75,11 +84,15 @@ export const TEE_MULTIPLIERS: Record<TeeColor, number> = {
   ladies: 0.80,
 }
 
-export const TEE_LABELS: Record<TeeColor, { label: string; bg: string; text: string; description: string }> = {
-  pro:    { label: 'Pro',        bg: '#0A3010', text: '#FFFFFF', description: 'Чемпионские · +10%' },
-  men:    { label: 'Мужские',    bg: '#FFFFFF', text: '#1A1C1C', description: 'Стандартные' },
-  senior: { label: 'Сеньорские', bg: '#FFC107', text: '#1A1C1C', description: 'Чуть ближе · −10%' },
-  ladies: { label: 'Женские',    bg: '#F44336', text: '#FFFFFF', description: 'Ближе всего · −20%' },
+// Colour swatch per tee — locale-independent, so it lives here. The
+// user-facing label/description text lives in the i18n dictionaries
+// (t.common.tee) since this file has no inbound i18n dependency (see
+// layering rule in CLAUDE.md); screens combine the two by TeeColor key.
+export const TEE_COLORS: Record<TeeColor, { bg: string; text: string }> = {
+  pro:    { bg: '#0A3010', text: '#FFFFFF' },
+  men:    { bg: '#FFFFFF', text: '#1A1C1C' },
+  senior: { bg: '#FFC107', text: '#1A1C1C' },
+  ladies: { bg: '#F44336', text: '#FFFFFF' },
 }
 
 export interface Round {
@@ -161,11 +174,13 @@ export const DEFAULT_BAG: BagClub[] = [
   { id: 'Putter', distanceMeters: 0,   enabled: true,  category: 'putter' },
 ]
 
-export const CLUB_GROUPS: Array<{ category: ClubCategory; label: string; defaultIds: string[] }> = [
-  { category: 'wood',   label: 'Драйвер и вуды', defaultIds: ['Driver', '3W', '5W', 'Hybrid'] },
-  { category: 'iron',   label: 'Айроны',         defaultIds: ['3i', '4i', '5i', '6i', '7i', '8i', '9i'] },
-  { category: 'wedge',  label: 'Вейджи',         defaultIds: ['PW', 'GW', '50°', 'SW', '54°', '58°', 'LW', '60°'] },
-  { category: 'putter', label: 'Паттер',         defaultIds: ['Putter'] },
+// Group labels live in the i18n dictionaries (t.myBag.categoryLabels), same
+// reasoning as TEE_COLORS above.
+export const CLUB_GROUPS: Array<{ category: ClubCategory; defaultIds: string[] }> = [
+  { category: 'wood',   defaultIds: ['Driver', '3W', '5W', 'Hybrid'] },
+  { category: 'iron',   defaultIds: ['3i', '4i', '5i', '6i', '7i', '8i', '9i'] },
+  { category: 'wedge',  defaultIds: ['PW', 'GW', '50°', 'SW', '54°', '58°', 'LW', '60°'] },
+  { category: 'putter', defaultIds: ['Putter'] },
 ]
 
 // Resolve a club's category — explicit field wins, otherwise infer from id
@@ -196,16 +211,28 @@ export function enabledBagClubs(bag: BagClub[]): BagClub[] {
   return bag.filter(c => c.enabled)
 }
 
+// Translated fallback words getClubLabel needs — supplied by the caller
+// (t.common.clubLabels) since this file has no inbound i18n dependency.
+export interface ClubLabelFallbacks {
+  unknown: string        // shots.club missing entirely (UNKNOWN_CLUB sentinel)
+  missingCustom: string  // custom club id not found in the given bag
+  penalty: string        // the PENALTY_ID pseudo-club
+}
+
 // Resolve a club id to a short, user-facing label.
+// - The penalty pseudo-club: `fallbacks.penalty`.
+// - The "no club recorded" sentinel: `fallbacks.unknown`.
 // - Default clubs: their canonical abbreviation (e.g. 'Driver' -> 'DRV', '7i' -> '7i').
 // - Custom clubs: the customName from the bag.
-// - Custom clubs missing from the bag (deleted, or another player's in group play): 'Клюшка'.
+// - Custom clubs missing from the bag (deleted, or another player's in group play): `fallbacks.missingCustom`.
 // - Unknown non-custom ids: returned unchanged (defensive fallback).
-export function getClubLabel(clubId: string, bag: BagClub[]): string {
+export function getClubLabel(clubId: string, bag: BagClub[], fallbacks: ClubLabelFallbacks): string {
+  if (clubId === PENALTY_ID) return fallbacks.penalty
+  if (clubId === UNKNOWN_CLUB) return fallbacks.unknown
   if (CLUB_ABBREV[clubId]) return CLUB_ABBREV[clubId]
   const club = bag.find(c => c.id === clubId)
   if (club?.customName && club.customName.trim().length > 0) return club.customName
-  if (clubId.startsWith('custom-')) return 'Клюшка'
+  if (clubId.startsWith('custom-')) return fallbacks.missingCustom
   return clubId
 }
 

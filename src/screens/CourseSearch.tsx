@@ -7,10 +7,11 @@ import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-import { pluralRu } from '../utils/intl'
+import { useT, plural } from '../i18n'
 
 export function CourseSearch() {
   const navigate = useNavigate()
+  const { t, locale } = useT()
   const { lat, lng, error: geoError, loading: geoLoading, request: requestLocation } = useGeolocation()
   const [nearby, setNearby] = useState<CourseResult[]>([])
   const [nearbyLoading, setNearbyLoading] = useState(false)
@@ -34,13 +35,13 @@ export function CourseSearch() {
           const detail = e.detail ? ` ${e.detail}` : ''
           setError(`${e.message}.${detail}`)
         } else {
-          setError('Не удалось загрузить поля. Проверьте интернет.')
+          setError(t.courseSearch.loadError)
         }
         if (import.meta.env.DEV) console.error('[CourseSearch] findNearbyCourses failed:', e)
       })
       .finally(() => { if (!cancelled) setNearbyLoading(false) })
     return () => { cancelled = true }
-  }, [lat, lng])
+  }, [lat, lng, t])
 
   // 2) Debounced text search — runs whenever the input changes (>= 2 chars)
   useEffect(() => {
@@ -92,7 +93,7 @@ export function CourseSearch() {
 
   return (
     <div className="screen pb-20">
-      <PageHeader title="Поиск полей" />
+      <PageHeader title={t.courseSearch.title} />
 
       {/* Search field */}
       <div className="px-5 pt-4 pb-2">
@@ -104,8 +105,8 @@ export function CourseSearch() {
           />
           <input
             type="text"
-            aria-label="Поиск полей или городов"
-            placeholder="Поиск полей или городов"
+            aria-label={t.courseSearch.searchLabel}
+            placeholder={t.courseSearch.searchLabel}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full h-12 pl-11 pr-4 bg-surface-container-low rounded-md text-body-md border border-outline-variant/30 focus:border-primary focus:outline-none placeholder:text-on-surface-variant/70 transition-colors"
@@ -116,7 +117,7 @@ export function CourseSearch() {
       {/* Skip / manual entry */}
       <div className="px-5 pb-2">
         <Button variant="secondary" onClick={skipSelection}>
-          {search.trim() ? `Использовать «${search.trim()}»` : 'Указать поле вручную / пропустить'}
+          {search.trim() ? t.courseSearch.useQuery(search.trim()) : t.courseSearch.manualEntry}
         </Button>
       </div>
 
@@ -124,24 +125,24 @@ export function CourseSearch() {
       <div className="flex-1 px-5 pb-6 overflow-y-auto">
         <div className="flex items-baseline justify-between mb-3 pt-2">
           <h2 className="font-headline font-bold text-headline-md text-on-surface">
-            {isTextSearch ? 'Результаты поиска' : 'Ближайшие поля'}
+            {isTextSearch ? t.courseSearch.searchResults : t.courseSearch.nearbyResults}
           </h2>
           {visible.length > 0 && (
             <span className="text-label-lg text-on-surface-variant">
-              {visible.length} {pluralRu(visible.length, 'поле', 'поля', 'полей')}
+              {visible.length} {plural(visible.length, locale, t.courseSearch.coursesWord)}
             </span>
           )}
         </div>
 
         {!isTextSearch && geoLoading && (
           <div className="text-center pt-8 space-y-3">
-            <p className="text-on-surface-variant text-body-md">Определяем вашу позицию...</p>
+            <p className="text-on-surface-variant text-body-md">{t.courseSearch.locating}</p>
             <button
               type="button"
               onClick={requestLocation}
               className="text-label-lg text-primary font-semibold underline min-h-touch px-3"
             >
-              Запросить разрешение вручную
+              {t.courseSearch.requestPermission}
             </button>
           </div>
         )}
@@ -149,10 +150,10 @@ export function CourseSearch() {
           <div className="text-center pt-8 space-y-3">
             <p className="text-error text-body-md px-4">{geoError}</p>
             <Button icon={Navigation} onClick={requestLocation}>
-              Определить местоположение
+              {t.courseSearch.locate}
             </Button>
             <p className="text-label-md text-on-surface-variant">
-              Или введите название поля в поиске выше — он работает и без геолокации
+              {t.courseSearch.locateHint}
             </p>
           </div>
         )}
@@ -173,7 +174,7 @@ export function CourseSearch() {
 
         {!loading && !geoLoading && visible.length === 0 && (nearby.length > 0 || isTextSearch) && (
           <p className="text-center text-on-surface-variant text-body-md pt-4">
-            {isTextSearch ? `По запросу «${search.trim()}» поля не найдены` : 'Поля не найдены'}
+            {isTextSearch ? t.courseSearch.noResultsForQuery(search.trim()) : t.courseSearch.noResults}
           </p>
         )}
       </div>
@@ -184,6 +185,7 @@ export function CourseSearch() {
 }
 
 function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: CourseResult) => void }) {
+  const { t, locale } = useT()
   const photoUrl = course.photoUrl ?? null
 
   return (
@@ -199,7 +201,7 @@ function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: 
         )}
         {/* Distance badge */}
         <div className="absolute top-3 left-3 bg-primary text-on-primary px-3 py-1 rounded-full text-label-md font-bold shadow-card">
-          {course.distanceKm} км
+          {course.distanceKm} {t.common.km}
         </div>
         {/* Rating badge */}
         {course.rating != null && (
@@ -227,12 +229,12 @@ function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: 
         {course.userRatingsTotal != null && course.userRatingsTotal > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="bg-surface-container px-2 py-0.5 rounded text-label-md font-semibold text-on-surface-variant">
-              {course.userRatingsTotal} {pluralRu(course.userRatingsTotal, 'отзыв', 'отзыва', 'отзывов')}
+              {course.userRatingsTotal} {plural(course.userRatingsTotal, locale, t.courseSearch.reviewsWord)}
             </span>
           </div>
         )}
 
-        <Button onClick={() => onSelect(course)}>Выбрать это поле</Button>
+        <Button onClick={() => onSelect(course)}>{t.courseSearch.selectCourse}</Button>
       </div>
     </div>
   )

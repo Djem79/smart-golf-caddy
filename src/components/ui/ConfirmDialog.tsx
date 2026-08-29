@@ -6,8 +6,11 @@ interface ConfirmDialogProps {
   open: boolean
   title: string
   body?: string
-  confirmLabel?: string
-  cancelLabel?: string
+  // No default: every call site passes explicit, already-translated
+  // labels (there's no locale-neutral English/Russian default this
+  // component could fall back to without importing the i18n layer).
+  confirmLabel: string
+  cancelLabel: string
   destructive?: boolean
   loading?: boolean
   onConfirm: () => void
@@ -18,8 +21,8 @@ export function ConfirmDialog({
   open,
   title,
   body,
-  confirmLabel = 'Подтвердить',
-  cancelLabel = 'Отмена',
+  confirmLabel,
+  cancelLabel,
   destructive = false,
   loading = false,
   onConfirm,

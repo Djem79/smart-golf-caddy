@@ -7,19 +7,21 @@ import { useAppStore } from '../store/useAppStore'
 import { subscribeToRound, finishRound, updateHoleConfig } from '../services/rounds'
 import { recordShotQueued, getPendingShot, pendingCountForRound } from '../services/shotQueue'
 import type { Round } from '../types'
-import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_LABELS } from '../types'
+import { getHoleClubs, getBagFromUser, enabledBagClubs, getClubLabel, DEFAULT_BAG, TEE_COLORS } from '../types'
 import { ClubChip } from '../components/ui/ClubChip'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageHeader } from '../components/layout/PageHeader'
 import { trapTab, useDialogA11y } from '../hooks/useDialogA11y'
+import { useT } from '../i18n'
 
 export function HoleTracker() {
   const { roundId, holeNumber } = useParams<{ roundId: string; holeNumber: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
   const { profile } = useProfile()
+  const { t } = useT()
   const { lastClubUsed, setLastClubUsed } = useAppStore()
 
   const pickerClubs = useMemo(() => {
@@ -60,9 +62,9 @@ export function HoleTracker() {
   useEffect(() => {
     if (!roundId) return
     return subscribeToRound(roundId, setRound, () => {
-      setLoadError('Не удалось загрузить раунд. Проверьте связь.')
+      setLoadError(t.holeTracker.loadError)
     })
-  }, [roundId])
+  }, [roundId, t])
 
   // Initialize active player to self once we have user + round
   useEffect(() => {
@@ -138,12 +140,12 @@ export function HoleTracker() {
       if (targetUid === user?.uid && clubs.length > 0) setLastClubUsed(clubs[clubs.length - 1])
     } catch {
       // Permanent rejection (e.g. round not active) — roll back this slot.
-      setError('Не удалось сохранить удар.')
+      setError(t.holeTracker.saveShotError)
       setOptimistic(prev => (prev && prev.slot === slot ? null : prev))
     } finally {
       setSaving(false)
     }
-  }, [roundId, activeUserId, hole, holeIndex, user, setLastClubUsed])
+  }, [roundId, activeUserId, hole, holeIndex, user, setLastClubUsed, t])
 
   function addShot() {
     save([...myClubs, selectedClub])
@@ -169,7 +171,7 @@ export function HoleTracker() {
       await finishRound(roundId)
       navigate(`/round/${roundId}/results`)
     } catch {
-      setError('Не удалось завершить раунд. Попробуйте ещё раз.')
+      setError(t.holeTracker.finishRoundError)
       setFinishing(false)
       setShowFinishConfirm(false)
     }
@@ -182,11 +184,11 @@ export function HoleTracker() {
           <>
             <p className="text-error text-body-md">{loadError}</p>
             <Button variant="secondary" onClick={() => navigate('/home', { replace: true })}>
-              На главную
+              {t.common.goHome}
             </Button>
           </>
         ) : (
-          <p className="text-on-surface-variant text-body-md">Загрузка...</p>
+          <p className="text-on-surface-variant text-body-md">{t.common.loading}</p>
         )}
       </div>
     )
@@ -201,12 +203,12 @@ export function HoleTracker() {
       style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
     >
       <PageHeader
-        title={`Лунка ${currentHole} / ${totalHoles}`}
+        title={t.holeTracker.holeTitle(currentHole, totalHoles)}
         right={
           <button
             type="button"
             onClick={() => navigate(`/round/${roundId}/leaderboard`)}
-            aria-label="Турнирная таблица"
+            aria-label={t.holeTracker.leaderboardAria}
             className="min-h-touch min-w-touch flex items-center justify-center text-on-surface rounded-full active:bg-surface-container-high/60 transition-colors"
           >
             <Trophy size={22} strokeWidth={1.75} />
@@ -220,16 +222,16 @@ export function HoleTracker() {
             type="button"
             onClick={() => setShowHoleEditor(true)}
             className="text-left -m-2 p-2 rounded-md active:bg-on-primary/10 transition-colors"
-            aria-label={`Изменить пар лунки (сейчас ${hole.par})`}
+            aria-label={t.holeTracker.editParAria(hole.par)}
           >
-            <p className="text-on-primary/70 text-label-lg">Пар</p>
+            <p className="text-on-primary/70 text-label-lg">{t.common.par}</p>
             <p className="font-headline font-bold text-headline-md text-on-primary underline-offset-4 decoration-on-primary/40 decoration-dotted underline">
               {hole.par}
             </p>
           </button>
         ) : (
           <div>
-            <p className="text-on-primary/70 text-label-lg">Пар</p>
+            <p className="text-on-primary/70 text-label-lg">{t.common.par}</p>
             <p className="font-headline font-bold text-headline-md text-on-primary">{hole.par}</p>
           </div>
         )}
@@ -241,34 +243,34 @@ export function HoleTracker() {
             type="button"
             onClick={() => setShowHoleEditor(true)}
             className="text-right -m-2 p-2 rounded-md active:bg-on-primary/10 transition-colors"
-            aria-label={`Изменить дистанцию лунки (сейчас ${hole.distanceMeters} метров)`}
+            aria-label={t.holeTracker.editDistanceAria(hole.distanceMeters)}
           >
-            <p className="text-on-primary/70 text-label-lg">Дист.</p>
+            <p className="text-on-primary/70 text-label-lg">{t.holeTracker.distance}</p>
             <div className="flex items-center justify-end gap-2">
               <p className="font-headline font-bold text-headline-md text-on-primary underline-offset-4 decoration-on-primary/40 decoration-dotted underline">
-                {hole.distanceMeters} м
+                {hole.distanceMeters} {t.common.metersShort}
               </p>
               {round.tee && (
                 <span
-                  aria-label={`Тии: ${TEE_LABELS[round.tee].label}`}
+                  aria-label={t.holeTracker.teeAria(t.common.tee[round.tee].label)}
                   className="w-5 h-5 rounded-full border border-on-primary/30 shrink-0"
-                  style={{ backgroundColor: TEE_LABELS[round.tee].bg }}
-                  title={TEE_LABELS[round.tee].label}
+                  style={{ backgroundColor: TEE_COLORS[round.tee].bg }}
+                  title={t.common.tee[round.tee].label}
                 />
               )}
             </div>
           </button>
         ) : (
           <div className="text-right">
-            <p className="text-on-primary/70 text-label-lg">Дист.</p>
+            <p className="text-on-primary/70 text-label-lg">{t.holeTracker.distance}</p>
             <div className="flex items-center justify-end gap-2">
-              <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} м</p>
+              <p className="font-headline font-bold text-headline-md text-on-primary">{hole.distanceMeters} {t.common.metersShort}</p>
               {round.tee && (
                 <span
-                  aria-label={`Тии: ${TEE_LABELS[round.tee].label}`}
+                  aria-label={t.holeTracker.teeAria(t.common.tee[round.tee].label)}
                   className="w-5 h-5 rounded-full border border-on-primary/30 shrink-0"
-                  style={{ backgroundColor: TEE_LABELS[round.tee].bg }}
-                  title={TEE_LABELS[round.tee].label}
+                  style={{ backgroundColor: TEE_COLORS[round.tee].bg }}
+                  title={t.common.tee[round.tee].label}
                 />
               )}
             </div>
@@ -280,7 +282,7 @@ export function HoleTracker() {
       {isMultiplayer && (
         <div className="px-5 pt-3">
           <p className="text-label-md text-on-surface-variant uppercase tracking-wider mb-2">
-            Игрок (тап для переключения)
+            {t.holeTracker.playerSwitch}
           </p>
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-5 px-5">
             {playerIds.map(uid => {
@@ -302,7 +304,7 @@ export function HoleTracker() {
                 >
                   <Avatar src={p.avatar} name={p.name} size={24} />
                   <span className="font-semibold text-label-lg truncate max-w-[100px]">
-                    {isMe ? 'Вы' : p.name}
+                    {isMe ? t.groupLobby.you : p.name}
                   </span>
                   <span className={`text-label-lg font-bold tabular-nums ${active ? 'text-on-primary' : 'text-primary'}`}>
                     {count}
@@ -317,8 +319,8 @@ export function HoleTracker() {
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5 py-4">
         <p className="text-on-surface-variant text-label-lg font-semibold uppercase tracking-wider">
           {isSelf || !isMultiplayer
-            ? 'Ваши удары'
-            : `Удары: ${round.players[activeUserId]?.name ?? '—'}`}
+            ? t.holeTracker.yourShots
+            : t.holeTracker.shotsOf(round.players[activeUserId]?.name ?? '—')}
         </p>
         <div className="flex flex-col items-center gap-3">
           <div className="flex items-center gap-10">
@@ -327,7 +329,7 @@ export function HoleTracker() {
               onClick={removeShot}
               disabled={myShots <= 0 || saving}
               className="w-16 h-16 rounded-xl border-2 border-primary text-primary bg-transparent flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary hover:text-on-primary"
-              aria-label="Убавить удар"
+              aria-label={t.holeTracker.decreaseAria}
             >
               <Minus size={28} strokeWidth={2} />
             </button>
@@ -339,26 +341,26 @@ export function HoleTracker() {
               onClick={addShot}
               disabled={saving}
               className="w-16 h-16 rounded-xl bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 hover:bg-primary-container"
-              aria-label="Добавить удар"
+              aria-label={t.holeTracker.increaseAria}
             >
               <Plus size={28} strokeWidth={2} />
             </button>
           </div>
           <span className="text-label-md text-on-surface-variant uppercase tracking-[0.2em] font-semibold">
-            Удары
+            {t.holeTracker.shotsLabel}
           </span>
         </div>
 
         {myClubs.length > 0 && (
           <div className="w-full">
-            <p className="text-center text-label-md text-on-surface-variant mb-1">Серия ударов</p>
+            <p className="text-center text-label-md text-on-surface-variant mb-1">{t.holeTracker.shotSeries}</p>
             <div className="flex flex-wrap justify-center gap-1.5">
               {myClubs.map((c, i) => (
                 <span
                   key={i}
                   className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-label-md font-semibold"
                 >
-                  {i + 1}. {getClubLabel(c, fullBag)}
+                  {i + 1}. {getClubLabel(c, fullBag, t.common.clubLabels)}
                 </span>
               ))}
             </div>
@@ -372,21 +374,21 @@ export function HoleTracker() {
         {hasQueued && (
           <p className="text-center text-label-md text-on-surface-variant inline-flex items-center justify-center gap-1.5 w-full">
             <WifiOff size={14} strokeWidth={1.75} />
-            Нет сети — удары сохранятся автоматически
+            {t.holeTracker.offlineNotice}
           </p>
         )}
       </div>
 
       <div className="px-5 space-y-2">
         <p className="text-label-lg text-on-surface-variant font-semibold uppercase tracking-wider text-center">
-          Выбор клюшки
+          {t.holeTracker.clubPicker}
         </p>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5">
           {pickerClubs.map(c => (
             <ClubChip
               key={c.id}
               club={c.id}
-              label={getClubLabel(c.id, fullBag)}
+              label={getClubLabel(c.id, fullBag, t.common.clubLabels)}
               selected={selectedClub === c.id}
               onSelect={pickClub}
             />
@@ -402,11 +404,11 @@ export function HoleTracker() {
           onClick={() => goToHole(currentHole - 1)}
           className="w-auto flex-1"
         >
-          Пред.
+          {t.holeTracker.prev}
         </Button>
         {currentHole < totalHoles ? (
           <Button iconRight={ChevronRight} onClick={() => goToHole(currentHole + 1)} className="flex-1">
-            Дальше
+            {t.holeTracker.next}
           </Button>
         ) : (
           <Button
@@ -415,7 +417,7 @@ export function HoleTracker() {
             disabled={!isHost || finishing}
             className="flex-1 uppercase tracking-wider"
           >
-            {isHost ? 'Закончить игру' : 'Завершит хост'}
+            {isHost ? t.holeTracker.finishHost : t.holeTracker.finishWaitHost}
           </Button>
         )}
       </div>
@@ -429,21 +431,21 @@ export function HoleTracker() {
             disabled={finishing}
             className="uppercase tracking-wider"
           >
-            Закончить игру досрочно
+            {t.holeTracker.finishEarly}
           </Button>
         </div>
       )}
 
       <ConfirmDialog
         open={showFinishConfirm}
-        title="Закончить игру?"
+        title={t.holeTracker.finishConfirmTitle}
         body={
           currentHole < totalHoles
-            ? `Вы прошли ${currentHole - 1} из ${totalHoles} лунок. Пройденные удары попадут в итоги, незавершённые лунки — без ударов.`
-            : 'Раунд будет записан в историю. Изменить удары после этого нельзя.'
+            ? t.holeTracker.finishConfirmBodyPartial(currentHole - 1, totalHoles)
+            : t.holeTracker.finishConfirmBodyComplete
         }
-        confirmLabel="Завершить"
-        cancelLabel="Продолжить"
+        confirmLabel={t.holeTracker.finish}
+        cancelLabel={t.holeTracker.continueEditing}
         loading={finishing}
         onConfirm={confirmFinish}
         onCancel={() => setShowFinishConfirm(false)}
@@ -462,7 +464,7 @@ export function HoleTracker() {
               await updateHoleConfig(roundId!, holeIndex, patch)
               setShowHoleEditor(false)
             } catch {
-              setError('Не удалось сохранить параметры лунки.')
+              setError(t.holeTracker.holeSaveError)
             } finally {
               setSavingHole(false)
             }
@@ -491,6 +493,7 @@ function HoleEditorDialog({
   onSave,
   onClose,
 }: HoleEditorDialogProps) {
+  const { t } = useT()
   const [par, setPar] = useState<3 | 4 | 5>(currentPar)
   const [distance, setDistance] = useState<string>(String(currentDistance))
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -509,7 +512,7 @@ function HoleEditorDialog({
   function handleSave() {
     const parsed = Number(distance)
     if (!Number.isFinite(parsed) || parsed < 50 || parsed > 700) {
-      setValidationError('Дистанция должна быть 50–700 метров')
+      setValidationError(t.holeTracker.distanceError)
       return
     }
     setValidationError(null)
@@ -542,16 +545,16 @@ function HoleEditorDialog({
             id="hole-editor-title"
             className="font-headline font-bold text-title-lg text-on-surface tracking-tight"
           >
-            Параметры лунки {holeNumber}
+            {t.holeTracker.editHoleTitle(holeNumber)}
           </h2>
           <p className="text-label-md text-on-surface-variant mt-1">
-            Подгоните под реальное поле — изменение видно всем игрокам.
+            {t.holeTracker.editHoleHint}
           </p>
         </div>
 
         <div>
           <p className="text-label-md text-on-surface-variant uppercase tracking-wider font-semibold mb-2">
-            Пар
+            {t.common.par}
           </p>
           <div className="grid grid-cols-3 gap-2">
             {([3, 4, 5] as const).map(p => {
@@ -582,7 +585,7 @@ function HoleEditorDialog({
             htmlFor="hole-distance-input"
             className="text-label-md text-on-surface-variant uppercase tracking-wider font-semibold mb-2 block"
           >
-            Дистанция, метров
+            {t.holeTracker.distanceLabel}
           </label>
           <input
             id="hole-distance-input"
@@ -612,14 +615,14 @@ function HoleEditorDialog({
             className="flex-1 uppercase tracking-wider"
             data-autofocus
           >
-            Отмена
+            {t.common.cancel}
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
             className="flex-1 uppercase tracking-wider"
           >
-            {saving ? 'Сохраняем...' : 'Сохранить'}
+            {saving ? t.holeTracker.saving : t.holeTracker.save}
           </Button>
         </div>
       </div>

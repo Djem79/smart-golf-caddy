@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { useT } from './i18n'
 import { Auth } from './screens/Auth'
 import { Home } from './screens/Home'
 
@@ -45,10 +46,11 @@ const JoinGame     = lazyWithReload(() => import('./screens/JoinGame').then(m =>
 const GroupLobby   = lazyWithReload(() => import('./screens/GroupLobby').then(m => ({ default: m.GroupLobby })))
 const Leaderboard  = lazyWithReload(() => import('./screens/Leaderboard').then(m => ({ default: m.Leaderboard })))
 
-function LoadingScreen({ label = 'Загрузка...' }: { label?: string }) {
+function LoadingScreen({ label }: { label?: string }) {
+  const { t } = useT()
   return (
     <div className="screen items-center justify-center">
-      <div className="text-on-surface-variant text-body-md">{label}</div>
+      <div className="text-on-surface-variant text-body-md">{label ?? t.common.loading}</div>
     </div>
   )
 }

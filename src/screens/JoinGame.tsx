@@ -6,11 +6,13 @@ import { joinRoundByCode } from '../services/rounds'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
+import { useT } from '../i18n'
 
 export function JoinGame() {
   const { code: paramCode } = useParams<{ code?: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t } = useT()
   const [code, setCode] = useState((paramCode ?? '').toUpperCase().slice(0, 6))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,26 +35,26 @@ export function JoinGame() {
     if (!user) return
     const cleaned = rawCode.trim().toUpperCase()
     if (cleaned.length !== 6) {
-      setError('Код должен содержать 6 символов')
+      setError(t.joinGame.codeLengthError)
       return
     }
     setLoading(true)
     setError(null)
     try {
       const roundId = await joinRoundByCode(cleaned, user.uid, {
-        name: user.displayName ?? 'Голфер',
+        name: user.displayName ?? t.home.fallbackName,
         avatar: user.photoURL ?? '',
         totalScore: 0,
         scoreDiff: 0,
         email: user.email ?? '',
       })
       if (!roundId) {
-        setError('Лобби с таким кодом не найдено. Проверьте код или попросите хоста создать новое.')
+        setError(t.joinGame.lobbyNotFound)
         return
       }
       navigate(`/round/${roundId}/lobby`, { replace: true })
     } catch {
-      setError('Не удалось присоединиться. Проверьте интернет и попробуйте снова.')
+      setError(t.joinGame.joinError)
     } finally {
       setLoading(false)
     }
@@ -67,7 +69,7 @@ export function JoinGame() {
 
   return (
     <div className="screen pb-20">
-      <PageHeader title="Присоединиться к игре" />
+      <PageHeader title={t.joinGame.title} />
 
       <div className="flex-1 px-5 pt-10 space-y-7">
         <div className="text-center space-y-3">
@@ -75,10 +77,10 @@ export function JoinGame() {
             <Ticket size={28} strokeWidth={1.5} />
           </div>
           <h2 className="font-headline font-bold text-headline-md text-on-surface tracking-tight">
-            Введите код лобби
+            {t.joinGame.heading}
           </h2>
           <p className="text-body-md text-on-surface-variant max-w-[280px] mx-auto">
-            Хост в своём приложении видит 6-значный код или QR
+            {t.joinGame.subtitle}
           </p>
         </div>
 
@@ -88,7 +90,7 @@ export function JoinGame() {
             inputMode="text"
             autoComplete="off"
             autoCapitalize="characters"
-            aria-label="Код лобби"
+            aria-label={t.joinGame.codeLabel}
             placeholder="ABCDEF"
             value={code}
             onChange={e => onCodeChange(e.target.value)}
@@ -102,11 +104,11 @@ export function JoinGame() {
         )}
 
         <Button onClick={() => handleJoin(code)} disabled={loading || code.length !== 6}>
-          {loading ? 'Подключаемся...' : 'Присоединиться'}
+          {loading ? t.joinGame.connecting : t.joinGame.join}
         </Button>
 
         <Button variant="secondary" onClick={() => navigate('/home')}>
-          Отмена
+          {t.common.cancel}
         </Button>
       </div>
 
