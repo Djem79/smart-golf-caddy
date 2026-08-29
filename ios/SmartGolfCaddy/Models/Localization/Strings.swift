@@ -333,6 +333,29 @@ struct Strings {
         let corruptedRoundData: String
     }
 
+    // T5 (watch localization): strings used ONLY on the watch screen (hole
+    // tracker, club picker, sync indicators, "no round" placeholder). Keys
+    // that already exist verbatim elsewhere (common.par, common.metersShort/
+    // yardsShort, common.missingCustomClub, holeTracker.holeTitleNoTotal,
+    // holeTracker.toGreen) are reused directly from the watch views instead
+    // of being duplicated here — same one-dictionary rule as the rest of
+    // this file.
+    struct Watch {
+        let shotsOnHoleAria: (_ count: Int, _ word: String) -> String
+        let shotsWord: PluralForms
+        let removeShotAria: String
+        let addShotAria: String
+        let notSynced: (_ count: Int) -> String
+        let syncFailed: String
+        let syncFailedAria: String
+        let roundNotStarted: String
+        let startOnPhone: String
+        let staleShotNotSaved: (_ holeNumber: Int) -> String
+        let staleRoundFinished: String
+        let staleShotNotSavedAria: (_ holeNumber: Int) -> String
+        let gotIt: String
+    }
+
     let common: Common
     let auth: Auth
     let home: Home
@@ -351,6 +374,22 @@ struct Strings {
     let clubs: Clubs
     let geolocation: Geolocation
     let roundsService: RoundsService
+    let watch: Watch
+}
+
+extension Strings {
+    /// T5 (watch localization): the watch has no LocaleManager (MainActor,
+    /// iOS-only ViewModels/ — not linked into the watch target, see
+    /// project.yml sources) and doesn't mutate the process-wide
+    /// AppLocaleStore.current — its "current language" is a pure function of
+    /// the latest snapshot from the phone (see WatchRoundViewModel.locale),
+    /// so views recompute Strings straight from that value on every render
+    /// instead of reading a mutable global. Mirrors the `current == .ru ?
+    /// .ru : .en` ternary already used in AppLocaleStore.strings /
+    /// LocaleManager.t.
+    static func resolved(_ locale: AppLocale) -> Strings {
+        locale == .ru ? .ru : .en
+    }
 }
 
 extension Strings {
@@ -646,7 +685,22 @@ extension Strings {
             permissionDenied: "Доступ к геолокации запрещён. Разрешите его в Настройках.",
             positionUnavailable: "Не удалось определить местоположение"
         ),
-        roundsService: RoundsService(corruptedRoundData: "Данные раунда повреждены")
+        roundsService: RoundsService(corruptedRoundData: "Данные раунда повреждены"),
+        watch: Watch(
+            shotsOnHoleAria: { count, word in "На лунке: \(count) \(word)" },
+            shotsWord: PluralForms(one: "удар", few: "удара", many: "ударов"),
+            removeShotAria: "Убрать удар",
+            addShotAria: "Добавить удар",
+            notSynced: { count in "Не синхронизировано: \(count)" },
+            syncFailed: "Не удалось синхронизировать",
+            syncFailedAria: "Не удалось синхронизировать удары этой лунки",
+            roundNotStarted: "Раунд не начат",
+            startOnPhone: "Начните раунд на телефоне",
+            staleShotNotSaved: { holeNumber in "Лунка \(holeNumber): удар не сохранён" },
+            staleRoundFinished: "Раунд уже завершён",
+            staleShotNotSavedAria: { holeNumber in "Удар на лунке \(holeNumber) не сохранён — раунд уже завершён" },
+            gotIt: "Понятно"
+        )
     )
 
     static let en = Strings(
@@ -941,6 +995,21 @@ extension Strings {
             permissionDenied: "Location access denied. Enable it in Settings.",
             positionUnavailable: "Couldn't determine your location"
         ),
-        roundsService: RoundsService(corruptedRoundData: "Round data is corrupted")
+        roundsService: RoundsService(corruptedRoundData: "Round data is corrupted"),
+        watch: Watch(
+            shotsOnHoleAria: { count, word in "On this hole: \(count) \(word)" },
+            shotsWord: PluralForms(one: "stroke", few: "strokes", many: "strokes"),
+            removeShotAria: "Remove stroke",
+            addShotAria: "Add stroke",
+            notSynced: { count in "Not synced: \(count)" },
+            syncFailed: "Couldn't sync",
+            syncFailedAria: "Couldn't sync this hole's strokes",
+            roundNotStarted: "No round in progress",
+            startOnPhone: "Start a round on your phone",
+            staleShotNotSaved: { holeNumber in "Hole \(holeNumber): stroke not saved" },
+            staleRoundFinished: "Round already finished",
+            staleShotNotSavedAria: { holeNumber in "Stroke on hole \(holeNumber) not saved — round already finished" },
+            gotIt: "Got it"
+        )
     )
 }

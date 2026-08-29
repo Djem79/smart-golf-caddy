@@ -60,7 +60,8 @@ final class WatchRoundViewModelTests: XCTestCase {
         totalHoles: Int = 18,
         holes: [WatchHole]? = nil,
         clubs: [String] = ["Driver", "7 Iron", "Putter"],
-        activeHoleNumber: Int = 3
+        activeHoleNumber: Int = 3,
+        locale: AppLocale = .ru
     ) -> WatchRoundSnapshot {
         let resolvedHoles = holes ?? (1...totalHoles).map {
             WatchHole(number: $0, par: 4, distanceMeters: 300, myShots: 0)
@@ -74,6 +75,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             greens: [:],
             activeHoleNumber: activeHoleNumber,
             units: .m,
+            locale: locale,
             updatedAt: Date()
         )
     }
@@ -420,7 +422,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         let snapshot = WatchRoundSnapshot(
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 5, timestamp: Date())
@@ -432,7 +434,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         let snapshot = WatchRoundSnapshot(
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         XCTAssertNil(vm.greenDistanceMeters)
@@ -443,7 +445,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         let snapshot = WatchRoundSnapshot(
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 60, timestamp: Date())
@@ -455,7 +457,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         let snapshot = WatchRoundSnapshot(
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.700000, lng: 37.400000)],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.701000, lng: 37.400000, accuracy: 5, timestamp: Date().addingTimeInterval(-300))
@@ -467,7 +469,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         let snapshot = WatchRoundSnapshot(
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"], greens: [:],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
@@ -481,7 +483,7 @@ final class WatchRoundViewModelTests: XCTestCase {
         let snapshot = WatchRoundSnapshot(
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"], greens: [3: GreenMark(lat: 55.710000, lng: 37.400000)],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
@@ -497,7 +499,7 @@ final class WatchRoundViewModelTests: XCTestCase {
             roundId: "round-1", courseName: "Test", totalHoles: 4, holes: holes,
             clubs: ["Driver"],
             greens: [3: GreenMark(lat: 55.701000, lng: 37.400000), 4: GreenMark(lat: 55.702000, lng: 37.400000)],
-            activeHoleNumber: 3, units: .m, updatedAt: Date()
+            activeHoleNumber: 3, units: .m, locale: .ru, updatedAt: Date()
         )
         let vm = WatchRoundViewModel(snapshot: snapshot, shotQueue: makeQueue())
         vm.currentFix = GeoFix(lat: 55.700000, lng: 37.400000, accuracy: 5, timestamp: Date())
@@ -671,5 +673,62 @@ final class WatchRoundViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.shotCount, 3, "removeShot не может снять серверный удар с часов")
         XCTAssertTrue(queue.pending.isEmpty)
+    }
+
+    // MARK: - Локализация (Task 5): язык из снимка доезжает и применяется;
+    // без снимка — язык системы часов; общий словарь/плюрализация из
+    // Models/Localization переиспользуются (не дублируются на часах).
+
+    func testLocaleComesFromSnapshotWhenPresent() {
+        let vmRu = WatchRoundViewModel(snapshot: makeSnapshot(locale: .ru), shotQueue: makeQueue())
+        XCTAssertEqual(vmRu.locale, .ru)
+        XCTAssertEqual(vmRu.strings.common.cancel, "Отмена")
+
+        let vmEn = WatchRoundViewModel(snapshot: makeSnapshot(locale: .en), shotQueue: makeQueue())
+        XCTAssertEqual(vmEn.locale, .en)
+        XCTAssertEqual(vmEn.strings.common.cancel, "Cancel")
+    }
+
+    func testLocaleFallsBackToSystemDefaultWithoutSnapshot() {
+        // Ни разу не приходил снимок с телефона (свежий запуск часов /
+        // Task 4 канал ещё не подключился) — язык часов, а не
+        // захардкоженный ru/en. Сверяем с тем же вычислением, которое
+        // делает сама VM (AppLocaleStore.systemDefault), а не с
+        // конкретным значением — тест не должен зависеть от языка машины,
+        // на которой гоняются тесты.
+        let vm = WatchRoundViewModel(snapshot: nil, shotQueue: makeQueue())
+        XCTAssertEqual(vm.locale, AppLocaleStore.systemDefault)
+    }
+
+    func testApplyingNewSnapshotChangesLocale() {
+        let vm = WatchRoundViewModel(snapshot: makeSnapshot(roundId: "round-A", locale: .ru), shotQueue: makeQueue())
+        XCTAssertEqual(vm.locale, .ru)
+
+        // Игрок сменил язык в профиле на телефоне на экране лунки — новый
+        // снимок долетает с обновлённым locale, часы обязаны его подхватить.
+        vm.apply(snapshot: makeSnapshot(roundId: "round-A", locale: .en))
+        XCTAssertEqual(vm.locale, .en)
+        XCTAssertEqual(vm.strings.common.cancel, "Cancel")
+    }
+
+    /// Плюрализация на часах — та же общая функция `plural()`
+    /// (Models/Localization/PluralForms.swift), подключённая ссылкой в
+    /// watch target, а не второй механизм. Числа выбраны там же, где
+    /// наивное правило чаще всего ломается (см. LocalizationTests.swift
+    /// на телефоне): исключение 11-14 и его сброс на 21/22/25.
+    func testPluralizationGivesCorrectRussianFormsOnWatch() {
+        let forms = Strings.ru.watch.shotsWord
+        XCTAssertEqual(plural(1, .ru, forms), "удар")
+        XCTAssertEqual(plural(2, .ru, forms), "удара")
+        XCTAssertEqual(plural(5, .ru, forms), "ударов")
+        XCTAssertEqual(plural(11, .ru, forms), "ударов")
+        XCTAssertEqual(plural(21, .ru, forms), "удар")
+    }
+
+    func testPluralizationGivesCorrectEnglishFormsOnWatch() {
+        let forms = Strings.en.watch.shotsWord
+        XCTAssertEqual(plural(1, .en, forms), "stroke")
+        XCTAssertEqual(plural(2, .en, forms), "strokes")
+        XCTAssertEqual(plural(11, .en, forms), "strokes")
     }
 }

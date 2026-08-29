@@ -58,6 +58,14 @@ struct WatchRoundSnapshot: Equatable {
     let greens: [Int: GreenMark]
     let activeHoleNumber: Int
     let units: DistanceUnit
+    /// T5 (watch localization): UI language, resolved on the phone (profile
+    /// locale ?? device language — same precedence as LocaleManager.sync)
+    /// and carried over so the watch app, which has no settings screen and
+    /// never talks to Firestore, doesn't have to guess. Required field, same
+    /// pattern as `units` — no default, decode fails without it. Absent
+    /// snapshot (app just launched, phone hasn't sent one yet) falls back to
+    /// the watch's own system language — see WatchRoundViewModel.locale.
+    let locale: AppLocale
     let updatedAt: Date
 
     init(
@@ -69,6 +77,7 @@ struct WatchRoundSnapshot: Equatable {
         greens: [Int: GreenMark],
         activeHoleNumber: Int,
         units: DistanceUnit,
+        locale: AppLocale,
         updatedAt: Date
     ) {
         self.roundId = roundId
@@ -79,6 +88,7 @@ struct WatchRoundSnapshot: Equatable {
         self.greens = greens
         self.activeHoleNumber = activeHoleNumber
         self.units = units
+        self.locale = locale
         self.updatedAt = updatedAt
     }
 
@@ -97,6 +107,7 @@ struct WatchRoundSnapshot: Equatable {
             "greens": greensPayload,
             "activeHoleNumber": activeHoleNumber,
             "units": units.rawValue,
+            "locale": locale.rawValue,
             "updatedAt": updatedAt.timeIntervalSince1970,
         ]
     }
@@ -112,6 +123,8 @@ struct WatchRoundSnapshot: Equatable {
               let activeHoleNumber = watchIntValue(payload["activeHoleNumber"]),
               let unitsRaw = payload["units"] as? String,
               let units = DistanceUnit(rawValue: unitsRaw),
+              let localeRaw = payload["locale"] as? String,
+              let locale = AppLocale(rawValue: localeRaw),
               let updatedAtInterval = watchDoubleValue(payload["updatedAt"]) else { return nil }
 
         let holes = rawHoles.compactMap(WatchHole.init(payload:))
@@ -136,6 +149,7 @@ struct WatchRoundSnapshot: Equatable {
         self.greens = greens
         self.activeHoleNumber = activeHoleNumber
         self.units = units
+        self.locale = locale
         self.updatedAt = Date(timeIntervalSince1970: updatedAtInterval)
     }
 }

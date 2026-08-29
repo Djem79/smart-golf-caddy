@@ -28,11 +28,17 @@ struct WatchHoleView: View {
 
     private var totalHoles: Int { viewModel.snapshot?.totalHoles ?? 1 }
 
+    /// T5 (watch localization): resolved from the active snapshot's locale
+    /// (falls back to the watch's own system language before any snapshot
+    /// arrives) — same shared Strings.ru/.en dictionary the phone reads,
+    /// not a second mechanism. See WatchRoundViewModel.strings.
+    private var t: Strings { viewModel.strings }
+
     private var distanceLabel: String? {
         guard let hole = viewModel.currentHole, hole.distanceMeters > 0 else { return nil }
         let unitsYards = viewModel.snapshot?.units == .yd
         let value = unitsYards ? Score.metersToYards(hole.distanceMeters) : hole.distanceMeters
-        return "\(value) \(unitsYards ? "ярд" : "м")"
+        return "\(value) \(unitsYards ? t.common.yardsShort : t.common.metersShort)"
     }
 
     /// Строка «До грина» показывается ТОЛЬКО если для текущей лунки в
@@ -48,7 +54,7 @@ struct WatchHoleView: View {
         guard let meters = viewModel.greenDistanceMeters else { return "—" }
         let unitsYards = viewModel.snapshot?.units == .yd
         let value = unitsYards ? Score.metersToYards(meters) : meters
-        return "\(value) \(unitsYards ? "я" : "м")"
+        return "\(value) \(unitsYards ? t.common.yardsShort : t.common.metersShort)"
     }
 
     /// «Пар N • 300 м» — совмещаем пар и дистанцию лунки в одну строку под
@@ -57,9 +63,9 @@ struct WatchHoleView: View {
     private var holeSubtitle: String {
         guard let par = viewModel.currentHole?.par else { return "" }
         if let distanceLabel {
-            return "Пар \(par) • \(distanceLabel)"
+            return "\(t.common.par) \(par) • \(distanceLabel)"
         }
-        return "Пар \(par)"
+        return "\(t.common.par) \(par)"
     }
 
     var body: some View {
@@ -74,7 +80,9 @@ struct WatchHoleView: View {
                 Text("\(viewModel.shotCount)")
                     .font(DSFont.headlineLG)
                     .foregroundStyle(WatchColor.textPrimary)
-                    .accessibilityLabel("Ударов на лунке: \(viewModel.shotCount)")
+                    .accessibilityLabel(t.watch.shotsOnHoleAria(
+                        viewModel.shotCount, plural(viewModel.shotCount, viewModel.locale, t.watch.shotsWord)
+                    ))
 
                 shotButtonsRow
                 clubRow
@@ -97,6 +105,7 @@ struct WatchHoleView: View {
                 WatchClubPicker(
                     clubs: viewModel.clubs,
                     selectedClub: viewModel.selectedClub,
+                    title: t.common.missingCustomClub,
                     onSelect: { club in
                         viewModel.selectedClub = club
                         showPicker = false
@@ -132,7 +141,7 @@ struct WatchHoleView: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 1) {
-                Text("Лунка \(viewModel.holeNumber)")
+                Text(t.holeTracker.holeTitleNoTotal(viewModel.holeNumber))
                     .font(DSFont.titleLG)
                     .foregroundStyle(WatchColor.textPrimary)
                 Text(holeSubtitle)
@@ -172,7 +181,7 @@ struct WatchHoleView: View {
             // WatchRoundViewModel.removeShot()), поэтому дизейблим, когда
             // локального хвоста нет, а не когда счёт лунки равен нулю.
             .disabled(viewModel.pendingClubs.isEmpty)
-            .accessibilityLabel("Убрать удар")
+            .accessibilityLabel(t.watch.removeShotAria)
 
             Button {
                 viewModel.addShot()
@@ -185,7 +194,7 @@ struct WatchHoleView: View {
             }
             .buttonStyle(.plain)
             .disabled(viewModel.clubs.isEmpty)
-            .accessibilityLabel("Добавить удар")
+            .accessibilityLabel(t.watch.addShotAria)
         }
     }
 
@@ -196,7 +205,7 @@ struct WatchHoleView: View {
             HStack {
                 Image(systemName: "figure.golf")
                     .foregroundStyle(WatchColor.accent)
-                Text(viewModel.selectedClub ?? "Клюшка")
+                Text(viewModel.selectedClub ?? t.common.missingCustomClub)
                     .font(DSFont.labelLG)
                     .foregroundStyle(WatchColor.textPrimary)
                 Spacer()
@@ -215,19 +224,19 @@ struct WatchHoleView: View {
         HStack(spacing: 4) {
             Image(systemName: "flag.checkered")
                 .font(.system(size: 11))
-            Text("До грина: \(label)")
+            Text(t.holeTracker.toGreen(label))
                 .font(DSFont.labelMD)
                 .monospacedDigit()
         }
         .foregroundStyle(WatchColor.textSecondary)
-        .accessibilityLabel("До грина: \(label)")
+        .accessibilityLabel(t.holeTracker.toGreen(label))
     }
 
     private var pendingIndicator: some View {
         HStack(spacing: 4) {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.system(size: 11))
-            Text("Не синхронизировано: \(viewModel.pendingCount)")
+            Text(t.watch.notSynced(viewModel.pendingCount))
                 .font(DSFont.labelMD)
         }
         .foregroundStyle(WatchColor.pending)
@@ -242,11 +251,11 @@ struct WatchHoleView: View {
         HStack(spacing: 4) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 11))
-            Text("Не удалось синхронизировать")
+            Text(t.watch.syncFailed)
                 .font(DSFont.labelMD)
         }
         .foregroundStyle(WatchColor.error)
-        .accessibilityLabel("Не удалось синхронизировать удары этой лунки")
+        .accessibilityLabel(t.watch.syncFailedAria)
     }
 }
 
@@ -260,6 +269,7 @@ struct WatchHoleView: View {
         greens: [:],
         activeHoleNumber: 3,
         units: .m,
+        locale: .ru,
         updatedAt: Date()
     )
     return NavigationStack {

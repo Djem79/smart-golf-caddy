@@ -21,6 +21,7 @@ final class WatchMessagesTests: XCTestCase {
             greens: [1: GreenMark(lat: 55.700, lng: 37.400), 2: GreenMark(lat: 55.701, lng: 37.401)],
             activeHoleNumber: 2,
             units: .m,
+            locale: .ru,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
     }
@@ -65,6 +66,27 @@ final class WatchMessagesTests: XCTestCase {
         XCTAssertNil(WatchRoundSnapshot(payload: ["v": 1, "roundId": 42]))
         XCTAssertNil(WatchRoundSnapshot(payload: [:]))
         XCTAssertNil(WatchRoundSnapshot(payload: ["garbage": "value"]))
+    }
+
+    // MARK: - locale (T5, watch localization)
+
+    func testSnapshotPreservesLocale() throws {
+        var payload = makeSnapshot().payload
+        payload["locale"] = "en"
+        let restored = try XCTUnwrap(WatchRoundSnapshot(payload: payload))
+        XCTAssertEqual(restored.locale, .en)
+    }
+
+    func testSnapshotRejectsMissingLocale() {
+        var payload = makeSnapshot().payload
+        payload.removeValue(forKey: "locale")
+        XCTAssertNil(WatchRoundSnapshot(payload: payload), "locale — обязательное поле, тот же контракт, что units")
+    }
+
+    func testSnapshotRejectsUnknownLocale() {
+        var payload = makeSnapshot().payload
+        payload["locale"] = "fr"
+        XCTAssertNil(WatchRoundSnapshot(payload: payload))
     }
 
     func testSnapshotToleratesEmptyGreensDict() throws {

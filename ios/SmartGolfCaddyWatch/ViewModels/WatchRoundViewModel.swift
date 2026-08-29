@@ -143,6 +143,23 @@ final class WatchRoundViewModel {
         self.snapshot = snapshot
     }
 
+    // MARK: - Локализация (Task 5)
+
+    /// Язык часов: из активного снимка (телефон кладёт туда резолвнутый
+    /// LocaleManager-ом язык пользователя — профиль или язык устройства),
+    /// пока снимка нет — язык самих часов. Часы не имеют экрана настроек и
+    /// не ходят в Firestore, поэтому язык может прийти ТОЛЬКО с телефона;
+    /// AppLocaleStore (Models/Localization, подключён ссылкой) даёт
+    /// системный фолбэк тем же способом, что и на телефоне при первом
+    /// запуске без профиля.
+    var locale: AppLocale { snapshot?.locale ?? AppLocaleStore.systemDefault }
+
+    /// Словарь для текущего языка часов — тот же общий Strings.ru/.en, что
+    /// и на телефоне (см. Strings.resolved). Пересчитывается при каждом
+    /// обращении (нет кэша) — новый снимок с другим языком подхватывается
+    /// автоматически, вью реагируют на изменение `snapshot`.
+    var strings: Strings { Strings.resolved(locale) }
+
     var currentHole: WatchHole? {
         snapshot?.holes.first { $0.number == holeNumber }
     }

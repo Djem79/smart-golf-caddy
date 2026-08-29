@@ -383,6 +383,14 @@ final class HoleTrackerViewModel {
             greens: greens,
             activeHoleNumber: holeIndex + 1,
             units: watchUnits,
+            // T5 (watch localization): AppLocaleStore.current is the same
+            // resolved locale LocaleManager shows on this screen (profile
+            // override, else device language) — the watch has no profile
+            // subscription and no settings screen, so it reads whatever the
+            // phone last resolved. Read directly here (not plumbed through
+            // updateWatchContext) — this VM already reads AppLocaleStore.strings
+            // elsewhere for error copy, same "not MainActor-only" pattern.
+            locale: AppLocaleStore.current,
             updatedAt: Date()
         )
         WatchBridge.shared.send(snapshot: snapshot)

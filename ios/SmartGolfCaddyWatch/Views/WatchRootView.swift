@@ -18,6 +18,12 @@ struct WatchRootView: View {
     @State private var staleSyncFailureObserver: NSObjectProtocol?
     @State private var staleSyncFailure: StaleSyncFailure?
 
+    /// T5 (watch localization): same resolution as WatchRoundViewModel.locale
+    /// (active snapshot's language, else the watch's system language) — root
+    /// view needs its own copy for the placeholder/stale-failure banner,
+    /// which render BEFORE any WatchRoundViewModel exists.
+    private var t: Strings { Strings.resolved(viewModel?.locale ?? AppLocaleStore.systemDefault) }
+
     /// Fix 12 (живое ревью Task 4) — квитанция `accepted: false` для
     /// раунда, ОТЛИЧНОГО от текущего снимка часов (типичная трасса: удар
     /// на последней лунке не долетел до завершения раунда, телефон
@@ -106,15 +112,15 @@ struct WatchRootView: View {
 
     private func staleSyncFailureBanner(_ failure: StaleSyncFailure) -> some View {
         VStack(spacing: 4) {
-            Text("Лунка \(failure.holeNumber): удар не сохранён")
+            Text(t.watch.staleShotNotSaved(failure.holeNumber))
                 .font(DSFont.labelMD)
                 .foregroundStyle(WatchColor.textPrimary)
                 .multilineTextAlignment(.center)
-            Text("Раунд уже завершён")
+            Text(t.watch.staleRoundFinished)
                 .font(DSFont.labelMD)
                 .foregroundStyle(WatchColor.textPrimary.opacity(0.85))
                 .multilineTextAlignment(.center)
-            Button("Понятно") {
+            Button(t.watch.gotIt) {
                 staleSyncFailure = nil
             }
             .buttonStyle(.plain)
@@ -130,7 +136,7 @@ struct WatchRootView: View {
         .padding(.horizontal, 6)
         .padding(.top, 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Удар на лунке \(failure.holeNumber) не сохранён — раунд уже завершён")
+        .accessibilityLabel(t.watch.staleShotNotSavedAria(failure.holeNumber))
     }
 
     private var placeholder: some View {
@@ -138,11 +144,11 @@ struct WatchRootView: View {
             Image(systemName: "figure.golf")
                 .font(.system(size: 28))
                 .foregroundStyle(WatchColor.accent)
-            Text("Раунд не начат")
+            Text(t.watch.roundNotStarted)
                 .font(DSFont.labelLG)
                 .foregroundStyle(WatchColor.textPrimary)
                 .multilineTextAlignment(.center)
-            Text("Начните раунд на телефоне")
+            Text(t.watch.startOnPhone)
                 .font(DSFont.labelMD)
                 .foregroundStyle(WatchColor.textSecondary)
                 .multilineTextAlignment(.center)
@@ -167,30 +173,56 @@ struct WatchRootView: View {
         // рядом) — включается launch argument, не показывается сама по
         // себе, чтобы плейсхолдер оставался виден по умолчанию.
         if viewModel == nil, ProcessInfo.processInfo.arguments.contains("-watchPreviewFixture") {
-            viewModel = WatchRoundViewModel(snapshot: Self.debugFixture)
+            let args = ProcessInfo.processInfo.arguments
+            // T5 (watch localization): -watchPreviewLocaleEN bakes English
+            // into the fixture snapshot itself (deterministic — doesn't
+            // depend on the simulator's system language) so both languages
+            // of the hole screen/club picker can be screenshotted from the
+            // same simulator run.
+            let locale: AppLocale = args.contains("-watchPreviewLocaleEN") ? .en : .ru
+            let fixture = Self.debugFixture(locale: locale)
+            viewModel = WatchRoundViewModel(snapshot: fixture)
+
+            // -watchPreviewPending / -watchPreviewSyncFailed force the
+            // "не синхронизировано" / "не удалось синхронизировать"
+            // indicators for screenshot verification — deterministic
+            // regardless of leftover state from a previous debug run
+            // (WatchShotQueue.shared persists to disk), so the slot is
+            // cleared first every time.
+            let queue = WatchShotQueue.shared
+            queue.enqueue(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, clubs: [])
+            if args.contains("-watchPreviewPending") {
+                queue.enqueue(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, clubs: ["Driver"])
+            }
+            if args.contains("-watchPreviewSyncFailed") {
+                queue.markConfirmed(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, acceptedCount: 0, accepted: false)
+            }
         }
         #endif
     }
 
     #if DEBUG
-    private static let debugFixture = WatchRoundSnapshot(
-        roundId: "debug-preview",
-        courseName: "Pebble Beach",
-        totalHoles: 18,
-        holes: (1...18).map {
-            WatchHole(number: $0, par: [3, 4, 4, 5].randomElement() ?? 4,
-                      distanceMeters: 280 + $0 * 4, myShots: $0 < 3 ? 4 : 0)
-        },
-        clubs: ["Driver", "3 Wood", "5 Iron", "7 Iron", "PW", "Putter"],
-        // Метка грина лунки 3 — ~78 м к северу от координаты, которую
-        // ставит live-проверка через `xcrun simctl location` (см.
-        // task-5-report.md). Только для этой лунки: остальные остаются без
-        // метки, чтобы live-проверка заодно подтвердила скрытие строки
-        // «До грина» там, где метки нет.
-        greens: [3: GreenMark(lat: 37.335600, lng: -122.009020)],
-        activeHoleNumber: 3,
-        units: .m,
-        updatedAt: Date()
-    )
+    private static func debugFixture(locale: AppLocale) -> WatchRoundSnapshot {
+        WatchRoundSnapshot(
+            roundId: "debug-preview",
+            courseName: "Pebble Beach",
+            totalHoles: 18,
+            holes: (1...18).map {
+                WatchHole(number: $0, par: [3, 4, 4, 5].randomElement() ?? 4,
+                          distanceMeters: 280 + $0 * 4, myShots: $0 < 3 ? 4 : 0)
+            },
+            clubs: ["Driver", "3 Wood", "5 Iron", "7 Iron", "PW", "Putter"],
+            // Метка грина лунки 3 — ~78 м к северу от координаты, которую
+            // ставит live-проверка через `xcrun simctl location` (см.
+            // task-5-report.md). Только для этой лунки: остальные остаются без
+            // метки, чтобы live-проверка заодно подтвердила скрытие строки
+            // «До грина» там, где метки нет.
+            greens: [3: GreenMark(lat: 37.335600, lng: -122.009020)],
+            activeHoleNumber: 3,
+            units: .m,
+            locale: locale,
+            updatedAt: Date()
+        )
+    }
     #endif
 }

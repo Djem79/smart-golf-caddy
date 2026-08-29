@@ -6,6 +6,10 @@ import SwiftUI
 struct WatchClubPicker: View {
     let clubs: [String]
     let selectedClub: String?
+    /// T5 (watch localization): passed in by the caller (WatchHoleView, via
+    /// its resolved `strings`) rather than hardcoded — this view has no
+    /// access to a snapshot/locale of its own.
+    let title: String
     let onSelect: (String) -> Void
 
     var body: some View {
@@ -30,7 +34,7 @@ struct WatchClubPicker: View {
             .listRowBackground(WatchColor.background)
         }
         .listStyle(.carousel)
-        .navigationTitle("Клюшка")
+        .navigationTitle(title)
         .background(WatchColor.background)
     }
 }
@@ -40,6 +44,7 @@ struct WatchClubPicker: View {
         WatchClubPicker(
             clubs: ["Driver", "3 Wood", "7 Iron", "PW", "Putter"],
             selectedClub: "7 Iron",
+            title: "Club",
             onSelect: { _ in }
         )
     }
