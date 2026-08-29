@@ -10,8 +10,12 @@ import { plural } from './index'
 describe('plural (ru)', () => {
   const forms = { one: 'лунка', few: 'лунки', many: 'лунок' }
   const cases: Array<[number, string]> = [
-    [1, 'лунка'], [2, 'лунки'], [5, 'лунок'],
-    [11, 'лунок'], [21, 'лунка'], [22, 'лунки'],
+    [0, 'лунок'], [1, 'лунка'], [2, 'лунки'], [5, 'лунок'],
+    // Teens are the exception to the mod-10 few/many split (11-14 all take
+    // "many" even though 12-14 % 10 lands in the 2-4 range that's normally
+    // "few") — the easiest place to get this wrong, so all four are covered.
+    [11, 'лунок'], [12, 'лунок'], [13, 'лунок'], [14, 'лунок'],
+    [21, 'лунка'], [22, 'лунки'],
     [25, 'лунок'], [101, 'лунка'], [111, 'лунок'],
   ]
 

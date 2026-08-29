@@ -170,7 +170,7 @@ struct Round: Equatable, Identifiable {
     }
 }
 
-// Порт TEE_LABELS из src/types/index.ts — метки и цвета тии.
+// Порт TEE_COLORS (цвета) и t.common.tee (метки, src/i18n/ru.ts+en.ts) из веба — тии.
 extension TeeColor {
     var label: String {
         switch self {

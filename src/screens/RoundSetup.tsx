@@ -31,7 +31,10 @@ export function RoundSetup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const effectiveName = course?.name ?? (customName.trim() || t.common.golfCourseFallback)
+  // course?.name can be '' (Google omitted a display name — see
+  // services/courses.ts), so this has to fall through on empty string too,
+  // not just null/undefined.
+  const effectiveName = course?.name || customName.trim() || t.common.golfCourseFallback
 
   async function handleStart() {
     if (!user) return
@@ -77,7 +80,7 @@ export function RoundSetup() {
       <div className="px-5 pt-6 space-y-6 flex-1">
         {course ? (
           <div className="card">
-            <h2 className="font-headline font-bold text-title-lg text-on-surface">{course.name}</h2>
+            <h2 className="font-headline font-bold text-title-lg text-on-surface">{course.name || t.common.golfCourseFallback}</h2>
             <p className="text-label-lg text-on-surface-variant mt-1">{course.vicinity} · {course.distanceKm} {t.common.km}</p>
             <button
               type="button"

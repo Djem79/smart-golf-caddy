@@ -197,7 +197,11 @@ export const en: Dictionary = {
     prev: 'Prev.',
     next: 'Next',
     finishHost: 'Finish game',
-    finishWaitHost: 'Host will finish',
+    // Sits in a flex-1 slot next to "Prev." with an icon, uppercase +
+    // tracking-wider (~100px of usable text width at 390px) — checked with
+    // a screenshot that this fits on one line without truncating; "Host
+    // finishes" (13 chars, same length as the Russian) still truncated.
+    finishWaitHost: 'Host only',
     finishEarly: 'Finish game early',
     saveShotError: "Couldn't save the stroke.",
     finishRoundError: "Couldn't finish the round. Try again.",

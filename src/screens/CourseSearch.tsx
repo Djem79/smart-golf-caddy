@@ -7,7 +7,27 @@ import type { CourseResult } from '../types'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { BottomNav } from '../components/layout/BottomNav'
-import { useT, plural } from '../i18n'
+import { useT, plural, type Dictionary } from '../i18n'
+
+// Maps a CourseFetchError's machine-readable kind+source to translated copy.
+// Lives here (not in services/courses.ts) so the service layer stays free
+// of any i18n dependency — same split as getClubLabel(clubId, bag, fallbacks)
+// in types/index.ts, just for a thrown error instead of a return value.
+function describeCourseFetchError(e: CourseFetchError, t: Dictionary): string {
+  const fe = t.courseSearch.fetchErrors
+  let headline: string
+  if (e.kind === 'config') headline = fe.apiKeyMissing
+  else if (e.kind === 'network') headline = fe.networkError
+  else if (e.kind === 'denied') headline = e.source === 'nearby' ? fe.accessDeniedNew : fe.accessDenied
+  else if (e.kind === 'quota') headline = e.source === 'nearby' ? fe.quotaExceededNew : fe.quotaExceeded
+  else if (e.kind === 'invalid') headline = fe.invalidRequest
+  else headline = t.courseSearch.loadError // 'unknown' — generic fallback
+  // Google's raw API error text wins when present; a 403 with no detail on
+  // the nearby endpoint gets our own actionable hint instead (the New API's
+  // setup requirements aren't in the error body).
+  const detail = e.detail ?? (e.kind === 'denied' && e.source === 'nearby' ? fe.accessDeniedNewDetail : undefined)
+  return detail ? `${headline}. ${detail}` : `${headline}.`
+}
 
 export function CourseSearch() {
   const navigate = useNavigate()
@@ -32,8 +52,7 @@ export function CourseSearch() {
       .catch((e: unknown) => {
         if (cancelled) return
         if (e instanceof CourseFetchError) {
-          const detail = e.detail ? ` ${e.detail}` : ''
-          setError(`${e.message}.${detail}`)
+          setError(describeCourseFetchError(e, t))
         } else {
           setError(t.courseSearch.loadError)
         }
@@ -187,13 +206,17 @@ export function CourseSearch() {
 function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: CourseResult) => void }) {
   const { t, locale } = useT()
   const photoUrl = course.photoUrl ?? null
+  // Google rarely omits a place's display name, but when it does, show a
+  // translated placeholder rather than an empty heading (services/courses.ts
+  // returns '' here rather than picking a fallback string itself).
+  const displayName = course.name || t.common.golfCourseFallback
 
   return (
     <div className="bg-surface-container-lowest rounded-lg border border-outline-variant/30 shadow-card overflow-hidden">
       {/* Hero image */}
       <div className="relative h-40 bg-gradient-to-br from-primary-container to-secondary-container">
         {photoUrl ? (
-          <img src={photoUrl} alt={course.name} className="w-full h-full object-cover" loading="lazy" />
+          <img src={photoUrl} alt={displayName} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-on-primary/40">
             <Flag size={56} strokeWidth={1.25} />
@@ -216,7 +239,7 @@ function CourseCard({ course, onSelect }: { course: CourseResult; onSelect: (c: 
       <div className="p-4 space-y-3">
         <div>
           <h3 className="font-headline font-bold text-title-lg text-on-surface leading-tight tracking-tight">
-            {course.name}
+            {displayName}
           </h3>
           {course.vicinity && (
             <p className="text-label-lg text-on-surface-variant mt-1.5 flex items-start gap-1.5">
