@@ -348,6 +348,18 @@ struct Strings {
         let notSynced: (_ count: Int) -> String
         let syncFailed: String
         let syncFailedAria: String
+        /// Дистанция до ЦЕНТРА грина (не до флага — Garmin принципиально
+        /// не показывает «до флага», т.к. позицию флага меняют ежедневно;
+        /// см. запрос владельца в task 6). `unit` — "м"/"я" (common.metersShort/
+        /// yardsShort), собирается в одну короткую подпись под крупным числом.
+        let toGreenCenterCaption: (_ unit: String) -> String
+        /// Полная фраза для VoiceOver, когда дистанция ЕСТЬ (число + подпись
+        /// слиты в одно предложение — иначе экранный читалка озвучивает
+        /// два несвязанных элемента подряд).
+        let toGreenCenterAria: (_ distance: String) -> String
+        /// VoiceOver, когда метки грина нет ИЛИ GPS-фикс негоден — экран
+        /// показывает «—», но эта строка должна озвучить ПРИЧИНУ, а не тире.
+        let toGreenCenterUnavailableAria: String
         let roundNotStarted: String
         let startOnPhone: String
         let staleShotNotSaved: (_ holeNumber: Int) -> String
@@ -694,6 +706,9 @@ extension Strings {
             notSynced: { count in "Не синхронизировано: \(count)" },
             syncFailed: "Не удалось синхронизировать",
             syncFailedAria: "Не удалось синхронизировать удары этой лунки",
+            toGreenCenterCaption: { unit in "\(unit) до центра грина" },
+            toGreenCenterAria: { distance in "\(distance) до центра грина" },
+            toGreenCenterUnavailableAria: "Дистанция до центра грина недоступна",
             roundNotStarted: "Раунд не начат",
             startOnPhone: "Начните раунд на телефоне",
             staleShotNotSaved: { holeNumber in "Лунка \(holeNumber): удар не сохранён" },
@@ -1004,6 +1019,9 @@ extension Strings {
             notSynced: { count in "Not synced: \(count)" },
             syncFailed: "Couldn't sync",
             syncFailedAria: "Couldn't sync this hole's strokes",
+            toGreenCenterCaption: { unit in "\(unit) to green center" },
+            toGreenCenterAria: { distance in "\(distance) to green center" },
+            toGreenCenterUnavailableAria: "Distance to green center unavailable",
             roundNotStarted: "No round in progress",
             startOnPhone: "Start a round on your phone",
             staleShotNotSaved: { holeNumber in "Hole \(holeNumber): stroke not saved" },

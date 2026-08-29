@@ -180,7 +180,14 @@ struct WatchRootView: View {
             // of the hole screen/club picker can be screenshotted from the
             // same simulator run.
             let locale: AppLocale = args.contains("-watchPreviewLocaleEN") ? .en : .ru
-            let fixture = Self.debugFixture(locale: locale)
+            // Task 6 (компоновка "один экран"): -watchPreviewDistanceUnavailable
+            // убирает ВСЕ метки грина из фикстуры — детерминированно даёт «—»
+            // в главном элементе экрана (дистанция до центра грина) независимо
+            // от того, выдано ли симулятору разрешение на геолокацию. Без этого
+            // флага состояние «недоступно» зависело бы от live-GPS симулятора,
+            // что ломало бы скриншот-доказательство при перезапуске.
+            let withGreenMark = !args.contains("-watchPreviewDistanceUnavailable")
+            let fixture = Self.debugFixture(locale: locale, withGreenMark: withGreenMark)
             viewModel = WatchRoundViewModel(snapshot: fixture)
 
             // -watchPreviewPending / -watchPreviewSyncFailed force the
@@ -202,7 +209,7 @@ struct WatchRootView: View {
     }
 
     #if DEBUG
-    private static func debugFixture(locale: AppLocale) -> WatchRoundSnapshot {
+    private static func debugFixture(locale: AppLocale, withGreenMark: Bool = true) -> WatchRoundSnapshot {
         WatchRoundSnapshot(
             roundId: "debug-preview",
             courseName: "Pebble Beach",
@@ -215,9 +222,10 @@ struct WatchRootView: View {
             // Метка грина лунки 3 — ~78 м к северу от координаты, которую
             // ставит live-проверка через `xcrun simctl location` (см.
             // task-5-report.md). Только для этой лунки: остальные остаются без
-            // метки, чтобы live-проверка заодно подтвердила скрытие строки
-            // «До грина» там, где метки нет.
-            greens: [3: GreenMark(lat: 37.335600, lng: -122.009020)],
+            // метки. -watchPreviewDistanceUnavailable (Task 6) убирает и её —
+            // детерминированное «—» в главном элементе экрана без зависимости
+            // от live-GPS симулятора.
+            greens: withGreenMark ? [3: GreenMark(lat: 37.335600, lng: -122.009020)] : [:],
             activeHoleNumber: 3,
             units: .m,
             locale: locale,

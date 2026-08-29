@@ -1,7 +1,11 @@
 // ios/SmartGolfCaddyWatch/Views/WatchHoleView.swift
-// Экран лунки на часах: номер + пар, крупный счётчик ударов, +/-, текущая
-// клюшка (тап → WatchClubPicker), навигация лунок, индикатор
-// несинхронизированных ударов. Никакого WatchConnectivity — только VM.
+// Экран лунки на часах — распашка Garmin-стиля: дистанция до ЦЕНТРА
+// грина (не до флага — его переставляют ежедневно) главный элемент
+// экрана, номер лунки/пар мелкие подписи сверху. Запись удара и счёт
+// остаются на этом же экране компактно (в отличие от Garmin, где они
+// уведены в меню) — это ядро приложения. ВСЁ помещается на 41мм и 46мм
+// БЕЗ прокрутки — никакого ScrollView здесь быть не должно.
+// Никакого WatchConnectivity — только VM.
 import SwiftUI
 
 struct WatchHoleView: View {
@@ -34,72 +38,72 @@ struct WatchHoleView: View {
     /// not a second mechanism. See WatchRoundViewModel.strings.
     private var t: Strings { viewModel.strings }
 
-    private var distanceLabel: String? {
-        guard let hole = viewModel.currentHole, hole.distanceMeters > 0 else { return nil }
-        let unitsYards = viewModel.snapshot?.units == .yd
-        let value = unitsYards ? Score.metersToYards(hole.distanceMeters) : hole.distanceMeters
-        return "\(value) \(unitsYards ? t.common.yardsShort : t.common.metersShort)"
-    }
+    private var unitsYards: Bool { viewModel.snapshot?.units == .yd }
+    private var unitLabel: String { unitsYards ? t.common.yardsShort : t.common.metersShort }
 
-    /// Строка «До грина» показывается ТОЛЬКО если для текущей лунки в
-    /// снимке есть усреднённая метка грина — тем же паттерном, что и
-    /// distanceLabel выше (nil = строка скрыта целиком, а не «0 м»/«—»
-    /// навсегда: на поле, которое никто не отмечал, постоянная «—» была бы
-    /// голым шумом на экране 41–46мм). Когда метка ЕСТЬ, но GPS-фикс
-    /// негоден (устарел/неточен) или ещё не получен — «—»: строка остаётся
-    /// на месте (метка для этой лунки реально существует), просто текущая
-    /// дистанция недостоверна — это отличается от «метки вообще нет».
-    private var greenDistanceLabel: String? {
-        guard viewModel.snapshot?.greens[viewModel.holeNumber] != nil else { return nil }
+    /// Крупное число — дистанция до ЦЕНТРА грина текущей лунки. «—» когда
+    /// метки грина для этой лунки в снимке нет ИЛИ GPS-фикс негоден
+    /// (устарел/неточен/отсутствует) — см. WatchRoundViewModel.greenDistanceMeters
+    /// (единый nil-путь для обоих случаев). НИКОГДА не «0» и не
+    /// устаревшее значение — задание владельца прямо это требует, т.к.
+    /// «—» в дистанции читается игроком как «сейчас недостоверно», а «0»
+    /// выглядело бы как реальный замер.
+    private var greenDistanceValue: String {
         guard let meters = viewModel.greenDistanceMeters else { return "—" }
-        let unitsYards = viewModel.snapshot?.units == .yd
         let value = unitsYards ? Score.metersToYards(meters) : meters
-        return "\(value) \(unitsYards ? t.common.yardsShort : t.common.metersShort)"
+        return "\(value)"
     }
 
-    /// «Пар N • 300 м» — совмещаем пар и дистанцию лунки в одну строку под
-    /// заголовком, чтобы не тратить лишнюю строку экрана (41–46мм — каждая
-    /// точка высоты на счету).
-    private var holeSubtitle: String {
-        guard let par = viewModel.currentHole?.par else { return "" }
-        if let distanceLabel {
-            return "\(t.common.par) \(par) • \(distanceLabel)"
-        }
-        return "\(t.common.par) \(par)"
+    /// Мелкая подпись под крупным числом: «м до центра грина» / «yd to
+    /// green center». Показывается ВСЕГДА (в отличие от прежней версии,
+    /// где вся строка пряталась при отсутствии метки грина) — теперь это
+    /// главный элемент экрана и его якорь не должен прыгать в зависимости
+    /// от того, размечено ли поле.
+    private var greenDistanceCaption: String { t.watch.toGreenCenterCaption(unitLabel) }
+
+    private var greenDistanceAria: String {
+        guard viewModel.greenDistanceMeters != nil else { return t.watch.toGreenCenterUnavailableAria }
+        return t.watch.toGreenCenterAria("\(greenDistanceValue) \(unitLabel)")
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 6) {
-                holeNavRow
+        VStack(spacing: 2) {
+            holeNavRow
 
-                if let greenDistanceLabel {
-                    greenDistanceRow(greenDistanceLabel)
-                }
+            Text(parLabel)
+                .font(DSFont.labelMD)
+                .foregroundStyle(WatchColor.textSecondary)
 
-                Text("\(viewModel.shotCount)")
-                    .font(DSFont.headlineLG)
+            Spacer(minLength: 0)
+
+            VStack(spacing: 0) {
+                Text(greenDistanceValue)
+                    .font(DSFont.displayLG)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
                     .foregroundStyle(WatchColor.textPrimary)
-                    .accessibilityLabel(t.watch.shotsOnHoleAria(
-                        viewModel.shotCount, plural(viewModel.shotCount, viewModel.locale, t.watch.shotsWord)
-                    ))
-
-                shotButtonsRow
-                clubRow
-
-                if viewModel.currentHoleSyncFailed {
-                    syncFailedIndicator
-                } else if viewModel.pendingCount > 0 {
-                    pendingIndicator
-                }
+                Text(greenDistanceCaption)
+                    .font(DSFont.labelMD)
+                    .foregroundStyle(WatchColor.textSecondary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(greenDistanceAria)
+
+            Spacer(minLength: 0)
+
+            Rectangle()
+                .fill(WatchColor.textSecondary.opacity(0.25))
+                .frame(height: 1)
+                .padding(.horizontal, 4)
+
+            shotRow
+            clubRow
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WatchColor.background)
-        .navigationTitle(viewModel.snapshot?.courseName ?? "")
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPicker) {
             NavigationStack {
                 WatchClubPicker(
@@ -125,29 +129,33 @@ struct WatchHoleView: View {
         }
     }
 
+    /// «Пар N» — без общей дистанции лунки и без названия поля (оба
+    /// убраны по запросу владельца: имя курса нигде на этом экране не
+    /// показывается, а место, которое занимала строка «Пар • дистанция»,
+    /// теперь отдано под дистанцию до центра грина).
+    private var parLabel: String {
+        guard let par = viewModel.currentHole?.par else { return "" }
+        return "\(t.common.par) \(par)"
+    }
+
     private var holeNavRow: some View {
         HStack {
             Button {
                 viewModel.previousHole()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
             }
             .buttonStyle(.plain)
             .foregroundStyle(viewModel.holeNumber <= 1 ? WatchColor.textSecondary : WatchColor.accent)
             .disabled(viewModel.holeNumber <= 1)
-            .frame(width: 44, height: 44)
+            .frame(width: 32, height: 32)
 
             Spacer(minLength: 0)
 
-            VStack(spacing: 1) {
-                Text(t.holeTracker.holeTitleNoTotal(viewModel.holeNumber))
-                    .font(DSFont.titleLG)
-                    .foregroundStyle(WatchColor.textPrimary)
-                Text(holeSubtitle)
-                    .font(DSFont.labelMD)
-                    .foregroundStyle(WatchColor.textSecondary)
-            }
+            Text(t.holeTracker.holeTitleNoTotal(viewModel.holeNumber))
+                .font(DSFont.labelLG)
+                .foregroundStyle(WatchColor.textPrimary)
 
             Spacer(minLength: 0)
 
@@ -155,23 +163,27 @@ struct WatchHoleView: View {
                 viewModel.nextHole()
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
             }
             .buttonStyle(.plain)
             .foregroundStyle(viewModel.holeNumber >= totalHoles ? WatchColor.textSecondary : WatchColor.accent)
             .disabled(viewModel.holeNumber >= totalHoles)
-            .frame(width: 44, height: 44)
+            .frame(width: 32, height: 32)
         }
     }
 
-    private var shotButtonsRow: some View {
-        HStack(spacing: 20) {
+    /// Счёт лунки МЕЖДУ кнопками ⊖/⊕ (не отдельной строкой сверху, как
+    /// раньше) — экономит целую строку высоты, требование владельца.
+    /// Подпись «ударов»/«shots» под числом убрана (избыточна рядом с
+    /// самими кнопками) — счёт озвучивается только через accessibilityLabel.
+    private var shotRow: some View {
+        HStack(spacing: 12) {
             Button {
                 viewModel.removeShot()
             } label: {
                 Image(systemName: "minus")
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(width: 46, height: 46)
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: DS.touchTarget, height: DS.touchTarget)
                     .background(WatchColor.textSecondary.opacity(0.2), in: Circle())
                     .foregroundStyle(WatchColor.textPrimary)
             }
@@ -183,12 +195,21 @@ struct WatchHoleView: View {
             .disabled(viewModel.pendingClubs.isEmpty)
             .accessibilityLabel(t.watch.removeShotAria)
 
+            Text("\(viewModel.shotCount)")
+                .font(DSFont.headlineMD)
+                .monospacedDigit()
+                .frame(minWidth: 30)
+                .foregroundStyle(WatchColor.textPrimary)
+                .accessibilityLabel(t.watch.shotsOnHoleAria(
+                    viewModel.shotCount, plural(viewModel.shotCount, viewModel.locale, t.watch.shotsWord)
+                ))
+
             Button {
                 viewModel.addShot()
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(width: 52, height: 52)
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: DS.touchTarget, height: DS.touchTarget)
                     .background(DSColor.primary, in: Circle())
                     .foregroundStyle(DSColor.onPrimary)
             }
@@ -196,66 +217,62 @@ struct WatchHoleView: View {
             .disabled(viewModel.clubs.isEmpty)
             .accessibilityLabel(t.watch.addShotAria)
         }
+        .frame(maxWidth: .infinity)
     }
 
+    /// Строка клюшки несёт и индикатор синхронизации — компактная точка/
+    /// иконка ВНУТРИ существующей строки (не отдельной строкой) экономит
+    /// вертикальное место, при этом индикатор остаётся видимым, как
+    /// требует владелец. Приоритет: окончательный отказ синхронизации >
+    /// «не синхронизировано» (не одновременно — тот же приоритет, что был
+    /// у прежних полноразмерных индикаторов).
     private var clubRow: some View {
         Button {
             showPicker = true
         } label: {
-            HStack {
+            HStack(spacing: 6) {
                 Image(systemName: "figure.golf")
                     .foregroundStyle(WatchColor.accent)
                 Text(viewModel.selectedClub ?? t.common.missingCustomClub)
                     .font(DSFont.labelLG)
                     .foregroundStyle(WatchColor.textPrimary)
-                Spacer()
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                syncStatusDot
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12))
                     .foregroundStyle(WatchColor.textSecondary)
             }
             .padding(.horizontal, 10)
-            .frame(minHeight: 44)
+            .frame(minHeight: DS.touchTarget)
             .background(WatchColor.textSecondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(clubRowAccessibilityLabel)
     }
 
-    private func greenDistanceRow(_ label: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "flag.checkered")
-                .font(.system(size: 11))
-            Text(t.holeTracker.toGreen(label))
-                .font(DSFont.labelMD)
-                .monospacedDigit()
-        }
-        .foregroundStyle(WatchColor.textSecondary)
-        .accessibilityLabel(t.holeTracker.toGreen(label))
-    }
-
-    private var pendingIndicator: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 11))
-            Text(t.watch.notSynced(viewModel.pendingCount))
-                .font(DSFont.labelMD)
-        }
-        .foregroundStyle(WatchColor.pending)
-    }
-
-    /// Fix 3, живое ревью Task 4: сервер ОКОНЧАТЕЛЬНО отклонил попытку
-    /// синхронизации этой лунки (permanent error, повтор бессмысленен) —
-    /// явная ошибка вместо бесконечного «не синхронизировано». Уходит
-    /// сама при новой попытке (addShot/removeShot на лунке — см.
-    /// WatchRoundViewModel.syncQueue()).
-    private var syncFailedIndicator: some View {
-        HStack(spacing: 4) {
+    @ViewBuilder
+    private var syncStatusDot: some View {
+        if viewModel.currentHoleSyncFailed {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-            Text(t.watch.syncFailed)
-                .font(DSFont.labelMD)
+                .font(.system(size: 12))
+                .foregroundStyle(WatchColor.error)
+        } else if viewModel.pendingCount > 0 {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 12))
+                .foregroundStyle(WatchColor.pending)
         }
-        .foregroundStyle(WatchColor.error)
-        .accessibilityLabel(t.watch.syncFailedAria)
+    }
+
+    private var clubRowAccessibilityLabel: String {
+        let clubLabel = viewModel.selectedClub ?? t.common.missingCustomClub
+        if viewModel.currentHoleSyncFailed {
+            return "\(clubLabel). \(t.watch.syncFailedAria)"
+        }
+        if viewModel.pendingCount > 0 {
+            return "\(clubLabel). \(t.watch.notSynced(viewModel.pendingCount))"
+        }
+        return clubLabel
     }
 }
 
