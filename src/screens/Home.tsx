@@ -7,13 +7,13 @@ import type { Round } from '../types'
 import { Button } from '../components/ui/Button'
 import { BottomNav } from '../components/layout/BottomNav'
 import { computePlayerTotals } from '../services/scoring'
-import { pluralRu } from '../utils/intl'
+import { useT, plural, getDateFnsLocale } from '../i18n'
 import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
 
 export function Home() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t, locale } = useT()
   const [recentRounds, setRecentRounds] = useState<Round[]>([])
   const [activeRound, setActiveRound] = useState<Round | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -45,7 +45,7 @@ export function Home() {
   }, [user, reloadKey])
 
   function formatDate(round: Round) {
-    return format(round.createdAt, 'd MMM yyyy', { locale: ru })
+    return format(round.createdAt, 'd MMM yyyy', { locale: getDateFnsLocale(locale) })
   }
 
   function scoreSummary(round: Round, uid: string) {
@@ -55,7 +55,7 @@ export function Home() {
     return `${totalScore} (${sign}${scoreDiff})`
   }
 
-  const firstName = user?.displayName?.split(' ')[0] ?? 'Голфер'
+  const firstName = user?.displayName?.split(' ')[0] ?? t.home.fallbackName
 
   // Where "Продолжить" lands: a lobby round → its lobby; an active round →
   // the first hole the user hasn't recorded yet (where they left off), or the
@@ -71,18 +71,18 @@ export function Home() {
   }
 
   function resumeSubtitle(round: Round): string {
-    if (round.status === 'lobby') return 'Вернуться в лобби'
+    if (round.status === 'lobby') return t.home.returnToLobby
     const played = user
       ? round.holes.filter(h => (h.shots[user.uid]?.count ?? 0) > 0).length
       : 0
-    return `Пройдено ${played} из ${round.totalHoles}`
+    return t.home.playedOf(played, round.totalHoles)
   }
 
   return (
     <div className="screen pb-24">
       <div className="px-5 pt-10 pb-7 bg-gradient-to-br from-primary-container to-primary">
         <p className="text-on-primary/70 text-label-lg uppercase tracking-[0.18em] font-semibold">
-          Добро пожаловать
+          {t.home.welcome}
         </p>
         <h1 className="font-headline font-bold text-headline-lg text-on-primary mt-1 tracking-tight">
           {firstName}
@@ -101,7 +101,7 @@ export function Home() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-label-md text-primary font-semibold uppercase tracking-wider">
-                {activeRound.status === 'lobby' ? 'Лобби открыто' : 'Продолжить раунд'}
+                {activeRound.status === 'lobby' ? t.home.lobbyOpen : t.home.continueRound}
               </p>
               <p className="font-semibold text-body-md text-on-surface truncate">
                 {activeRound.courseName}
@@ -117,26 +117,26 @@ export function Home() {
 
       <div className="px-5 pt-6 space-y-3">
         <Button icon={Plus} onClick={() => navigate('/courses')}>
-          Начать новый раунд
+          {t.home.startNewRound}
         </Button>
         <Button variant="secondary" icon={Zap} onClick={() => navigate('/round/setup')}>
-          Быстрый старт без выбора поля
+          {t.home.quickStart}
         </Button>
         <Button variant="secondary" icon={Users} onClick={() => navigate('/join')}>
-          Присоединиться к игре
+          {t.home.joinGame}
         </Button>
       </div>
 
       {loadError && (
         <div className="px-5 mt-6">
           <div className="bg-error-container/40 border border-error/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-            <p className="text-label-lg text-on-surface">Не удалось загрузить раунды</p>
+            <p className="text-label-lg text-on-surface">{t.home.loadError}</p>
             <button
               type="button"
               onClick={() => setReloadKey(k => k + 1)}
               className="text-label-lg font-semibold text-primary underline-offset-4 hover:underline shrink-0"
             >
-              Повторить
+              {t.common.retry}
             </button>
           </div>
         </div>
@@ -146,14 +146,14 @@ export function Home() {
         <div className="px-5 mt-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-headline font-semibold text-title-lg text-on-surface tracking-tight">
-              Последние раунды
+              {t.home.recentRounds}
             </h2>
             <button
               type="button"
               onClick={() => navigate('/history')}
               className="text-label-lg text-primary font-semibold flex items-center gap-0.5"
             >
-              Все
+              {t.common.all}
               <ChevronRight size={16} strokeWidth={2} />
             </button>
           </div>
@@ -172,7 +172,7 @@ export function Home() {
                     </p>
                     <p className="text-label-md text-on-surface-variant mt-0.5">
                       {formatDate(round)} · {round.totalHoles}{' '}
-                      {pluralRu(round.totalHoles, 'лунка', 'лунки', 'лунок')}
+                      {plural(round.totalHoles, locale, t.common.holesWord)}
                     </p>
                   </div>
                   {user && (

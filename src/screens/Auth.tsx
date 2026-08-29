@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { signInWithGoogle } from '../services/auth'
+import { useT } from '../i18n'
 
 // Official 4-colour Google "G" mark — drop-in SVG, no external font.
 function GoogleGLogo({ className = '' }: { className?: string }) {
@@ -22,6 +23,7 @@ function GoogleGLogo({ className = '' }: { className?: string }) {
 export function Auth() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { t } = useT()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,15 +48,15 @@ export function Auth() {
         // User aborted on their own — not really an error
         setError(null)
       } else if (code === 'auth/popup-blocked') {
-        setError('Браузер заблокировал всплывающее окно. Разрешите всплывающие окна для этого сайта.')
+        setError(t.auth.errors.popupBlocked)
       } else if (code === 'auth/unauthorized-domain') {
-        setError('Этот домен не разрешён в Firebase Authentication. Добавьте его в Firebase Console → Authentication → Settings → Authorized domains.')
+        setError(t.auth.errors.unauthorizedDomain)
       } else if (code === 'auth/operation-not-allowed') {
-        setError('Вход через Google не включён в Firebase Console (Authentication → Sign-in method).')
+        setError(t.auth.errors.operationNotAllowed)
       } else if (code === 'auth/network-request-failed') {
-        setError('Нет связи с серверами Firebase. Проверьте интернет.')
+        setError(t.auth.errors.networkFailed)
       } else {
-        setError(`Ошибка входа${code ? ` (${code})` : ''}. ${detail || 'Попробуйте ещё раз.'}`)
+        setError(`${t.auth.errors.signInFailed(code)} ${detail || t.auth.errors.tryAgain}`)
       }
       console.error('[Auth] signInWithGoogle failed:', e)
     } finally {
@@ -73,7 +75,7 @@ export function Auth() {
             Smart<br />Golf Caddy
           </h1>
           <p className="text-on-primary/80 text-body-md max-w-[260px]">
-            Считайте удары, ведите статистику и играйте с друзьями — всё в одном месте.
+            {t.auth.subtitle}
           </p>
         </div>
       </div>
@@ -86,7 +88,7 @@ export function Auth() {
           className="w-full min-h-touch bg-surface-container-lowest border border-outline-variant/60 rounded-md flex items-center justify-center gap-3 px-6 font-headline font-semibold text-label-lg text-on-surface active:scale-[0.985] transition-transform disabled:opacity-40 shadow-card"
         >
           <GoogleGLogo className="w-5 h-5 shrink-0" />
-          {loading ? 'Вход...' : 'Войти через Google'}
+          {loading ? t.auth.signingIn : t.auth.signInWithGoogle}
         </button>
 
         {error && (
@@ -94,7 +96,7 @@ export function Auth() {
         )}
 
         <p className="text-center text-label-md text-on-surface-variant pt-2">
-          Продолжая, вы соглашаетесь с условиями использования
+          {t.auth.termsNotice}
         </p>
       </div>
     </div>
