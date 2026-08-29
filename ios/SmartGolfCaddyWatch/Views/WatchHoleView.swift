@@ -1,11 +1,11 @@
 // ios/SmartGolfCaddyWatch/Views/WatchHoleView.swift
-// Экран лунки на часах — распашка Garmin-стиля: дистанция до ЦЕНТРА
-// грина (не до флага — его переставляют ежедневно) главный элемент
-// экрана, номер лунки/пар мелкие подписи сверху. Запись удара и счёт
-// остаются на этом же экране компактно (в отличие от Garmin, где они
-// уведены в меню) — это ядро приложения. ВСЁ помещается на 41мм и 46мм
-// БЕЗ прокрутки — никакого ScrollView здесь быть не должно.
-// Никакого WatchConnectivity — только VM.
+// Экран лунки на часах — счёт ударов и выбранная клюшка ГЛАВНЫЕ элементы
+// экрана (дословно от владельца: «нам не нужны три цифры, нам нужно
+// просто до флажка, и всё. И главное — записывать удары и какие клюшки,
+// потому что это наша фишка»). Дистанция до грина — вспомогательная
+// строка сверху, не акцент. Номер лунки/пар — компактная строка над ней.
+// ВСЁ помещается на 41мм и 46мм БЕЗ прокрутки — никакого ScrollView здесь
+// быть не должно. Никакого WatchConnectivity — только VM.
 import SwiftUI
 
 struct WatchHoleView: View {
@@ -41,69 +41,62 @@ struct WatchHoleView: View {
     private var unitsYards: Bool { viewModel.snapshot?.units == .yd }
     private var unitLabel: String { unitsYards ? t.common.yardsShort : t.common.metersShort }
 
-    /// Крупное число — дистанция до ЦЕНТРА грина текущей лунки. «—» когда
-    /// метки грина для этой лунки в снимке нет ИЛИ GPS-фикс негоден
-    /// (устарел/неточен/отсутствует) — см. WatchRoundViewModel.greenDistanceMeters
-    /// (единый nil-путь для обоих случаев). НИКОГДА не «0» и не
-    /// устаревшее значение — задание владельца прямо это требует, т.к.
-    /// «—» в дистанции читается игроком как «сейчас недостоверно», а «0»
-    /// выглядело бы как реальный замер.
+    /// Числовое значение дистанции до грина — БЕЗ словесной подписи (Fix,
+    /// живое ревью task 6, второй заход: «убрать словесную подпись у
+    /// дистанции совсем и увеличить сами цифры» — слова «до грина»/«to
+    /// green» съедали строку и жались к краям на 41мм). На экране остаётся
+    /// только число + флажок (SF Symbol, общепринятое обозначение на
+    /// гольф-часах) + мелкая единица измерения. «—» вместо числа, когда
+    /// метки грина для лунки нет ИЛИ GPS-фикс негоден (устарел/неточен/
+    /// отсутствует — WatchRoundViewModel.greenDistanceMeters, единый
+    /// nil-путь для обоих случаев). НИКОГДА не «0» и не устаревшее
+    /// значение.
     private var greenDistanceValue: String {
         guard let meters = viewModel.greenDistanceMeters else { return "—" }
         let value = unitsYards ? Score.metersToYards(meters) : meters
         return "\(value)"
     }
 
-    /// Мелкая подпись под крупным числом: «м до центра грина» / «yd to
-    /// green center». Показывается ВСЕГДА (в отличие от прежней версии,
-    /// где вся строка пряталась при отсутствии метки грина) — теперь это
-    /// главный элемент экрана и его якорь не должен прыгать в зависимости
-    /// от того, размечено ли поле.
-    private var greenDistanceCaption: String { t.watch.toGreenCenterCaption(unitLabel) }
-
+    /// Полная фраза ТОЛЬКО для VoiceOver — на экране слов нет, но незрячему
+    /// пользователю нужно услышать смысл числа, а не голый «сто сорок два»
+    /// без единиц и назначения. Доступна и в состоянии «—»: `toGreen`
+    /// повторно используется здесь (число+юнит), а не на экране — поэтому
+    /// его НЕ следует удалять из словаря вместе с визуальной строкой.
     private var greenDistanceAria: String {
-        guard viewModel.greenDistanceMeters != nil else { return t.watch.toGreenCenterUnavailableAria }
-        return t.watch.toGreenCenterAria("\(greenDistanceValue) \(unitLabel)")
+        guard viewModel.greenDistanceMeters != nil else { return t.watch.distanceUnavailableAria }
+        return t.holeTracker.toGreen("\(greenDistanceValue) \(unitLabel)")
     }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
             holeNavRow
+            greenDistanceRow
 
-            Text(parLabel)
-                .font(DSFont.labelMD)
-                .foregroundStyle(WatchColor.textSecondary)
+            Divider().overlay(WatchColor.textSecondary.opacity(0.25))
 
-            Spacer(minLength: 0)
-
-            VStack(spacing: 0) {
-                Text(greenDistanceValue)
-                    .font(DSFont.displayLG)
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .foregroundStyle(WatchColor.textPrimary)
-                Text(greenDistanceCaption)
-                    .font(DSFont.labelMD)
-                    .foregroundStyle(WatchColor.textSecondary)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(greenDistanceAria)
-
-            Spacer(minLength: 0)
-
-            Rectangle()
-                .fill(WatchColor.textSecondary.opacity(0.25))
-                .frame(height: 1)
-                .padding(.horizontal, 4)
-
+            // Счёт — САМЫЙ крупный элемент экрана (Fix 1, живое ревью
+            // task 6): «нам не нужны три цифры... главное — записывать
+            // удары и какие клюшки». displayLG — самый большой токен
+            // DSFont, тот же, что раньше носила дистанция.
             shotRow
+
+            Divider().overlay(WatchColor.textSecondary.opacity(0.25))
+
             clubRow
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WatchColor.background)
+        // Пустой (не nil) title — на watchOS ДАЖЕ пустой title резервирует
+        // стандартную высоту-под-системные-часы у NavigationStack; без
+        // этого модификатора контент рендерится full-bleed и стрелка
+        // смены лунки наезжает на "8:58" в правом верхнем углу (Fix 3,
+        // живое ревью task 6, дефект на 41mm-pending-ru.png). Само имя
+        // курса всё равно не показывается — требование "убрать название
+        // поля" по-прежнему выполнено, тут нет текста вообще.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPicker) {
             NavigationStack {
                 WatchClubPicker(
@@ -129,55 +122,82 @@ struct WatchHoleView: View {
         }
     }
 
-    /// «Пар N» — без общей дистанции лунки и без названия поля (оба
-    /// убраны по запросу владельца: имя курса нигде на этом экране не
-    /// показывается, а место, которое занимала строка «Пар • дистанция»,
-    /// теперь отдано под дистанцию до центра грина).
-    private var parLabel: String {
-        guard let par = viewModel.currentHole?.par else { return "" }
-        return "\(t.common.par) \(par)"
+    /// «‹ Лунка 3 › Пар 4» — одна компактная строка: номер лунки со
+    /// стрелками навигации + пар. Никакой отдельной строки под неё и
+    /// никакого названия поля (оба явно убраны по запросу владельца).
+    private var holeAndParLabel: String {
+        let holeTitle = t.holeTracker.holeTitleNoTotal(viewModel.holeNumber)
+        guard let par = viewModel.currentHole?.par else { return holeTitle }
+        return "\(holeTitle) · \(t.common.par) \(par)"
     }
 
     private var holeNavRow: some View {
-        HStack {
+        HStack(spacing: 2) {
             Button {
                 viewModel.previousHole()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             }
             .buttonStyle(.plain)
             .foregroundStyle(viewModel.holeNumber <= 1 ? WatchColor.textSecondary : WatchColor.accent)
             .disabled(viewModel.holeNumber <= 1)
-            .frame(width: 32, height: 32)
+            .frame(width: 28, height: 28)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 2)
 
-            Text(t.holeTracker.holeTitleNoTotal(viewModel.holeNumber))
+            Text(holeAndParLabel)
                 .font(DSFont.labelLG)
                 .foregroundStyle(WatchColor.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 2)
 
             Button {
                 viewModel.nextHole()
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             }
             .buttonStyle(.plain)
             .foregroundStyle(viewModel.holeNumber >= totalHoles ? WatchColor.textSecondary : WatchColor.accent)
             .disabled(viewModel.holeNumber >= totalHoles)
-            .frame(width: 32, height: 32)
+            .frame(width: 28, height: 28)
         }
     }
 
-    /// Счёт лунки МЕЖДУ кнопками ⊖/⊕ (не отдельной строкой сверху, как
-    /// раньше) — экономит целую строку высоты, требование владельца.
-    /// Подпись «ударов»/«shots» под числом убрана (избыточна рядом с
-    /// самими кнопками) — счёт озвучивается только через accessibilityLabel.
+    /// Флажок (мелко) + крупное число + мелкая единица измерения — БЕЗ
+    /// слов. Флажок сам по себе однозначно читается как «дистанция до
+    /// грина» на гольф-часах (тот же язык, что у Garmin), поэтому текстовая
+    /// подпись избыточна и убрана целиком (Fix, живое ревью task 6, второй
+    /// заход). Единица измерения остаётся — без неё число неоднозначно
+    /// (метры/ярды берутся из настроек пользователя).
+    private var greenDistanceRow: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flag.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(WatchColor.textSecondary)
+            Text(greenDistanceValue)
+                .font(DSFont.headlineLG)
+                .monospacedDigit()
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .foregroundStyle(WatchColor.textPrimary)
+            Text(unitLabel)
+                .font(DSFont.labelMD)
+                .foregroundStyle(WatchColor.textSecondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(greenDistanceAria)
+    }
+
+    /// Счёт лунки МЕЖДУ кнопками ⊖/⊕ — самый крупный элемент экрана
+    /// (Fix 1, живое ревью task 6). Подпись «ударов»/«shots» под числом
+    /// не нужна (избыточна рядом с самими кнопками) — счёт озвучивается
+    /// только через accessibilityLabel.
     private var shotRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Button {
                 viewModel.removeShot()
             } label: {
@@ -196,9 +216,11 @@ struct WatchHoleView: View {
             .accessibilityLabel(t.watch.removeShotAria)
 
             Text("\(viewModel.shotCount)")
-                .font(DSFont.headlineMD)
+                .font(DSFont.displayLG)
                 .monospacedDigit()
-                .frame(minWidth: 30)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .frame(minWidth: 46)
                 .foregroundStyle(WatchColor.textPrimary)
                 .accessibilityLabel(t.watch.shotsOnHoleAria(
                     viewModel.shotCount, plural(viewModel.shotCount, viewModel.locale, t.watch.shotsWord)
@@ -220,31 +242,36 @@ struct WatchHoleView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Строка клюшки несёт и индикатор синхронизации — компактная точка/
-    /// иконка ВНУТРИ существующей строки (не отдельной строкой) экономит
-    /// вертикальное место, при этом индикатор остаётся видимым, как
-    /// требует владелец. Приоритет: окончательный отказ синхронизации >
-    /// «не синхронизировано» (не одновременно — тот же приоритет, что был
-    /// у прежних полноразмерных индикаторов).
+    /// Строка клюшки — второй по значимости элемент экрана (Fix 1, живое
+    /// ревью task 6): «какими клюшками» — суть продукта, название должно
+    /// быть видно и хорошо читаться, крупнее прежнего лейбла. Плейсхолдер
+    /// (`common.missingCustomClub`) — ТОЛЬКО пока выбора вообще не было
+    /// (`selectedClub == nil`); как только игрок выбрал клюшку (в пикере
+    /// или как дефолт addShot() зафиксировал явным выбором), здесь стоит
+    /// её реальное название. Несёт и индикатор синхронизации — компактная
+    /// иконка ВНУТРИ строки (не отдельной строкой) экономит вертикальное
+    /// место, при этом остаётся видимой, как требует владелец.
     private var clubRow: some View {
         Button {
             showPicker = true
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "figure.golf")
+                    .font(.system(size: 16))
                     .foregroundStyle(WatchColor.accent)
                 Text(viewModel.selectedClub ?? t.common.missingCustomClub)
-                    .font(DSFont.labelLG)
+                    .font(DSFont.headlineMD)
                     .foregroundStyle(WatchColor.textPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer(minLength: 4)
                 syncStatusDot
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundStyle(WatchColor.textSecondary)
             }
             .padding(.horizontal, 10)
-            .frame(minHeight: DS.touchTarget)
+            .frame(maxWidth: .infinity, minHeight: DS.touchTarget)
             .background(WatchColor.textSecondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
@@ -255,11 +282,11 @@ struct WatchHoleView: View {
     private var syncStatusDot: some View {
         if viewModel.currentHoleSyncFailed {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(WatchColor.error)
         } else if viewModel.pendingCount > 0 {
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(WatchColor.pending)
         }
     }

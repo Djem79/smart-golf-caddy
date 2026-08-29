@@ -198,8 +198,16 @@ struct WatchRootView: View {
             // cleared first every time.
             let queue = WatchShotQueue.shared
             queue.enqueue(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, clubs: [])
+            viewModel?.selectedClub = nil
             if args.contains("-watchPreviewPending") {
-                queue.enqueue(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, clubs: ["Driver"])
+                // "7 Iron" (не безымянный дефолт) — Fix 1, живое ревью task 6:
+                // владелец явно требует, чтобы выбранная клюшка была ВИДНА на
+                // скриншоте «счёт > 0», а не оставалась плейсхолдером. В
+                // реальном флоу selectedClub выставляет пикер (WatchClubPicker);
+                // здесь эмулируем тот же результат для детерминированного
+                // скриншот-доказательства.
+                queue.enqueue(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, clubs: ["7 Iron"])
+                viewModel?.selectedClub = "7 Iron"
             }
             if args.contains("-watchPreviewSyncFailed") {
                 queue.markConfirmed(roundId: fixture.roundId, holeNumber: fixture.activeHoleNumber, acceptedCount: 0, accepted: false)
