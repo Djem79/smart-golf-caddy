@@ -2,6 +2,8 @@
 // the web app's `src/types/index.ts` to avoid pulling its Firebase deps
 // into the Functions bundle.
 
+import type { Dictionary } from '../i18n'
+
 export type ScoreCategory =
   | 'eagle'
   | 'birdie'
@@ -71,14 +73,19 @@ export function categorize(diff: number | null): ScoreCategory {
   return 'worse'
 }
 
-export function categoryLabel(cat: ScoreCategory): string {
+// 'Eagle'/'Birdie'/'Par'/'Bogey'/'Double' are golf jargon kept verbatim in
+// both locales — same choice web already makes (src/types/index.ts
+// scoreLabel returns the same English words for a Russian UI). Only
+// 'worse' (diff >= 3, no single conventional term) and 'empty' need actual
+// translation, hence the dictionary param.
+export function categoryLabel(cat: ScoreCategory, t: Dictionary): string {
   switch (cat) {
     case 'eagle':  return 'Eagle'
     case 'birdie': return 'Birdie'
     case 'par':    return 'Par'
     case 'bogey':  return 'Bogey'
     case 'double': return 'Double'
-    case 'worse':  return 'Хуже'
+    case 'worse':  return t.worseLabel
     case 'empty':  return '—'
   }
 }

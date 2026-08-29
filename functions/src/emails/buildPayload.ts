@@ -1,5 +1,5 @@
 import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { ru as ruDateFnsLocale, enUS as enDateFnsLocale } from 'date-fns/locale'
 import {
   categorize,
   type EmailClubStat,
@@ -7,6 +7,7 @@ import {
   type MatchPlayInfo,
   type RoundSummaryPayload,
 } from './types'
+import { getDictionary, type Dictionary, type Locale } from '../i18n'
 
 // Minimal shape we need from the Firestore Round document. Kept loose
 // because Functions read raw maps and we don't want a hard schema coupling.
@@ -45,14 +46,37 @@ const CLUB_ABBREV: Record<string, string> = {
 // «Неизвестно».
 const PENALTY_ID = 'Штраф'
 
-function resolveClubLabel(clubId: string, bag: BagClubLite[] | undefined): string {
+// The exact literal deleteAccount() (functions/src/index.ts) writes into
+// players.{uid}.name when anonymising a departed group-round participant.
+// Exported and imported back into index.ts so the string lives in exactly
+// one place instead of being duplicated across the write site and this
+// read site (the same discipline CLAUDE.md already calls for on
+// CLUB_ABBREV). See localizeDeletedName() below for why the stored value
+// itself is never migrated to a locale-neutral marker: emails are the only
+// surface this task owns, and translating the known literal at render time
+// gets recipients a localized email without touching stored data or the
+// web/iOS display code that also reads this field verbatim.
+export const DELETED_PLAYER_NAME = 'Удалённый игрок'
+
+// Swaps the deleted-player literal for its localized form; passes any other
+// name through unchanged (including `undefined`, so callers can still
+// apply their own fallback — see playerName/leaderName below).
+function localizeDeletedName(name: string | undefined, t: Dictionary): string | undefined {
+  return name === DELETED_PLAYER_NAME ? t.deletedPlayerName : name
+}
+
+function resolveClubLabel(clubId: string, bag: BagClubLite[] | undefined, t: Dictionary): string {
   if (CLUB_ABBREV[clubId]) return CLUB_ABBREV[clubId]
   if (bag) {
     const found = bag.find(c => c.id === clubId)
     if (found?.customName && found.customName.trim().length > 0) return found.customName.trim()
   }
-  if (clubId.startsWith('custom-')) return 'Клюшка'
+  if (clubId.startsWith('custom-')) return t.clubFallback
   return clubId
+}
+
+function dateFnsLocaleFor(locale: Locale) {
+  return locale === 'ru' ? ruDateFnsLocale : enDateFnsLocale
 }
 
 function toDate(v: unknown): Date {
@@ -99,6 +123,7 @@ function topClubs(
   round: RoundLike,
   uid: string,
   bag: BagClubLite[] | undefined,
+  t: Dictionary,
   limit = 3,
 ): EmailClubStat[] {
   // Count by canonical/custom id first, then resolve labels at the end so
@@ -115,7 +140,7 @@ function topClubs(
   if (total === 0) return []
   return Array.from(counts.entries())
     .map(([clubId, count]) => ({
-      club: resolveClubLabel(clubId, bag),
+      club: resolveClubLabel(clubId, bag, t),
       count,
       percent: Math.round((count / total) * 100),
     }))
@@ -123,7 +148,7 @@ function topClubs(
     .slice(0, limit)
 }
 
-function matchInfo(round: RoundLike): MatchPlayInfo | null {
+function matchInfo(round: RoundLike, t: Dictionary): MatchPlayInfo | null {
   if (round.playMode !== 'match' || round.playerIds.length !== 2) return null
   const [a, b] = round.playerIds
   let aUp = 0
@@ -153,19 +178,28 @@ function matchInfo(round: RoundLike): MatchPlayInfo | null {
   }
   return {
     label,
-    leaderName: leaderUid ? round.players[leaderUid]?.name ?? null : null,
+    leaderName: leaderUid ? localizeDeletedName(round.players[leaderUid]?.name, t) ?? null : null,
     closed,
     holesPlayed: played,
     holesRemaining: remaining,
   }
 }
 
+// Renders one recipient's payload in one locale. Called once per recipient
+// (never once for the whole round) — a group round can mix locales, so
+// buildPayload/RoundSummary are always invoked per-uid with that uid's own
+// resolved locale (see resolveUserLocale + the onRoundFinished/
+// shareRoundByEmail loops in ../index.ts). `locale` drives both the date
+// formatting and every translated string (fallback player name, deleted-
+// player name, custom-club fallback).
 export function buildPayload(
   round: RoundLike,
   uid: string,
   bag: BagClubLite[] | undefined,
+  locale: Locale,
   appBaseUrl = 'https://smart-golf-caddy.web.app',
 ): RoundSummaryPayload {
+  const t = getDictionary(locale)
   const player = round.players[uid]
   const scorecard = buildScorecard(round, uid)
   const holesPlayedByMe = scorecard.filter(r => r.score != null).length
@@ -177,9 +211,9 @@ export function buildPayload(
   const dateSource = toDate(round.finishedAt) || toDate(round.createdAt)
 
   return {
-    playerName: player?.name ?? 'Игрок',
+    playerName: localizeDeletedName(player?.name, t) ?? t.playerFallback,
     courseName: round.courseName,
-    dateLabel: format(dateSource, 'd MMMM yyyy', { locale: ru }),
+    dateLabel: format(dateSource, 'd MMMM yyyy', { locale: dateFnsLocaleFor(locale) }),
     totalHoles: round.totalHoles,
     holesPlayedByMe,
     totalScore,
@@ -187,8 +221,18 @@ export function buildPayload(
     scoreDiff: totalScore - totalPar,
     bestHole: bestHole(scorecard),
     scorecard,
-    topClubs: topClubs(round, uid, bag),
-    match: matchInfo(round),
+    topClubs: topClubs(round, uid, bag, t),
+    match: matchInfo(round, t),
     resultsUrl: `${appBaseUrl}/round/${round.id}/results`,
   }
+}
+
+// Subject line, localized the same way as the body. Split out from the
+// caller in ../index.ts purely so it's unit-testable without going through
+// Resend/render().
+export function buildSubject(payload: RoundSummaryPayload, locale: Locale): string {
+  const t = getDictionary(locale)
+  const diffLabel =
+    payload.scoreDiff === 0 ? '(E)' : payload.scoreDiff > 0 ? `(+${payload.scoreDiff})` : `(${payload.scoreDiff})`
+  return `${t.title}: ${payload.courseName} — ${payload.totalScore || '—'} ${diffLabel}`
 }

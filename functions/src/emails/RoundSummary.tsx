@@ -19,6 +19,7 @@ import {
   PILL_COLORS,
   type RoundSummaryPayload,
 } from './types'
+import { getDictionary, plural, type Locale } from '../i18n'
 
 const FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -34,9 +35,15 @@ const AGGREGATE_BG = '#F4F4F4'
 
 interface Props {
   data: RoundSummaryPayload
+  // Recipient's own locale (users/{uid}.locale, resolved server-side by the
+  // caller in ../index.ts — see resolveUserLocale). One RoundSummary render
+  // = one recipient = one locale; a group round with mixed languages means
+  // separate render calls, never a single render shared across recipients.
+  locale: Locale
 }
 
-export function RoundSummary({ data }: Props): React.ReactElement {
+export function RoundSummary({ data, locale }: Props): React.ReactElement {
+  const t = getDictionary(locale)
   const {
     playerName,
     courseName,
@@ -53,13 +60,14 @@ export function RoundSummary({ data }: Props): React.ReactElement {
   } = data
 
   const previewText = `${courseName} · ${totalScore} (${formatDiff(scoreDiff)})`
+  const holesWord = plural(totalHoles, locale, t.holesWord)
 
   // Split into front-9 / back-9 for an 18-hole layout; 9-hole rounds stay single.
   const front = scorecard.slice(0, 9)
   const back = scorecard.length > 9 ? scorecard.slice(9, 18) : []
 
   return (
-    <Html lang="ru">
+    <Html lang={locale}>
       <Head />
       <Preview>{previewText}</Preview>
       <Body style={{ backgroundColor: PAGE_BG, margin: 0, padding: 0, fontFamily: FONT_STACK }}>
@@ -101,7 +109,7 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                 letterSpacing: '-0.01em',
               }}
             >
-              Итоги раунда
+              {t.title}
             </Heading>
           </Section>
 
@@ -117,7 +125,7 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                 margin: 0,
               }}
             >
-              {dateLabel} · {totalHoles} лунок
+              {dateLabel} · {totalHoles} {holesWord}
             </Text>
             <Heading
               as="h2"
@@ -159,11 +167,11 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                   {formatDiff(scoreDiff)}
                 </Text>
                 <Text style={{ color: TEXT, fontSize: '14px', margin: '4px 0 0' }}>
-                  Удары: <strong>{totalScore || '—'}</strong>
+                  {t.strokes}: <strong>{totalScore || '—'}</strong>
                   {holesPlayedByMe < totalHoles && (
                     <span style={{ color: MUTED }}>
                       {' · '}
-                      {holesPlayedByMe}/{totalHoles} лунок
+                      {holesPlayedByMe}/{totalHoles} {holesWord}
                     </span>
                   )}
                 </Text>
@@ -205,7 +213,7 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                 {match.label}
               </Text>
               <Text style={{ color: TEXT, fontSize: '14px', margin: '2px 0 0' }}>
-                {match.leaderName ? `Победитель: ${match.leaderName}` : 'Игроки на равных'}
+                {match.leaderName ? `${t.winner}: ${match.leaderName}` : t.playersEven}
               </Text>
             </Section>
           )}
@@ -222,13 +230,13 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                 letterSpacing: '-0.005em',
               }}
             >
-              Карта счёта
+              {t.scorecardTitle}
             </Heading>
-            <Scorecard rows={front} aggregateLabel={back.length > 0 ? 'OUT' : 'TOTAL'} />
+            <Scorecard rows={front} aggregateLabel={back.length > 0 ? 'OUT' : 'TOTAL'} t={t} />
             {back.length > 0 && (
               <>
                 <div style={{ height: '8px' }} />
-                <Scorecard rows={back} aggregateLabel="IN" />
+                <Scorecard rows={back} aggregateLabel="IN" t={t} />
               </>
             )}
           </Section>
@@ -254,14 +262,14 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                     margin: 0,
                   }}
                 >
-                  Лучшая лунка
+                  {t.bestHoleTitle}
                 </Text>
                 <Text style={{ color: TEXT, fontSize: '15px', margin: '4px 0 0' }}>
                   <strong>№{bestHole.hole}</strong>
                   {' · '}
-                  {categoryLabel(bestHole.category)} на пар {bestHole.par}
+                  {categoryLabel(bestHole.category, t)} {t.onPar} {bestHole.par}
                   {' · '}
-                  {bestHole.score} удар{getStrokeSuffix(bestHole.score ?? 0)}
+                  {bestHole.score} {plural(bestHole.score ?? 0, locale, t.shotsWord)}
                 </Text>
               </div>
             </Section>
@@ -280,7 +288,7 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                   letterSpacing: '-0.005em',
                 }}
               >
-                Любимые клюшки
+                {t.favoriteClubsTitle}
               </Heading>
               {topClubs.map(club => (
                 <Row key={club.club} style={{ marginBottom: '6px' }}>
@@ -316,7 +324,7 @@ export function RoundSummary({ data }: Props): React.ReactElement {
                 textAlign: 'center',
               }}
             >
-              Открыть полные итоги
+              {t.ctaButton}
             </Button>
           </Section>
 
@@ -324,7 +332,7 @@ export function RoundSummary({ data }: Props): React.ReactElement {
           <Hr style={{ borderColor: BORDER + '40', margin: 0 }} />
           <Section style={{ padding: '20px 28px', textAlign: 'center' }}>
             <Text style={{ color: MUTED, fontSize: '11px', margin: 0 }}>
-              Это автоматическое письмо. Smart Golf Caddy · smart-golf-caddy.web.app
+              {t.footer}
             </Text>
           </Section>
         </Container>
@@ -333,21 +341,13 @@ export function RoundSummary({ data }: Props): React.ReactElement {
   )
 }
 
-function getStrokeSuffix(n: number): string {
-  // Russian plural for "удар"
-  const mod10 = n % 10
-  const mod100 = n % 100
-  if (mod10 === 1 && mod100 !== 11) return ''
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'а'
-  return 'ов'
-}
-
 interface ScorecardProps {
   rows: import('./types').EmailHoleRow[]
   aggregateLabel: 'OUT' | 'IN' | 'TOTAL'
+  t: ReturnType<typeof getDictionary>
 }
 
-function Scorecard({ rows, aggregateLabel }: ScorecardProps): React.ReactElement {
+function Scorecard({ rows, aggregateLabel, t }: ScorecardProps): React.ReactElement {
   const sumScore = rows.reduce((s, r) => s + (r.score ?? 0), 0)
   const sumPar = rows.reduce((s, r) => s + r.par, 0)
   const totalDiff = sumScore - sumPar
@@ -385,7 +385,7 @@ function Scorecard({ rows, aggregateLabel }: ScorecardProps): React.ReactElement
           <td style={cellAggregate('center', MUTED)}>{sumPar}</td>
         </tr>
         <tr>
-          <td style={cell('left', TEXT, true)}>Удары</td>
+          <td style={cell('left', TEXT, true)}>{t.strokes}</td>
           {rows.map(r => {
             const pill = PILL_COLORS[r.category]
             return (
@@ -509,5 +509,5 @@ export default function PreviewExample(): React.ReactElement {
     match: null,
     resultsUrl: 'https://smart-golf-caddy.web.app/round/preview/results',
   }
-  return <RoundSummary data={sample} />
+  return <RoundSummary data={sample} locale="ru" />
 }

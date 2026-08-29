@@ -11,7 +11,9 @@ import { Resend } from 'resend'
 import * as React from 'react'
 
 import { RoundSummary } from './emails/RoundSummary'
-import { buildPayload, type BagClubLite, type RoundLike } from './emails/buildPayload'
+import { buildPayload, buildSubject, DELETED_PLAYER_NAME, type BagClubLite, type RoundLike } from './emails/buildPayload'
+import { findRecipientUid } from './emails/recipient'
+import { resolveLocale, type Locale } from './i18n'
 import type { ZodType } from 'zod'
 import {
   RecordShotInput,
@@ -67,6 +69,29 @@ async function resolveBag(uid: string): Promise<BagClubLite[] | undefined> {
   }
 }
 
+// Round-summary emails render on the RECIPIENT's own language, not the
+// sender's or the host's — a group round can freely mix players who picked
+// different locales. `uid` here is always the recipient, which for
+// onRoundFinished is the player themself, but for shareRoundByEmail is
+// resolved separately via findRecipientUid() since that callable lets a
+// user forward their OWN round summary to someone else's inbox. Kept as a
+// standalone read (not merged into resolveBag's users/{uid} read) because
+// the two calls can legitimately target different uids in that case.
+// Missing profile / missing field / unexpected value all fall back to
+// Russian — resolveLocale() encodes that default — so existing accounts
+// that predate the `locale` field see no change in behaviour.
+async function resolveUserLocale(uid: string): Promise<Locale> {
+  try {
+    const snap = await getFirestore().doc(`users/${uid}`).get()
+    if (!snap.exists) return 'ru'
+    const data = snap.data() as { locale?: unknown } | undefined
+    return resolveLocale(data?.locale)
+  } catch (e) {
+    logger.warn('Locale lookup failed for user', { uid, error: e instanceof Error ? e.message : 'unknown' })
+    return 'ru'
+  }
+}
+
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY')
 
 // Default sender. Works only in Resend's dev mode (mails go to the account
@@ -85,6 +110,7 @@ async function sendOneRoundEmail(
   resend: Resend,
   round: RoundLike,
   uid: string,
+  locale: Locale,
   toOverride?: string,
 ): Promise<SendResult> {
   const recipient = toOverride ?? (await resolveEmail(round, uid))
@@ -93,14 +119,12 @@ async function sendOneRoundEmail(
   }
 
   const bag = await resolveBag(uid)
-  const payload = buildPayload(round, uid, bag, APP_BASE_URL)
-  const element = React.createElement(RoundSummary, { data: payload })
+  const payload = buildPayload(round, uid, bag, locale, APP_BASE_URL)
+  const element = React.createElement(RoundSummary, { data: payload, locale })
   const html = await render(element)
   const text = await render(element, { plainText: true })
 
-  const subject = `${round.courseName} — ${payload.totalScore || '—'} ${
-    payload.scoreDiff === 0 ? '(E)' : payload.scoreDiff > 0 ? `(+${payload.scoreDiff})` : `(${payload.scoreDiff})`
-  }`
+  const subject = buildSubject(payload, locale)
 
   const from = process.env.MAIL_FROM || DEFAULT_FROM
 
@@ -226,7 +250,8 @@ export const onRoundFinished = onDocumentUpdated(
         results.push({ uid, email: '', ok: false, reason: 'daily auto-email cap reached' })
         continue
       }
-      const r = await sendOneRoundEmail(resend, round, uid)
+      const locale = await resolveUserLocale(uid)
+      const r = await sendOneRoundEmail(resend, round, uid, locale)
       results.push({ ...r, email: r.email ? redactEmail(r.email) : '' })
       if (r.ok) emailedTo[uid] = true
     }
@@ -526,7 +551,17 @@ export const shareRoundByEmail = onCall(
     const round: RoundLike = { ...data, id: roundId }
     const resend = new Resend(RESEND_API_KEY.value())
 
-    const result = await sendOneRoundEmail(resend, round, request.auth.uid, cleanEmail)
+    // The email always describes the CALLER's own round performance, but
+    // may be delivered to a different participant's inbox (forwarding your
+    // own summary) — so the language is that recipient's, resolved by
+    // matching cleanEmail back to a uid via findRecipientUid(). No match
+    // (shouldn't happen given the allow-list check above, but Firestore
+    // data can always surprise) falls back to Russian, same as a missing
+    // `locale` field.
+    const recipientUid = findRecipientUid(round, request.auth.uid, callerEmail, cleanEmail)
+    const locale = recipientUid ? await resolveUserLocale(recipientUid) : 'ru'
+
+    const result = await sendOneRoundEmail(resend, round, request.auth.uid, locale, cleanEmail)
     if (!result.ok) {
       throw new HttpsError('internal', result.reason ?? 'Не удалось отправить письмо')
     }
@@ -615,7 +650,12 @@ export const deleteAccount = onCall(
       }
 
       const patch: Record<string, unknown> = {
-        [`players.${uid}.name`]: 'Удалённый игрок',
+        // Stored as the Russian literal on purpose, unconditionally — see
+        // DELETED_PLAYER_NAME in emails/buildPayload.ts for why. Emails
+        // localize it at render time; web/iOS display it verbatim (both
+        // out of scope here, and both actively being worked on elsewhere),
+        // so the stored value must stay exactly what it always was.
+        [`players.${uid}.name`]: DELETED_PLAYER_NAME,
         [`players.${uid}.avatar`]: '',
         [`players.${uid}.email`]: FieldValue.delete(),
       }
