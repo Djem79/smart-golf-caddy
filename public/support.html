@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Поддержка — Smart Golf Caddy</title>
+<title>Support — Smart Golf Caddy</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -41,8 +41,8 @@
   header.hero {
     background: linear-gradient(160deg, var(--primary) 0%, var(--primary-container) 100%);
     color: var(--on-primary);
-    padding: 40px 20px 32px;
-    margin-bottom: 32px;
+    padding: 48px 20px 40px;
+    margin-bottom: 40px;
   }
   header.hero .hero-inner {
     max-width: 680px;
@@ -55,14 +55,14 @@
     font-weight: 700;
     font-size: 18px;
     letter-spacing: 0.02em;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
   .brand svg { flex: none; }
   h1 {
-    font-size: clamp(26px, 6vw, 34px);
+    font-size: clamp(28px, 6vw, 36px);
     line-height: 1.2;
     font-weight: 700;
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     letter-spacing: -0.01em;
   }
   .subtitle {
@@ -70,29 +70,16 @@
     opacity: 0.88;
     margin: 0;
   }
-  .lang-switch {
-    margin: 0 0 28px;
-    font-size: 14px;
-  }
-  .lang-switch a {
-    color: var(--primary);
-    text-decoration: none;
-    border-bottom: 1px solid var(--outline-variant);
-  }
-  .lang-switch a:hover { border-bottom-color: var(--primary); }
-  section.lang-block {
-    scroll-margin-top: 16px;
-  }
   h2 {
-    font-size: 21px;
+    font-size: 22px;
     font-weight: 700;
     color: var(--primary);
-    margin: 36px 0 12px;
+    margin: 40px 0 14px;
     letter-spacing: -0.005em;
   }
   h2:first-of-type { margin-top: 8px; }
   h3 {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     margin: 0 0 6px;
     color: var(--on-surface);
@@ -112,14 +99,14 @@
     background: var(--surface-container-lowest);
     border: 1px solid var(--outline-variant);
     border-radius: 14px;
-    padding: 22px 20px;
+    padding: 26px 20px;
     margin: 0 0 20px;
     text-align: center;
   }
   .contact-card a.mail {
     display: inline-block;
     margin-top: 8px;
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 700;
     color: var(--primary);
     text-decoration: none;
@@ -127,19 +114,14 @@
   }
   .faq-item {
     border-bottom: 1px solid var(--outline-variant);
-    padding: 16px 0;
+    padding: 18px 0;
   }
   .faq-item:last-child { border-bottom: none; }
   .faq-item h3 { color: var(--on-surface); }
   .faq-item p { margin: 0; color: var(--on-surface-variant); }
-  .divider {
-    border: none;
-    border-top: 1px solid var(--outline-variant);
-    margin: 44px 0;
-  }
   a { color: var(--primary); }
   footer {
-    margin-top: 48px;
+    margin-top: 56px;
     padding-top: 24px;
     border-top: 1px solid var(--outline-variant);
     font-size: 14px;
@@ -158,9 +140,9 @@
   footer nav a:hover { text-decoration: underline; }
   .updated { color: var(--outline); }
   @media (max-width: 420px) {
-    header.hero { padding: 32px 16px 26px; }
+    header.hero { padding: 36px 16px 30px; }
     .page { padding: 0 16px 48px; }
-    h1 { font-size: 24px; }
+    h1 { font-size: 26px; }
   }
 </style>
 </head>
@@ -171,104 +153,57 @@
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="2"/></svg>
       Smart Golf Caddy
     </div>
-    <h1>Поддержка</h1>
-    <p class="subtitle">Support — русская версия ниже, English version follows.</p>
+    <h1>Support</h1>
+    <p class="subtitle">Questions, problems, and a few quick answers.</p>
   </div>
 </header>
 
 <div class="page">
-  <p class="lang-switch"><a href="#en">Switch to English ↓</a></p>
+  <div class="contact-card">
+    <p style="margin:0">Have a question or a problem? Write to us directly:</p>
+    <a class="mail" href="mailto:tdm.979@gmail.com">tdm.979@gmail.com</a>
+  </div>
 
-  <section id="ru" class="lang-block">
-    <div class="contact-card">
-      <p style="margin:0">Есть вопрос или проблема? Напишите нам напрямую:</p>
-      <a class="mail" href="mailto:tdm.979@gmail.com">tdm.979@gmail.com</a>
-    </div>
+  <h2>What to include</h2>
+  <p>To help us sort things out faster, please include if you can:</p>
+  <ul>
+    <li>The app version (visible in your profile settings)</li>
+    <li>Your device and iOS version / browser (e.g. "iPhone 14, iOS 18" or "Chrome on Android")</li>
+    <li>What you were doing and what went wrong — step by step, if possible</li>
+  </ul>
 
-    <h2>Что приложить к обращению</h2>
-    <p>Чтобы мы быстрее разобрались, по возможности укажите:</p>
-    <ul>
-      <li>Версию приложения (видна в настройках профиля)</li>
-      <li>Устройство и версию iOS / браузер (например, «iPhone 14, iOS 18» или «Chrome на Android»)</li>
-      <li>Что вы делали и что пошло не так — по шагам, если получится</li>
-    </ul>
+  <h2>Response time</h2>
+  <p>This is a small, independent project without a dedicated support team, so we'll be upfront: we reply in our spare time, usually within a few days. Thanks for your patience.</p>
 
-    <h2>Время ответа</h2>
-    <p>Это небольшой независимый проект без выделенной службы поддержки, поэтому честно предупредим: отвечаем в свободное время, обычно в течение нескольких дней. Спасибо за терпение.</p>
+  <h2>Frequently asked questions</h2>
+  <p style="color: var(--on-surface-variant); margin-top: -6px;">The app's interface is in Russian, so screen and button names below are shown in quotes exactly as they appear in the app.</p>
 
-    <h2>Частые вопросы</h2>
+  <div class="faq-item">
+    <h3>How do I start a round?</h3>
+    <p>On the home screen, tap "Начать новый раунд" ("Start new round"), pick or search for a nearby course, and follow the prompts — a solo round starts right away, a shared round opens a lobby first.</p>
+  </div>
 
-    <div class="faq-item">
-      <h3>Как начать раунд?</h3>
-      <p>На главном экране нажмите «Начать раунд», выберите или найдите поле поблизости и следуйте подсказкам — раунд для одного игрока начинается сразу, для совместной игры сначала откроется лобби.</p>
-    </div>
+  <div class="faq-item">
+    <h3>How do I invite a second player?</h3>
+    <p>The lobby screen shows a "Код лобби" ("Lobby code") and a QR code — send the code or show the QR code to the other player, and they enter it or scan it to join.</p>
+  </div>
 
-    <div class="faq-item">
-      <h3>Как пригласить второго игрока?</h3>
-      <p>В лобби совместного раунда доступен код приглашения и QR-код — отправьте код или покажите QR-код второму игроку, он вводит его или сканирует, чтобы присоединиться.</p>
-    </div>
+  <div class="faq-item">
+    <h3>Why isn't the distance to the green showing?</h3>
+    <p>Two things are required: location permission for the app, and a marked green on that course (your own mark, or an averaged one from other players). If either is missing, the distance isn't shown.</p>
+  </div>
 
-    <div class="faq-item">
-      <h3>Почему не показывается дистанция до грина?</h3>
-      <p>Для расчёта дистанции нужны два условия: разрешение на геолокацию для приложения и отмеченный на этом поле грин (свой или усреднённый от других игроков). Если хотя бы одного из условий нет, дистанция не отображается.</p>
-    </div>
-
-    <div class="faq-item">
-      <h3>Как удалить аккаунт?</h3>
-      <p>Откройте экран «Профиль» и нажмите «Удалить аккаунт». Подробности о том, что именно удаляется — в <a href="/privacy#ru">политике конфиденциальности</a>.</p>
-    </div>
-  </section>
-
-  <hr class="divider" />
-
-  <section id="en" class="lang-block">
-    <p class="lang-switch"><a href="#ru">Переключить на русский ↑</a></p>
-
-    <div class="contact-card">
-      <p style="margin:0">Have a question or a problem? Write to us directly:</p>
-      <a class="mail" href="mailto:tdm.979@gmail.com">tdm.979@gmail.com</a>
-    </div>
-
-    <h2>What to include</h2>
-    <p>To help us sort things out faster, please include if you can:</p>
-    <ul>
-      <li>The app version (visible in your profile settings)</li>
-      <li>Your device and iOS version / browser (e.g. "iPhone 14, iOS 18" or "Chrome on Android")</li>
-      <li>What you were doing and what went wrong — step by step, if possible</li>
-    </ul>
-
-    <h2>Response time</h2>
-    <p>This is a small, independent project without a dedicated support team, so we'll be upfront: we reply in our spare time, usually within a few days. Thanks for your patience.</p>
-
-    <h2>Frequently asked questions</h2>
-
-    <div class="faq-item">
-      <h3>How do I start a round?</h3>
-      <p>On the home screen, tap "Start round", pick or search for a nearby course, and follow the prompts — a solo round starts right away, a shared round opens a lobby first.</p>
-    </div>
-
-    <div class="faq-item">
-      <h3>How do I invite a second player?</h3>
-      <p>In a shared round's lobby you'll find an invite code and a QR code — send the code or show the QR code to the other player, and they enter it or scan it to join.</p>
-    </div>
-
-    <div class="faq-item">
-      <h3>Why isn't the distance to the green showing?</h3>
-      <p>Two things are required: location permission for the app, and a marked green on that course (your own mark, or an averaged one from other players). If either is missing, the distance isn't shown.</p>
-    </div>
-
-    <div class="faq-item">
-      <h3>How do I delete my account?</h3>
-      <p>Open the "Profile" screen and tap "Delete account". Details on exactly what gets deleted are in the <a href="/privacy#en">privacy policy</a>.</p>
-    </div>
-  </section>
+  <div class="faq-item">
+    <h3>How do I delete my account?</h3>
+    <p>Open the profile screen and tap the "Удалить аккаунт" ("Delete account") button. Details on exactly what gets deleted are in the <a href="/privacy">privacy policy</a>.</p>
+  </div>
 
   <footer>
     <nav>
-      <a href="/privacy">Политика конфиденциальности / Privacy Policy</a>
-      <a href="/terms">Условия использования / Terms of Use</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Use</a>
     </nav>
-    <p class="updated">Обновлено / Last updated: 29 августа 2026 / August 29, 2026</p>
+    <p class="updated">Last updated: August 29, 2026</p>
   </footer>
 </div>
 </body>
