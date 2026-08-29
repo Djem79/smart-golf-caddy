@@ -24,26 +24,34 @@ struct AuthView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, DS.screenPadding)
             }
-            Button {
-                Task { await session.signIn() }
-            } label: {
-                if session.isSigningIn {
-                    ProgressView()
-                        .tint(DSColor.onPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: DS.touchTarget)
-                } else {
-                    Text(lm.t.auth.signInWithGoogle)
-                        .font(DSFont.labelLG)
-                        .tracking(1.5)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: DS.touchTarget)
+            // Google + Apple: App Store 4.8 требует, чтобы приватная
+            // альтернатива (Apple) была видна без прокрутки и не меньше
+            // основной кнопки входа — обе делят один блок и одну ширину/
+            // высоту (DS.touchTarget), просто с зазором 12pt между ними.
+            VStack(spacing: 12) {
+                Button {
+                    Task { await session.signIn() }
+                } label: {
+                    if session.isSigningIn {
+                        ProgressView()
+                            .tint(DSColor.onPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: DS.touchTarget)
+                    } else {
+                        Text(lm.t.auth.signInWithGoogle)
+                            .font(DSFont.labelLG)
+                            .tracking(1.5)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: DS.touchTarget)
+                    }
                 }
+                .disabled(session.isSigningIn)
+                .background(DSColor.primary)
+                .foregroundStyle(DSColor.onPrimary)
+                .clipShape(Capsule())
+
+                AppleSignInButton()
             }
-            .disabled(session.isSigningIn)
-            .background(DSColor.primary)
-            .foregroundStyle(DSColor.onPrimary)
-            .clipShape(Capsule())
             .padding(.horizontal, 24)
             .padding(.bottom, 32)
         }

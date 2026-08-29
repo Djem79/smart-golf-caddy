@@ -62,6 +62,26 @@ final class SessionViewModel {
         }
     }
 
+    // Sign in with Apple: AuthService.signInWithApple(result:rawNonce:)
+    // needs `Result<ASAuthorization, Error>` from SwiftUI's
+    // SignInWithAppleButton.onCompletion — that type lives in
+    // AuthenticationServices, which per ios/CLAUDE.md's import boundary
+    // stays confined to Services/ and the button file, NOT ViewModels/.
+    // So AppleSignInButton calls AuthService directly and reports back
+    // through this plain `Error?` pair, mirroring the isSigningIn/
+    // errorMessage bookkeeping signIn() does for Google.
+    func beginSigningIn() {
+        errorMessage = nil
+        isSigningIn = true
+    }
+
+    func finishSigningIn(error: Error?) {
+        isSigningIn = false
+        guard let error else { return }
+        if case AuthServiceError.cancelled = error { return }   // тихо, не ошибка
+        errorMessage = error.localizedDescription
+    }
+
     func signOut() {
         do {
             try AuthService.signOut()

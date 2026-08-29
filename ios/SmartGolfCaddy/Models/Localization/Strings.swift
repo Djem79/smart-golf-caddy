@@ -62,6 +62,10 @@ struct Strings {
         let signInWithGoogle: String
         let noPresenterError: String
         let missingTokenError: String
+        // Sign in with Apple: надпись самой кнопки не переводим (её даёт
+        // системный SignInWithAppleButton) — эти строки только для ошибок.
+        let accountExistsError: String
+        let appleSignInError: String
     }
 
     struct Home {
@@ -438,7 +442,9 @@ extension Strings {
             tagline: "Трекинг гольф-раундов",
             signInWithGoogle: "ВОЙТИ ЧЕРЕЗ GOOGLE",
             noPresenterError: "Не найден корневой экран для входа",
-            missingTokenError: "Google не вернул токен — попробуйте ещё раз"
+            missingTokenError: "Google не вернул токен — попробуйте ещё раз",
+            accountExistsError: "Этот адрес уже привязан к другому способу входа. Войдите тем способом, которым регистрировались",
+            appleSignInError: "Не удалось войти через Apple — попробуйте ещё раз"
         ),
         home: Home(
             welcomeUppercase: "ДОБРО ПОЖАЛОВАТЬ",
@@ -750,7 +756,9 @@ extension Strings {
             tagline: "Track your golf rounds",
             signInWithGoogle: "SIGN IN WITH GOOGLE",
             noPresenterError: "Couldn't find a root screen to sign in from",
-            missingTokenError: "Google didn't return a token — try again"
+            missingTokenError: "Google didn't return a token — try again",
+            accountExistsError: "This email is already linked to a different sign-in method. Sign in the way you originally registered",
+            appleSignInError: "Couldn't sign in with Apple — try again"
         ),
         home: Home(
             welcomeUppercase: "WELCOME",
