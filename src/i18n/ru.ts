@@ -53,11 +53,18 @@ export const ru = {
     subtitle: 'Считайте удары, ведите статистику и играйте с друзьями — всё в одном месте.',
     signingIn: 'Вход...',
     signInWithGoogle: 'Войти через Google',
+    // Официальная подпись Apple для ru_RU (кнопка с appleid.cdn-apple.com)
+    // — свои формулировки HIG запрещает. Не менять на «Войти через Apple».
+    signInWithApple: 'Вход с Apple',
     termsNotice: 'Продолжая, вы соглашаетесь с условиями использования',
     errors: {
       popupBlocked: 'Браузер заблокировал всплывающее окно. Разрешите всплывающие окна для этого сайта.',
       unauthorizedDomain: 'Этот домен не разрешён в Firebase Authentication. Добавьте его в Firebase Console → Authentication → Settings → Authorized domains.',
-      operationNotAllowed: 'Вход через Google не включён в Firebase Console (Authentication → Sign-in method).',
+      operationNotAllowed: 'Этот способ входа не включён в Firebase Console (Authentication → Sign-in method).',
+      // Тот же e-mail уже зарегистрирован через Google. Это сообщение —
+      // явное согласие на связывание (Apple требует его до привязки
+      // своего аккаунта к другим данным), само связывание — в services/auth.
+      accountExists: 'Этот адрес уже привязан к входу через Google. Войдите через Google — способы входа будут связаны автоматически.',
       networkFailed: 'Нет связи с серверами Firebase. Проверьте интернет.',
       tryAgain: 'Попробуйте ещё раз.',
       // `Ошибка входа (auth/foo).` — the leading half of the generic error;
@@ -348,6 +355,9 @@ export const ru = {
     signingOut: 'Выходим...',
     deleteAccount: 'Удалить аккаунт',
     deleteAccountError: 'Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз.',
+    // Apple требует отозвать токен «Входа с Apple» ДО удаления аккаунта
+    // (TN3194); если отзыв не прошёл — аккаунт намеренно не трогаем.
+    appleRevokeError: 'Не удалось отозвать доступ Apple. Аккаунт не удалён — попробуйте ещё раз.',
     deleteConfirmTitle: 'Удалить аккаунт?',
     deleteConfirmBody: 'Профиль, статистика и метки гринов удаляются навсегда. Ваши соло-раунды будут удалены. В совместных раундах вместо вашего имени останется «Удалённый игрок» — счёт партнёров не пострадает. Это действие необратимо.',
     delete: 'Удалить',

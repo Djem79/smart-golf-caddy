@@ -16,6 +16,9 @@ const mockUser = {
   displayName: 'Тест Тестов',
   email: 't@example.com',
   photoURL: null,
+  // Mutable per test: Apple-linked accounts take the token-revocation
+  // detour before deletion (TN3194).
+  providerData: [{ providerId: 'google.com' }] as { providerId: string }[],
 }
 
 vi.mock('../hooks/useAuth', () => ({
@@ -26,8 +29,14 @@ vi.mock('../hooks/useProfile', () => ({
 }))
 
 const signOutMock = vi.fn(async () => {})
+const revokeAppleAccessMock = vi.fn(async () => {})
 vi.mock('../services/auth', () => ({
   signOut: () => signOutMock(),
+  isAppleLinked: (u: { providerData: { providerId: string }[] }) =>
+    u.providerData.some(p => p.providerId === 'apple.com'),
+  revokeAppleAccess: () => revokeAppleAccessMock(),
+  isPopupCancelled: (e: unknown) =>
+    !!e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'auth/popup-closed-by-user',
 }))
 
 vi.mock('../services/rounds', () => ({
@@ -66,6 +75,66 @@ function renderProfile() {
 beforeEach(() => {
   vi.clearAllMocks()
   setLocale('en') // jsdom's system default — reset between tests since setLocale is a module-level singleton
+  mockUser.providerData = [{ providerId: 'google.com' }]
+})
+
+describe('Profile — Apple-linked account deletion (TN3194 token revocation)', () => {
+  function firebaseError(code: string) {
+    return Object.assign(new Error(code), { code })
+  }
+
+  beforeEach(() => {
+    mockUser.providerData = [{ providerId: 'google.com' }, { providerId: 'apple.com' }]
+  })
+
+  it('revokes the Apple token BEFORE calling deleteAccount, then signs out', async () => {
+    const order: string[] = []
+    revokeAppleAccessMock.mockImplementationOnce(async () => { order.push('revoke') })
+    deleteAccountMock.mockImplementationOnce(async () => { order.push('delete') })
+    renderProfile()
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    fireEvent.click(screen.getByRole('button', { name: t.delete }))
+
+    await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1))
+    expect(order).toEqual(['revoke', 'delete'])
+    expect(navigateMock).toHaveBeenCalledWith('/auth', { replace: true })
+  })
+
+  it('a failed revocation leaves the account untouched and shows the Apple-specific error', async () => {
+    revokeAppleAccessMock.mockRejectedValueOnce(new Error('revoke failed'))
+    renderProfile()
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    fireEvent.click(screen.getByRole('button', { name: t.delete }))
+
+    expect(await screen.findByText(t.appleRevokeError)).toBeInTheDocument()
+    expect(deleteAccountMock).not.toHaveBeenCalled()
+    expect(signOutMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.deleteAccount })).not.toBeDisabled()
+  })
+
+  it('closing the Apple popup cancels deletion quietly — no error, nothing deleted', async () => {
+    revokeAppleAccessMock.mockRejectedValueOnce(firebaseError('auth/popup-closed-by-user'))
+    renderProfile()
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    fireEvent.click(screen.getByRole('button', { name: t.delete }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(deleteAccountMock).not.toHaveBeenCalled()
+    expect(screen.queryByText(t.appleRevokeError)).not.toBeInTheDocument()
+    expect(screen.queryByText(t.deleteAccountError)).not.toBeInTheDocument()
+  })
+
+  it('a Google-only account skips revocation entirely', async () => {
+    mockUser.providerData = [{ providerId: 'google.com' }]
+    deleteAccountMock.mockResolvedValueOnce(undefined)
+    renderProfile()
+    fireEvent.click(screen.getByRole('button', { name: t.deleteAccount }))
+    fireEvent.click(screen.getByRole('button', { name: t.delete }))
+
+    await waitFor(() => expect(deleteAccountMock).toHaveBeenCalledTimes(1))
+    expect(revokeAppleAccessMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('Profile — account deletion', () => {

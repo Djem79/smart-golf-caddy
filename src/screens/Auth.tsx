@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { signInWithGoogle } from '../services/auth'
+import {
+  signInWithGoogle,
+  signInWithApple,
+  authErrorCode,
+  isPopupCancelled,
+} from '../services/auth'
 import { useT } from '../i18n'
+import type { Dictionary } from '../i18n'
 
 // Official 4-colour Google "G" mark — drop-in SVG, no external font.
 function GoogleGLogo({ className = '' }: { className?: string }) {
@@ -20,11 +26,50 @@ function GoogleGLogo({ className = '' }: { className?: string }) {
   )
 }
 
+// Apple logo for the custom Sign in with Apple button (HIG: "Creating a
+// custom Sign in with Apple button" — logo + one of Apple's three titles,
+// black / white / white-outline only, never recoloured). Drawn inline so
+// the button works offline and without Apple's JS SDK, which would also
+// require a Service ID that doesn't exist until the paid developer
+// account is active.
+function AppleLogo({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+    </svg>
+  )
+}
+
+// Maps a sign-in failure to user-facing copy. `null` = the user aborted on
+// their own (closed the popup) — nothing to show. Shared by both providers:
+// every branch here is a Firebase Auth code, not provider-specific.
+function describeSignInError(e: unknown, t: Dictionary): string | null {
+  if (isPopupCancelled(e)) return null
+  const code = authErrorCode(e)
+  const detail = (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message) : ''
+  switch (code) {
+    case 'auth/popup-blocked': return t.auth.errors.popupBlocked
+    case 'auth/unauthorized-domain': return t.auth.errors.unauthorizedDomain
+    case 'auth/operation-not-allowed': return t.auth.errors.operationNotAllowed
+    case 'auth/account-exists-with-different-credential': return t.auth.errors.accountExists
+    case 'auth/network-request-failed': return t.auth.errors.networkFailed
+    default: return `${t.auth.errors.signInFailed(code)} ${detail || t.auth.errors.tryAgain}`
+  }
+}
+
+type Provider = 'google' | 'apple'
+
 export function Auth() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { t } = useT()
-  const [loading, setLoading] = useState(false)
+  const { t, locale } = useT()
+  const [loading, setLoading] = useState<Provider | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Where ProtectedRoute bounced the user from (e.g. a /join/:code deep link).
@@ -32,35 +77,19 @@ export function Auth() {
   const from = (location.state as { from?: string } | null)?.from
   const redirectTo = from && from.startsWith('/') && !from.startsWith('/auth') ? from : '/home'
 
-  async function handleGoogleSignIn() {
-    setLoading(true)
+  async function handleSignIn(provider: Provider) {
+    if (loading) return
+    setLoading(provider)
     setError(null)
     try {
-      await signInWithGoogle()
+      if (provider === 'apple') await signInWithApple(locale)
+      else await signInWithGoogle()
       navigate(redirectTo, { replace: true })
     } catch (e: unknown) {
-      // Firebase Auth errors have a `code` field with a stable identifier.
-      // Map the ones users can actually act on to clear Russian copy.
-      const code = (e && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : ''
-      const detail = (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message) : ''
-
-      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        // User aborted on their own — not really an error
-        setError(null)
-      } else if (code === 'auth/popup-blocked') {
-        setError(t.auth.errors.popupBlocked)
-      } else if (code === 'auth/unauthorized-domain') {
-        setError(t.auth.errors.unauthorizedDomain)
-      } else if (code === 'auth/operation-not-allowed') {
-        setError(t.auth.errors.operationNotAllowed)
-      } else if (code === 'auth/network-request-failed') {
-        setError(t.auth.errors.networkFailed)
-      } else {
-        setError(`${t.auth.errors.signInFailed(code)} ${detail || t.auth.errors.tryAgain}`)
-      }
-      console.error('[Auth] signInWithGoogle failed:', e)
+      setError(describeSignInError(e, t))
+      console.error(`[Auth] signInWith${provider === 'apple' ? 'Apple' : 'Google'} failed:`, e)
     } finally {
-      setLoading(false)
+      setLoading(null)
     }
   }
 
@@ -80,19 +109,36 @@ export function Auth() {
         </div>
       </div>
 
+      {/* App Store 4.8: the Apple button must be at least as prominent as
+          any other third-party sign-in and visible without scrolling — both
+          buttons share this block, the same width and the same height. */}
       <div className="bg-surface rounded-t-3xl px-5 pt-7 pb-10 space-y-3 shadow-elevated">
         <button
           type="button"
-          onClick={handleGoogleSignIn}
-          disabled={loading}
+          onClick={() => handleSignIn('google')}
+          disabled={loading !== null}
           className="w-full min-h-touch bg-surface-container-lowest border border-outline-variant/60 rounded-md flex items-center justify-center gap-3 px-6 font-headline font-semibold text-label-lg text-on-surface active:scale-[0.985] transition-transform disabled:opacity-40 shadow-card"
         >
           <GoogleGLogo className="w-5 h-5 shrink-0" />
-          {loading ? t.auth.signingIn : t.auth.signInWithGoogle}
+          {loading === 'google' ? t.auth.signingIn : t.auth.signInWithGoogle}
+        </button>
+
+        {/* HIG custom-button rules: black fill, white system-font title,
+            logo height tied to the title, corner radius may match the app's
+            other buttons. Title text comes from the dictionary but is
+            Apple's own wording per locale, never a free translation. */}
+        <button
+          type="button"
+          onClick={() => handleSignIn('apple')}
+          disabled={loading !== null}
+          className="w-full min-h-touch bg-black text-white rounded-md flex items-center justify-center gap-2.5 px-6 font-sans font-medium text-[1.0625rem] active:scale-[0.985] transition-transform disabled:opacity-40 shadow-card"
+        >
+          <AppleLogo className="w-5 h-5 shrink-0 -mt-0.5" />
+          {loading === 'apple' ? t.auth.signingIn : t.auth.signInWithApple}
         </button>
 
         {error && (
-          <p className="text-center text-label-lg text-error">{error}</p>
+          <p role="alert" className="text-center text-label-lg text-error">{error}</p>
         )}
 
         <p className="text-center text-label-md text-on-surface-variant pt-2">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Briefcase, ChevronRight, ExternalLink, Trash2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useProfile } from '../hooks/useProfile'
-import { signOut } from '../services/auth'
+import { signOut, isAppleLinked, revokeAppleAccess, isPopupCancelled } from '../services/auth'
 import { getUserRounds } from '../services/rounds'
 import { deleteAccount } from '../services/account'
 import { updateLocale } from '../services/users'
@@ -92,6 +92,21 @@ export function Profile() {
   async function handleDeleteAccount() {
     setDeletingAccount(true)
     setDeleteError(null)
+    // Apple TN3194: a Sign in with Apple token MUST be revoked when the
+    // account is deleted. It needs a fresh Apple re-authentication (popup),
+    // so it runs first, straight from the confirm click, and the account is
+    // left untouched if it doesn't go through — the user can retry.
+    if (user && isAppleLinked(user)) {
+      try {
+        await revokeAppleAccess(user)
+      } catch (e) {
+        setShowDeleteConfirm(false)
+        setDeletingAccount(false)
+        // Closing the Apple popup = changed their mind, not an error.
+        if (!isPopupCancelled(e)) setDeleteError(t.profile.appleRevokeError)
+        return
+      }
+    }
     try {
       // Server deletes the Firestore profile/data first, Firebase Auth
       // record last (see functions/src/index.ts:deleteAccount). Sign out

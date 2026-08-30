@@ -40,11 +40,14 @@ export const en: Dictionary = {
     subtitle: 'Track your strokes, keep stats, and play with friends — all in one place.',
     signingIn: 'Signing in...',
     signInWithGoogle: 'Sign in with Google',
+    // Apple's own title (HIG) — custom wording is not allowed.
+    signInWithApple: 'Sign in with Apple',
     termsNotice: 'By continuing, you agree to the Terms of Use',
     errors: {
       popupBlocked: 'Your browser blocked the pop-up. Allow pop-ups for this site.',
       unauthorizedDomain: "This domain isn't authorized in Firebase Authentication. Add it in Firebase Console → Authentication → Settings → Authorized domains.",
-      operationNotAllowed: "Google sign-in isn't enabled in Firebase Console (Authentication → Sign-in method).",
+      operationNotAllowed: "This sign-in method isn't enabled in Firebase Console (Authentication → Sign-in method).",
+      accountExists: 'This email is already linked to Google sign-in. Sign in with Google and the two sign-in methods will be linked automatically.',
       networkFailed: "Can't reach Firebase servers. Check your connection.",
       tryAgain: 'Try again.',
       signInFailed: (code: string) => `Sign-in error${code ? ` (${code})` : ''}.`,
@@ -330,6 +333,7 @@ export const en: Dictionary = {
     signingOut: 'Signing out...',
     deleteAccount: 'Delete account',
     deleteAccountError: "Couldn't delete the account. Check your connection and try again.",
+    appleRevokeError: "Couldn't revoke Apple access. The account was not deleted — try again.",
     deleteConfirmTitle: 'Delete account?',
     deleteConfirmBody: 'Your profile, stats, and green marks are deleted permanently. Your solo rounds will be deleted. In shared rounds, your name is replaced with "Removed player" — your partners\' scores are unaffected. This action cannot be undone.',
     delete: 'Delete',
