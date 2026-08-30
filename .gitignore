@@ -55,3 +55,6 @@ ios/SmartGolfCaddy.xcodeproj/
 ios/build/
 ios/Config/Local.xcconfig
 ios/SmartGolfCaddy/Resources/GoogleService-Info.plist
+
+# Claude Code — личные настройки проекта (плагины/навыки), не для команды
+.claude/settings.local.json
