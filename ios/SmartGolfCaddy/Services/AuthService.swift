@@ -28,6 +28,9 @@ enum AuthServiceError: LocalizedError {
     // аккаунтов — веб-задача; здесь только понятное сообщение.
     case accountExistsWithDifferentCredential
     case appleSignInFailed   // прочие отказы Apple/Firebase — общий текст
+    // Отзыв токена Apple при удалении аккаунта не прошёл (TN3194) —
+    // аккаунт при этом намеренно НЕ удаляется, см. AccountViewModel.
+    case appleRevokeFailed
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +39,7 @@ enum AuthServiceError: LocalizedError {
         case .cancelled: return nil
         case .accountExistsWithDifferentCredential: return AppLocaleStore.strings.auth.accountExistsError
         case .appleSignInFailed: return AppLocaleStore.strings.auth.appleSignInError
+        case .appleRevokeFailed: return AppLocaleStore.strings.profile.appleRevokeError
         }
     }
 }
@@ -198,6 +202,29 @@ enum AuthService {
         )
     }
 
+    // MARK: - Отзыв токена Apple при удалении аккаунта (TN3194)
+    //
+    // Apple требует отозвать токен «Входа с Apple», когда пользователь
+    // удаляет аккаунт. Сам вызов `appleid.apple.com/auth/revoke` делает
+    // бэкенд Firebase (`revokeToken(withAuthorizationCode:)`) по ключу из
+    // консоли — секрет в приложении/functions не нужен. Клиенту нужен
+    // только СВЕЖИЙ authorizationCode (живёт 5 минут, код первого входа
+    // давно истёк), поэтому перед удалением запрашивается новая
+    // авторизация Apple. Зеркало revokeAppleAccess в src/services/auth.ts.
+
+    static var isAppleLinked: Bool {
+        Auth.auth().currentUser?.providerData.contains { $0.providerID == "apple.com" } ?? false
+    }
+
+    static func revokeAppleToken() async throws {
+        let code = try await AppleAuthorizationCodeRequester().request()
+        do {
+            try await Auth.auth().revokeToken(withAuthorizationCode: code)
+        } catch {
+            throw AuthServiceError.appleRevokeFailed
+        }
+    }
+
     // Паритет signInWithGoogle из auth.ts: профиль создаётся один раз,
     // с каноничным bag (не legacy clubs).
     static func ensureProfile(uid: String, name: String?, avatar: String?) async throws {
@@ -216,5 +243,88 @@ enum AuthService {
     static func signOut() throws {
         GIDSignIn.sharedInstance.signOut()
         try Auth.auth().signOut()
+    }
+}
+
+// Одноразовый запрос авторизации Apple ради authorizationCode — для
+// `AuthService.revokeAppleToken()`. Без scopes: имя/почта здесь не нужны,
+// нужен только код. Держит себя живым на время запроса (`retainSelf`):
+// ASAuthorizationController хранит delegate слабо, а континуация обязана
+// быть возобновлена ровно один раз. Паттерн класса — как у
+// GeolocationService (NSObject-делегат, @unchecked Sendable): колбэки
+// AuthenticationServices приходят на main queue, запрос стартует с
+// MainActor (AccountViewModel), других обращений к состоянию нет.
+final class AppleAuthorizationCodeRequester: NSObject,
+    ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding,
+    @unchecked Sendable {
+
+    private var continuation: CheckedContinuation<String, Error>?
+    private var controller: ASAuthorizationController?
+    private var retainSelf: AppleAuthorizationCodeRequester?
+
+    @MainActor
+    func request() async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            self.retainSelf = self
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            self.controller = controller
+            controller.performRequests()
+        }
+    }
+
+    /// Чистое отображение результата в код/ошибку — вынесено из делегата,
+    /// чтобы тесты покрывали ветки без живого ASAuthorizationController.
+    static func extractAuthorizationCode(from credential: ASAuthorizationCredential) throws -> String {
+        guard let appleCredential = credential as? ASAuthorizationAppleIDCredential,
+            let data = appleCredential.authorizationCode,
+            let code = String(data: data, encoding: .utf8),
+            !code.isEmpty
+        else {
+            throw AuthServiceError.missingToken
+        }
+        return code
+    }
+
+    /// Отмена пользователем — тихая `.cancelled` (паритет с входом);
+    /// остальное — `.appleRevokeFailed`.
+    static func mapAuthorizationError(_ error: Error) -> AuthServiceError {
+        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+            return .cancelled
+        }
+        return .appleRevokeFailed
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        defer { finish() }
+        do {
+            continuation?.resume(returning: try Self.extractAuthorizationCode(from: authorization.credential))
+        } catch {
+            continuation?.resume(throwing: error)
+        }
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        defer { finish() }
+        continuation?.resume(throwing: Self.mapAuthorizationError(error))
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first ?? ASPresentationAnchor()
+    }
+
+    private func finish() {
+        continuation = nil
+        controller = nil
+        retainSelf = nil
     }
 }

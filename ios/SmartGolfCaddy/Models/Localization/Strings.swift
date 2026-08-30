@@ -316,6 +316,9 @@ struct Strings {
         let deleteAccountConfirmTitle: String
         let deleteAccountConfirmBody: String
         let deleteAccountError: String
+        // TN3194: отзыв токена Apple перед удалением не прошёл — аккаунт
+        // намеренно не тронут.
+        let appleRevokeError: String
     }
 
     struct Diagnostics {
@@ -683,7 +686,8 @@ extension Strings {
             имени останется «Удалённый игрок» — счёт партнёров не \
             пострадает. Это действие необратимо.
             """,
-            deleteAccountError: "Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз."
+            deleteAccountError: "Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз.",
+            appleRevokeError: "Не удалось отозвать доступ Apple. Аккаунт не удалён — попробуйте ещё раз."
         ),
         diagnostics: Diagnostics(
             checkNotRun: "Проверка связи не запускалась",
@@ -997,7 +1001,8 @@ extension Strings {
             is replaced with "Removed player" — your partners' scores are \
             unaffected. This action cannot be undone.
             """,
-            deleteAccountError: "Couldn't delete the account. Check your connection and try again."
+            deleteAccountError: "Couldn't delete the account. Check your connection and try again.",
+            appleRevokeError: "Couldn't revoke Apple access. The account was not deleted — try again."
         ),
         diagnostics: Diagnostics(
             checkNotRun: "Connection check hasn't run yet",

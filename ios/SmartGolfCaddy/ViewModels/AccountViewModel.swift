@@ -5,6 +5,12 @@
 // успех/провал, ProfileView вызывает session.signOut() ТОЛЬКО при true.
 // Так неудачное удаление (данные могли не удалиться) никогда не
 // разлогинивает пользователя — паритет с web/services/account.ts.
+//
+// Sign in with Apple (TN3194): если аккаунт привязан к Apple, ПЕРЕД
+// удалением отзывается токен Apple (`revoker`; свежая авторизация Apple +
+// Firebase revokeToken). Провал отзыва оставляет аккаунт нетронутым с
+// понятным сообщением; отмена пользователем — тихо. Зеркало
+// handleDeleteAccount в src/screens/Profile.tsx.
 import Foundation
 import Observation
 
@@ -15,13 +21,25 @@ final class AccountViewModel {
     var deletingAccount = false
     var deleteError: String?
 
+    private let needsAppleRevocation: () -> Bool
+    private let revoker: () async throws -> Void
     private let deleter: () async throws -> Void
 
     convenience init() {
-        self.init(deleter: { try await AccountService.deleteAccount() })
+        self.init(
+            needsAppleRevocation: { AuthService.isAppleLinked },
+            revoker: { try await AuthService.revokeAppleToken() },
+            deleter: { try await AccountService.deleteAccount() }
+        )
     }
 
-    init(deleter: @escaping () async throws -> Void) {
+    init(
+        needsAppleRevocation: @escaping () -> Bool = { false },
+        revoker: @escaping () async throws -> Void = {},
+        deleter: @escaping () async throws -> Void
+    ) {
+        self.needsAppleRevocation = needsAppleRevocation
+        self.revoker = revoker
         self.deleter = deleter
     }
 
@@ -34,6 +52,21 @@ final class AccountViewModel {
         deletingAccount = true
         deleteError = nil
         defer { deletingAccount = false }
+
+        if needsAppleRevocation() {
+            do {
+                try await revoker()
+            } catch AuthServiceError.cancelled {
+                // Закрыл окно Apple — передумал, не ошибка.
+                showDeleteConfirm = false
+                return false
+            } catch {
+                showDeleteConfirm = false
+                deleteError = AppLocaleStore.strings.profile.appleRevokeError
+                return false
+            }
+        }
+
         do {
             try await deleter()
             showDeleteConfirm = false
