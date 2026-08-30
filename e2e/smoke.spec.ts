@@ -41,6 +41,12 @@ test.describe('app smoke (unauthenticated)', () => {
       // the build can compile. Filter to keep the smoke green.
       if (text.includes('auth/invalid-api-key')) return
       if (text.includes('Firebase: Error')) return
+      // App Check's reCAPTCHA iframe probes the Storage Access API; in
+      // headless Chromium without a user gesture the denial is logged as a
+      // console error. Browser/vendor noise, not an app bug — appears only
+      // when the build carries a real VITE_APP_CHECK_SITE_KEY (local runs;
+      // CI builds with placeholder env and never loads reCAPTCHA).
+      if (text.includes('requestStorageAccess')) return
       errors.push(`console.error: ${text}`)
     })
     await page.goto('/auth')

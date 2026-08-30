@@ -16,6 +16,12 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
     baseURL: 'http://localhost:4173',
+    // Локализация (2026-08-29) выбирает язык UI по navigator.language, а
+    // Chromium в Playwright по умолчанию en-US — смоук с русскими
+    // локаторами падал в CI, как только вход стал двуязычным. Прибиваем
+    // локаль: смоук детерминированно проверяет канонический русский UI
+    // на любой машине (английский словарь покрыт юнит-тестами i18n).
+    locale: 'ru-RU',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
