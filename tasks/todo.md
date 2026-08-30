@@ -509,6 +509,14 @@ operation-not-allowed); включить флаг при активации.
 3. **Имя от Apple приходит один раз** — при первой авторизации. Уже учтено
    в iOS-коде, не сломать при доработках.
 
+## Пакет подачи в App Store — ГОТОВ (2026-08-30)
+
+`docs/appstore/submission-package.md`: метаданные ru/en, App Privacy,
+Review Notes (демо-доступ через Sign in with Apple — входа по паролю
+нет), план скриншотов, пошаговый чек-лист App Store Connect. В коде:
+iPhone-only + ITSAppUsesNonExemptEncryption=false. Осталось вписать:
+copyright (имя латиницей), опц. запасной Google-демо-аккаунт.
+
 ## На стороне владельца
 
 - [ ] Оплатить Apple Developer Program ($99/год) — разблокирует пункт 2
