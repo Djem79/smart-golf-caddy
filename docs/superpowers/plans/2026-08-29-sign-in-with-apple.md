@@ -45,11 +45,23 @@ SHA-256 → в Firebase передаётся ИСХОДНЫЙ raw. Перепу�
 
 - [x] T1: iOS — СДЕЛАНО, коммит b3b916f (кнопка по HIG, nonce, имя при
       первом входе, тихая отмена; тесты зелёные, capability не включена)
-- [ ] T2: веб — провайдер `apple.com`, кнопка по HIG, обработка
-      `account-exists-with-different-credential` со сценарием связывания
-- [ ] T3: `deleteAccount` — отзыв токена Apple (код готов, включается
-      вместе с провайдером)
-- [ ] T4: чек-лист «что включить после оплаты» в SETUP.md
+- [x] T2: веб — СДЕЛАНО, коммит 52e598a (провайдер `apple.com`, кнопка по
+      HIG с официальной подписью «Вход с Apple», сценарий связывания:
+      credential Apple придерживается → вход через Google →
+      `linkWithCredential`; тесты auth.test.ts + Auth.test.tsx)
+- [x] T3: отзыв токена — СДЕЛАНО, коммиты 52e598a (веб) и 01aa9b4 (iOS).
+      **Отклонение от плана:** отзыв делается НЕ в callable
+      `deleteAccount`, а на клиенте через Firebase
+      (`revokeAccessToken` / `revokeToken(withAuthorizationCode:)`) —
+      сам `POST appleid.apple.com/auth/revoke` выполняет бэкенд Firebase по
+      ключу из «OAuth code flow configuration». Причина: серверный путь
+      всё равно требует свежий authorizationCode с клиента (код первого
+      входа живёт 5 минут, refresh-токены мы не храним) плюс `.p8`-секрет
+      в functions — Firebase-путь убирает секрет и exchange-код, а
+      реаутентификация перед удалением нужна в обоих вариантах.
+      Инвариант на обоих клиентах: отзыв не прошёл → аккаунт не трогаем.
+- [x] T4: чек-лист в SETUP.md — СДЕЛАНО (раздел «Sign in with Apple —
+      включение после оплаты»)
 
 ## Чего НЕЛЬЗЯ проверить до оплаты
 

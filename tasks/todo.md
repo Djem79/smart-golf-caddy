@@ -457,22 +457,42 @@ PITR 7 дней, ежедневные снимки 98 дней.
 | # | Пункт | Статус |
 |---|---|---|
 | 1 | Платный Apple Developer Program | НЕТ — блокер для пункта 2 |
-| 2 | Sign in with Apple | iOS-часть готова (b3b916f), осталось: веб, отзыв токена, включение |
+| 2 | Sign in with Apple | КОД ГОТОВ на iOS (b3b916f, 01aa9b4) и вебе (52e598a), включая отзыв токена при удалении. Осталось только ВКЛЮЧИТЬ после оплаты — чек-лист в SETUP.md |
 | 3 | Удаление аккаунта | ГОТОВО, в проде |
 | 4 | Тексты разрешений | ГОТОВО, переведены (fb557ca) |
 | 5 | Платные функции | не применимо |
 | 6 | Сайт: privacy/terms/support | ГОТОВО, в проде |
 
-## Следующие задачи (план: docs/superpowers/plans/2026-08-29-sign-in-with-apple.md)
+## Sign in with Apple — ВЫПОЛНЕНО (2026-08-30; план: docs/superpowers/plans/2026-08-29-sign-in-with-apple.md)
 
-- [ ] T2: веб — провайдер `apple.com`, кнопка по HIG, обработка
-      `auth/account-exists-with-different-credential` со сценарием
-      связывания аккаунтов
-- [ ] T3: `deleteAccount` — отзыв токена Apple
-      (`POST https://appleid.apple.com/auth/revoke`, требование TN3194).
-      ВАЖНО: наша функция удаления сейчас этого НЕ делает, и без этого
-      Apple отклонит приложение, использующее вход через Apple
-- [ ] T4: чек-лист «что включить после оплаты» в SETUP.md
+- [x] T1: iOS — вход (b3b916f)
+- [x] T2: веб — провайдер `apple.com`, кнопка по HIG («Вход с Apple»),
+      сценарий связывания при `account-exists-with-different-credential`
+      (52e598a; тесты: src/services/auth.test.ts, src/screens/Auth.test.tsx)
+- [x] T3: отзыв токена Apple при удалении аккаунта (TN3194) — веб
+      (52e598a, Profile.tsx) и iOS (01aa9b4, AccountViewModel +
+      AppleAuthorizationCodeRequester). Сделано на КЛИЕНТЕ через Firebase
+      (`revokeAccessToken` / `revokeToken(withAuthorizationCode:)`), не в
+      callable `deleteAccount` — обоснование в плане. Инвариант: отзыв не
+      прошёл → аккаунт не удаляется; окно Apple закрыто → тихая отмена.
+- [x] T4: чек-лист включения после оплаты — SETUP.md, раздел «Sign in
+      with Apple — включение после оплаты»
+
+Проверка: web tsc/lint/vitest 180/180, build ok; iOS
+`./ios/scripts/test.sh` — TEST SUCCEEDED.
+
+Остаётся после оплаты (см. SETUP.md): capability + entitlements, Services
+ID, ключ `.p8` → Firebase «OAuth code flow configuration» (без него отзыв
+токена падает и Apple-пользователи не смогут удалить аккаунт), регистрация
+домена писем у Apple, живая проверка по чек-листу.
+
+Бэклог по теме:
+- [ ] Связывание Apple из профиля для случая «Скрыть e-mail» (адрес
+      отличается от Google → Firebase создаёт второй аккаунт; автоматически
+      не решается — нужна кнопка «Привязать Apple» в профиле с
+      `linkWithPopup` / `link(with:)`).
+- [ ] iOS: связывание при `accountExistsWithDifferentCredential` — сейчас
+      только сообщение (веб связывает по входу через Google).
 
 ## Ловушки, которые нельзя забыть
 

@@ -32,6 +32,10 @@ Copy the **Project ID** shown at the top of the dashboard (usually `smart-golf-c
 2. On the "Sign-in method" tab, click **Google**
 3. Toggle **Enable** → set a **Project support email** (your email) → **Save**
 
+Sign in with Apple (обязателен для App Store, раз есть Google) включается
+отдельно и требует платного Apple Developer Program — см. раздел
+«Sign in with Apple — включение после оплаты» в конце файла.
+
 ### 2b. Enable Firestore
 
 1. Sidebar: **Build → Firestore Database → Create database**
@@ -506,3 +510,92 @@ retries — функция проверяет `emailedAt` и скипает по
 4. Проверить, что второй игрок может продолжать и завершить раунд, и что
    писем об «итогах» ему не приходило.
 5. Проверить, что вход под удалённым аккаунтом невозможен.
+
+## Sign in with Apple — включение после оплаты Apple Developer Program
+
+Код готов и покрыт тестами на всех сторонах: iOS (`AuthService.swift`,
+`AppleSignInButton.swift`), веб (`src/services/auth.ts`, `Auth.tsx`),
+отзыв токена Apple при удалении аккаунта на обоих клиентах
+(`AccountViewModel.swift`, `Profile.tsx`). Ничего из этого нельзя включить
+без платного аккаунта разработчика — ниже порядок действий после оплаты.
+Выжимка из документации Apple — в
+`docs/superpowers/plans/2026-08-29-sign-in-with-apple.md`.
+
+### 1. Apple Developer → Certificates, Identifiers & Profiles
+
+1. **Identifiers → App IDs** → `com.dzhambulat.smartgolfcaddy` → включить
+   capability **Sign in with Apple** («Enable as a primary App ID»).
+2. **Identifiers → Services IDs** → новый, например
+   `com.dzhambulat.smartgolfcaddy.web` (это `client_id` для веба).
+   Включить Sign in with Apple → Configure: Primary App ID — из п. 1;
+   Domains: `smart-golf-caddy.firebaseapp.com`; Return URLs:
+   `https://smart-golf-caddy.firebaseapp.com/__/auth/handler`.
+3. **Keys** → новый ключ с включённым Sign in with Apple, Primary App ID
+   из п. 1. Скачать `.p8` — **выдаётся один раз**, потерянный ключ только
+   пересоздавать. Записать Key ID; Team ID — в Membership.
+4. **Services → Sign in with Apple for Email Communication** →
+   зарегистрировать домен и адрес отправителя писем. Без этого письма на
+   адреса `@privaterelay.appleid.com` («Скрыть e-mail») **не доставляются**.
+   Нужен свой домен в Resend (раздел «Прод: свой домен» выше) — песочница
+   `onboarding@resend.dev` для регистрации у Apple не подходит.
+
+### 2. Firebase console → Authentication
+
+1. **Sign-in method → Apple → Enable.** Для веба заполнить Services ID
+   (п. 1.2) и блок **OAuth code flow configuration**: Apple Team ID,
+   Key ID и содержимое `.p8` (п. 1.3).
+   ВАЖНО: без OAuth code flow отзыв токена (`revokeAccessToken` на вебе,
+   `revokeToken(withAuthorizationCode:)` на iOS) падает — пользователи,
+   вошедшие через Apple, **не смогут удалить аккаунт** (клиенты намеренно
+   не удаляют аккаунт при неудачном отзыве, TN3194).
+2. **Settings → User account linking** — оставить «Link accounts that use
+   the same email address» (по умолчанию). Сценарий связывания на вебе
+   (`account-exists-with-different-credential` → вход через Google →
+   `linkWithCredential`) рассчитан именно на этот режим.
+3. Authorized domains уже содержат домены хостинга — ничего не менять.
+
+### 3. iOS-проект
+
+1. Создать `ios/SmartGolfCaddy/SmartGolfCaddy.entitlements`:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0"><dict>
+     <key>com.apple.developer.applesignin</key>
+     <array><string>Default</string></array>
+   </dict></plist>
+   ```
+2. В `ios/project.yml` (settings.base таргета SmartGolfCaddy):
+   `CODE_SIGN_ENTITLEMENTS: SmartGolfCaddy/SmartGolfCaddy.entitlements`;
+   `DEV_TEAM` в `Local.xcconfig` — команда платного аккаунта.
+3. `cd ios && xcodegen`, затем `./ios/scripts/build.sh`. Xcode должен
+   показать capability Sign in with Apple у таргета без ошибок подписи.
+
+### 4. Веб
+
+Кода не требуется: провайдер `apple.com` уже в `src/services/auth.ts`.
+Обычный `npm run build && firebase deploy --only hosting`.
+
+### 5. Живая проверка (обязательна — до этого всё было на моках)
+
+Нужен Apple ID, который ещё **не авторизовал** приложение: имя Apple
+присылает только при первой авторизации. Сбросить авторизацию для
+повторной проверки: Настройки → [Apple ID] → Вход с Apple → приложение →
+«Перестать использовать Apple ID».
+
+- [ ] iOS: вход через Apple с показом e-mail → в профиле появилось имя;
+      выйти и войти снова → имя на месте (не затёрлось пустым).
+- [ ] iOS: вход со «Скрыть e-mail» → профиль создан, в Firebase Auth
+      адрес вида `@privaterelay.appleid.com`.
+- [ ] Веб (ru и en): кнопка подписана «Вход с Apple» / «Sign in with
+      Apple», вход проходит, возврат на deep-link `/join/<код>` работает.
+- [ ] Веб: Google-аккаунт с тем же e-mail, что у Apple ID → сообщение о
+      связывании → вход через Google → у пользователя в Firebase Auth оба
+      провайдера; в Настройках Apple ID приложение появилось в списке.
+- [ ] Удаление аккаунта (iOS и веб) с аккаунтом, привязанным к Apple:
+      появляется окно Apple; после удаления приложение **исчезло** из
+      Настройки → Apple ID → Вход с Apple — это и есть доказательство
+      отзыва токена. Отмена окна Apple → аккаунт остался, ошибки нет.
+- [ ] Письмо с итогами раунда на адрес «Скрыть e-mail» доходит (п. 1.4).
+- [ ] Sentry/консоль functions: никаких ошибок `invalid_client`/
+      `invalid_grant` от Apple (означали бы неверный Services ID / ключ).
