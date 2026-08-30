@@ -38,6 +38,9 @@ targets:
         DEVELOPMENT_TEAM: $(DEV_TEAM)
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # iPhone-only (1): UI свёрстан под 390 pt; без этого xcodegen даёт
+        # "1,2" (iPhone+iPad), и App Store Connect требует iPad-скриншоты.
+        TARGETED_DEVICE_FAMILY: "1"
     info:
       path: SmartGolfCaddy/Info.plist
       properties:
@@ -52,6 +55,10 @@ targets:
           - CFBundleURLSchemes: ["smartgolfcaddy"]
         NSLocationWhenInUseUsageDescription: "Геолокация нужна, чтобы найти гольф-поля рядом с вами."
         GooglePlacesAPIKey: "$(GOOGLE_PLACES_IOS_KEY)"
+        # Только HTTPS/стандартное шифрование ОС — экспортная декларация не
+        # нужна; без ключа App Store Connect спрашивает это при КАЖДОЙ
+        # загрузке сборки (docs/appstore/submission-package.md).
+        ITSAppUsesNonExemptEncryption: false
     dependencies:
       - package: Firebase
         product: FirebaseAuth

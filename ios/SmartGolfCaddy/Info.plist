@@ -37,6 +37,8 @@
 	<string>1</string>
 	<key>GooglePlacesAPIKey</key>
 	<string>$(GOOGLE_PLACES_IOS_KEY)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Геолокация нужна, чтобы найти гольф-поля рядом с вами.</string>
 	<key>UIAppFonts</key>
