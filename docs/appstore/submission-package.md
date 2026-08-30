@@ -4,6 +4,46 @@
 После оплаты: сначала чек-лист «Sign in with Apple — включение после
 оплаты» в `SETUP.md`, потом этот файл сверху вниз.
 
+**Стратегия запуска (решение владельца, 2026-08-30): сначала обкатка в
+TestFlight, затем публикация ПЛАТНЫМ приложением.** Что из этого следует:
+
+- TestFlight всегда бесплатен для тестеров — обкатка не зависит от цены.
+- Цена меняется в любой момент без ревью — можно выйти платным сразу
+  или поднять цену после релиза; уже купившие ничего не доплачивают.
+- Платное приложение требует **Paid Applications Agreement** в App Store
+  Connect (банковские реквизиты + налоговые формы). Проверка занимает
+  от дней до недель — **запустить сразу после оплаты аккаунта**,
+  параллельно с TestFlight, чтобы к концу обкатки договор был активен.
+- В анкете **Digital Services Act (ЕС)** продажа = статус **Trader**:
+  адрес и контакты публично показываются на странице приложения в ЕС и
+  проходят верификацию. (Не хочется публичных контактов — можно снять
+  приложение с витрин стран ЕС.)
+- Честное предупреждение по рынку РФ: оплата в App Store российскими
+  картами не работает, из рабочих способов — в основном счёт мобильного
+  оператора. Платная модель режет аудиторию в РФ; freemium (бесплатно +
+  встроенная покупка) — запасной вариант, но это отдельная разработка
+  (StoreKit). Решение остаётся за владельцем, пакет ниже — под платную
+  модель.
+
+## Стратегия: TestFlight → платный релиз
+
+1. **Внутреннее тестирование** (сразу после первой загрузки сборки):
+   App Store Connect → TestFlight → Internal Testing → добавить себя
+   (Apple ID аккаунта). До 100 тестеров, без ревью, билд доступен через
+   минуты. Обязательные поля: Test Information → What to Test.
+2. **Внешнее тестирование** (друзья/гольф-партнёры, до 10 000): группа
+   External Testing → публичная ссылка-приглашение. Первый билд проходит
+   **Beta App Review** (~сутки, мягче обычного ревью) — Review Notes из
+   §3 подходят и туда. Билды TestFlight живут 90 дней.
+3. Во время обкатки: собрать фидбек (TestFlight → Feedback), закрыть
+   находки, прогнать чек-лист живой проверки Sign in with Apple
+   (SETUP.md) и приёмку часов на поле.
+4. **Релиз платным**: выбрать цену (Pricing and Availability → Price
+   Schedule; у Apple фиксированные тиры, напр. Tier 1 ≈ $0.99 / Tier 5 ≈
+   $4.99 — для нишевой спортивной утилиты разумный коридор $2.99–4.99),
+   убедиться, что Paid Applications Agreement в статусе Active, и
+   Submit for Review (§5).
+
 Факты, на которых построен пакет: bundle `com.dzhambulat.smartgolfcaddy`,
 watch-компаньон «Golf Caddy» (`WKCompanionAppBundleIdentifier` указывает
 на основной bundle), iPhone-only (`TARGETED_DEVICE_FAMILY: 1`), только
@@ -179,7 +219,7 @@ user-generated content: контент виден только участник�
 > Sign-in: the app has no password accounts — authentication is only
 > via Sign in with Apple or Google. Please use Sign in with Apple: a
 > fresh account is created automatically and every feature is available
-> immediately (no paid content, no content gating).
+> immediately (paid-upfront app, no in-app purchases, no content gating).
 >
 > Quick tour: tap "Начать новый раунд" (Start new round) → pick or
 > skip a course → record strokes per hole with the club picker. GPS
@@ -228,6 +268,10 @@ user-generated content: контент виден только участник�
 2. App Store Connect → My Apps → «+» → New App: платформа iOS, имя
    `Smart Golf Caddy`, primary language Russian, bundle id, SKU
    `smart-golf-caddy-ios`.
+2а. Сразу же: Business → Agreements → **Paid Applications** — принять
+   договор, заполнить банк и налоговые формы (проверка Apple занимает
+   от дней до недель; должно стать Active ДО платного релиза, TestFlight
+   этого не ждёт).
 3. Поднять версию: `ios/project.yml` → `CFBundleShortVersionString: "1.0.0"`
    (+ `CFBundleVersion` наращивать на каждую загрузку) → `cd ios && xcodegen`.
 4. Xcode → Product → Archive → Distribute → TestFlight. Экспортная
@@ -236,9 +280,12 @@ user-generated content: контент виден только участник�
 5. Прогнать TestFlight на своём iPhone + часах (внутреннее тестирование,
    до 100 устройств, ревью не нужно).
 6. Заполнить: метаданные (§1), App Privacy (§2), Review Notes (§3),
-   скриншоты (§4), Age Rating, Pricing (Free), Availability.
-7. В анкете «Digital Services Act» (для ЕС): статус — Non-trader, если
-   приложение бесплатное и это не бизнес; иначе нужны публичные контакты.
+   скриншоты (§4), Age Rating, Pricing (платное — тир из раздела
+   «Стратегия», Paid Applications Agreement должен быть Active),
+   Availability.
+7. В анкете «Digital Services Act» (для ЕС): платное приложение =
+   **Trader** — публичные верифицированные контакты на витрине ЕС
+   (либо исключить страны ЕС из Availability).
 8. Submit for Review. Типовой срок — 1–2 дня; отказ чаще всего по §3
    (вход) или приватности — оба закрыты этим пакетом.
 
@@ -254,6 +301,11 @@ user-generated content: контент виден только участник�
 
 ## 7. Открытые места (вписать перед подачей)
 
+- [ ] Решить цену (тир $2.99–4.99 — стартовая рекомендация; см.
+      «Стратегия») и список стран (ЕС → статус Trader; РФ → оплата
+      фактически только со счёта оператора).
+- [ ] Paid Applications Agreement: банковские реквизиты + налоговые
+      формы (запустить сразу после оплаты аккаунта — проверка небыстрая).
 - [ ] Copyright: имя-фамилия латиницей (§1).
 - [ ] Запасной Google-демо-аккаунт — завести, если хочется (§3).
 - [ ] Юр. вычитка privacy/terms человеком (GDPR/152-ФЗ) — в списке
