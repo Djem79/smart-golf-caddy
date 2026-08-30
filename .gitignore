@@ -38,9 +38,17 @@ dist-ssr
 /blob-report/
 /playwright/.cache/
 
-# RuVector local cache (used by other tooling)
+# claude-flow / AgentDB / RuVector — локальные кэши стороннего
+# оркестратора (ruvnet/claude-flow), работавшего в сессиях 17–24.08.2026.
+# В проекте не используется и нигде не сконфигурирован; данные — только
+# его собственная «память» (receipts хуков, векторные паттерны). Удалять
+# безопасно.
 ruvector.db
 ruvector.db-*
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
 
 # iOS
 ios/SmartGolfCaddy.xcodeproj/
