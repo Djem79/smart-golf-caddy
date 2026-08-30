@@ -77,6 +77,14 @@ export function Auth() {
   const from = (location.state as { from?: string } | null)?.from
   const redirectTo = from && from.startsWith('/') && !from.startsWith('/auth') ? from : '/home'
 
+  // Sign in with Apple включается ТОЛЬКО после активации провайдера
+  // (платный Apple Developer + Firebase console — см. SETUP.md, раздел
+  // «Sign in with Apple — включение после оплаты»). До этого кнопка не
+  // рендерится: иначе каждый тап падал бы с operation-not-allowed прямо
+  // в проде. Паттерн тот же, что у App Check и Sentry: фича — no-op без
+  // env-переменной.
+  const appleEnabled = import.meta.env.VITE_APPLE_SIGNIN_ENABLED === 'true'
+
   async function handleSignIn(provider: Provider) {
     if (loading) return
     setLoading(provider)
@@ -127,15 +135,17 @@ export function Auth() {
             logo height tied to the title, corner radius may match the app's
             other buttons. Title text comes from the dictionary but is
             Apple's own wording per locale, never a free translation. */}
-        <button
-          type="button"
-          onClick={() => handleSignIn('apple')}
-          disabled={loading !== null}
-          className="w-full min-h-touch bg-black text-white rounded-md flex items-center justify-center gap-2.5 px-6 font-sans font-medium text-[1.0625rem] active:scale-[0.985] transition-transform disabled:opacity-40 shadow-card"
-        >
-          <AppleLogo className="w-5 h-5 shrink-0 -mt-0.5" />
-          {loading === 'apple' ? t.auth.signingIn : t.auth.signInWithApple}
-        </button>
+        {appleEnabled && (
+          <button
+            type="button"
+            onClick={() => handleSignIn('apple')}
+            disabled={loading !== null}
+            className="w-full min-h-touch bg-black text-white rounded-md flex items-center justify-center gap-2.5 px-6 font-sans font-medium text-[1.0625rem] active:scale-[0.985] transition-transform disabled:opacity-40 shadow-card"
+          >
+            <AppleLogo className="w-5 h-5 shrink-0 -mt-0.5" />
+            {loading === 'apple' ? t.auth.signingIn : t.auth.signInWithApple}
+          </button>
+        )}
 
         {error && (
           <p role="alert" className="text-center text-label-lg text-error">{error}</p>

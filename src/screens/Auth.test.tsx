@@ -42,9 +42,20 @@ beforeEach(() => {
   vi.clearAllMocks()
   setLocale('en')
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  // Кнопка Apple живёт за env-флагом (до включения провайдера в Firebase
+  // она гарантированно падала бы) — тесты фичи включают его явно.
+  vi.stubEnv('VITE_APPLE_SIGNIN_ENABLED', 'true')
 })
 
 describe('Auth — Sign in with Apple (App Store 4.8)', () => {
+  it('is hidden entirely while the provider is not yet enabled (no env flag)', () => {
+    vi.unstubAllEnvs()
+    renderAuth()
+    expect(screen.queryByRole('button', { name: en.auth.signInWithApple })).not.toBeInTheDocument()
+    // Google sign-in is unaffected.
+    expect(screen.getByRole('button', { name: en.auth.signInWithGoogle })).toBeInTheDocument()
+  })
+
   it('offers Apple next to Google, both as real buttons', () => {
     renderAuth()
     expect(screen.getByRole('button', { name: en.auth.signInWithGoogle })).toBeInTheDocument()

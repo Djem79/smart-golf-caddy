@@ -573,8 +573,14 @@ retries — функция проверяет `emailedAt` и скипает по
 
 ### 4. Веб
 
-Кода не требуется: провайдер `apple.com` уже в `src/services/auth.ts`.
-Обычный `npm run build && firebase deploy --only hosting`.
+Провайдер `apple.com` уже в `src/services/auth.ts`, но кнопка спрятана за
+env-флагом (без включённого провайдера она бы гарантированно падала —
+паттерн App Check/Sentry). Включить:
+
+```bash
+echo 'VITE_APPLE_SIGNIN_ENABLED=true' >> .env.local
+npm run build && firebase deploy --only hosting
+```
 
 ### 5. Живая проверка (обязательна — до этого всё было на моках)
 
