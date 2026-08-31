@@ -73,6 +73,22 @@ Apple ID с регионом ОАЭ. В App Store именем разработ�
 Запасной путь: developer.apple.com/enroll в браузере (оплата картой на
 сайте) — тот же результат.
 
+**Если «Contact Us to Continue / There may be an issue with your
+account»** (упёрлись 31.08.2026 на Mac): известная особенность шага
+Enroll, порядок лечения от простого к тяжёлому:
+
+1. Попробовать с **iPhone** (приложение Apple Developer) — чаще всего
+   решает именно смена устройства; помогает и выход/вход в приложении.
+2. account.apple.com: имя латиницей как в документах, дата рождения,
+   регион ОАЭ, действующая Visa/MC с адресом в ОАЭ (лучше уже
+   использовавшаяся в App Store), Apple ID на e-mail, 2FA включена.
+   Подождать 10–15 минут, повторить с iPhone.
+3. Браузер: developer.apple.com/enroll в Safari (не приватное окно).
+4. developer.apple.com/contact → Membership and Account → Program
+   Enrollment → Phone/e-mail: флажок на аккаунте снимают вручную, могут
+   попросить фото документа (штатно). Если укажут на платёж — другая
+   эмиратская карта.
+
 **Сразу после активации (15 минут):**
 
 1. Войти на **appstoreconnect.apple.com** тем же Apple ID — убедиться,
