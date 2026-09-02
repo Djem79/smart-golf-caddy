@@ -109,6 +109,10 @@ targets:
         DEVELOPMENT_TEAM: $(DEV_TEAM)
         GENERATE_INFOPLIST_FILE: NO
         WATCHOS_DEPLOYMENT_TARGET: "10.0"
+        # Иконка часов (SmartGolfCaddyWatch/Assets.xcassets). Без неё App
+        # Store Connect отклоняет загрузку: «Missing Icons … CFBundleIconName
+        # is missing in the bundle …watchkitapp» (02.09.2026).
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
       path: SmartGolfCaddyWatch/Info.plist
       properties:

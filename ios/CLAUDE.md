@@ -8,8 +8,18 @@
 ```bash
 ./ios/scripts/test.sh            # каноничные тесты iOS (xcodegen + xcodebuild + все env)
 ./ios/scripts/build.sh           # каноничная сборка
+./ios/scripts/release.sh         # архив Release + загрузка в App Store Connect (TestFlight)
 # SIM_NAME и DD можно переопределить env-переменными; дефолты: iPhone 17, DerivedData вне iCloud
+# Установка на iPhone без Xcode-GUI: xcrun devicectl device install app --device <id> <.app>
 ```
+
+Релиз: перед `release.sh` поднять `CFBundleVersion` в `project.yml` у iOS
+**и** watch-таргета (одинаково; версии companion обязаны совпадать).
+Ловушки, уже пойманные 02.09.2026 (подробно в шапке `release.sh`): часы
+Mac должны быть точными (иначе свежий сертификат «EXPIRED»), нужен Apple
+Distribution с ключом в связке, у watch-таргета обязана быть иконка
+(`SmartGolfCaddyWatch/Assets.xcassets`, без альфа-канала), запись в App
+Store Connect — с App ID, не Services ID.
 
 **Сборка/тесты — только через `ios/scripts/*`**: они держат DerivedData вне
 iCloud (артефакты в `~/Documents` портит File Provider → codesign

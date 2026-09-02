@@ -511,6 +511,16 @@ operation-not-allowed); включить флаг при активации.
 3. **Имя от Apple приходит один раз** — при первой авторизации. Уже учтено
    в iOS-коде, не сломать при доработках.
 
+## TestFlight — ПЕРВАЯ СБОРКА ЗАГРУЖЕНА (2026-09-02 17:24)
+
+1.0.0 (1) принята App Store Connect (`Upload succeeded`), Apple
+обрабатывает. Дальше: письмо «completed processing» → App Store Connect →
+TestFlight → Internal Testing → добавить владельца тестером → установить
+через TestFlight на iPhone → живой прогон (удар с App Attest в release,
+Sign in with Apple, удаление с отзывом). Следующие сборки — поднять
+CFBundleVersion в project.yml (iOS + watch) и `./ios/scripts/release.sh`.
+Пойманные по пути ловушки — в шапке release.sh и tasks/lessons.md.
+
 ## Пакет подачи в App Store — ГОТОВ (2026-08-30)
 
 `docs/appstore/submission-package.md`: метаданные ru/en, App Privacy,

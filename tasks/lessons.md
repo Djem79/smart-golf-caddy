@@ -229,3 +229,11 @@ iPhone. Беспроводной тоннель до телефона подни
   `sntp time.apple.com` (смещение) + `openssl x509 -dates` у сертификата.
   Лечение — System Settings → Date & Time → «Set automatically» (нужен
   admin), либо ждать, пока notBefore не наступит по локальным часам.
+- **App Store Connect валидирует загрузку целиком, включая companion:
+  watch-приложению нужна своя иконка (asset catalog + CFBundleIconName),
+  а иконка для App Store — без альфа-канала.** Локальный archive/export
+  всё пропускает, отказ приходит только от сервера Apple при upload
+  («Missing Icons … watchkitapp», 02.09.2026). Итог всей выкладки —
+  `ios/scripts/release.sh` с чек-листом ловушек в шапке (часы, Distribution
+  сертификат, иконка часов, Bundle ID записи) — гонять его, а не команды
+  руками.
