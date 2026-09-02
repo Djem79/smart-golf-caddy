@@ -22,7 +22,10 @@ primary-container `#1B5E20`. **Шрифт унифицирован: Playfair Dis
 (никаких эмодзи). Все токены в `tailwind.config.js`.
 
 Сейчас в проде версия **v1.0.0** (см. git tag, GitHub Release,
-`BACKUP.md`).
+`BACKUP.md`). iOS: платный Apple Developer аккаунт активен (Individual,
+Team `J2YG83PSUC`), первая сборка **1.0.0 (1) в TestFlight** с
+02.09.2026; выкладка — `ios/scripts/release.sh`, статус и ловушки —
+`tasks/todo.md` + `docs/appstore/submission-package.md`.
 
 ## Common commands
 

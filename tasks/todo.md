@@ -513,11 +513,14 @@ operation-not-allowed); включить флаг при активации.
 
 ## TestFlight — ПЕРВАЯ СБОРКА ЗАГРУЖЕНА (2026-09-02 17:24)
 
-1.0.0 (1) принята App Store Connect (`Upload succeeded`), Apple
-обрабатывает. Дальше: письмо «completed processing» → App Store Connect →
-TestFlight → Internal Testing → добавить владельца тестером → установить
-через TestFlight на iPhone → живой прогон (удар с App Attest в release,
-Sign in with Apple, удаление с отзывом). Следующие сборки — поднять
+1.0.0 (1) обработана («Ready to Submit», 90 дней). Группы созданы:
+Internal «Golfers», External «Golf testers». На iPhone владельца в App
+Store другой Apple ID → тест по External public link: Test Information
+(без «Sign-in required», Review Notes из пакета) → Submit for Beta App
+Review → Approved → Enable Public Link → TestFlight на телефоне → живой
+прогон (удар = проверка App Attest; Sign in with Apple; удаление с
+отзывом). Перед раздачей друзьям — App Attest зарегистрирован в Firebase
+(App Check → Apps → iOS). Следующие сборки — поднять
 CFBundleVersion в project.yml (iOS + watch) и `./ios/scripts/release.sh`.
 Пойманные по пути ловушки — в шапке release.sh и tasks/lessons.md.
 
