@@ -41,6 +41,10 @@ targets:
         # iPhone-only (1): UI свёрстан под 390 pt; без этого xcodegen даёт
         # "1,2" (iPhone+iPad), и App Store Connect требует iPad-скриншоты.
         TARGETED_DEVICE_FAMILY: "1"
+        # Sign in with Apple — включено 02.09.2026 после активации платного
+        # аккаунта (Individual). DEV_TEAM в Local.xcconfig должен быть
+        # Team ID платной команды, иначе провижининг на устройство падает.
+        CODE_SIGN_ENTITLEMENTS: SmartGolfCaddy/SmartGolfCaddy.entitlements
     info:
       path: SmartGolfCaddy/Info.plist
       properties:
