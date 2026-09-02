@@ -49,7 +49,11 @@ targets:
       path: SmartGolfCaddy/Info.plist
       properties:
         CFBundleDisplayName: Smart Golf Caddy
-        CFBundleShortVersionString: "0.1.0"
+        # Версия релиза. CFBundleVersion наращивать на КАЖДУЮ загрузку в
+        # App Store Connect (одинаковый build number отклоняется); у
+        # watch-таргета версия обязана совпадать с iOS (требование Apple
+        # для companion-приложений) — см. блок SmartGolfCaddyWatch ниже.
+        CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
@@ -109,6 +113,10 @@ targets:
       path: SmartGolfCaddyWatch/Info.plist
       properties:
         CFBundleDisplayName: Golf Caddy
+        # Обязано совпадать с версией iOS-приложения (companion), иначе
+        # App Store Connect отклоняет сборку.
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.dzhambulat.smartgolfcaddy
         NSLocationWhenInUseUsageDescription: "Геолокация нужна, чтобы показывать дистанцию до грина и мерить длину ударов."
