@@ -221,3 +221,11 @@ iPhone. Беспроводной тоннель до телефона подни
   (поймал владелец 02.09.2026). Экраны с системными контролами проверять
   скриншотом реального рендера (simctl screenshot / устройство), не
   только «сборка прошла».
+- **«Signing certificate is invalid / CSSMERR_TP_CERT_EXPIRED» у только
+  что созданного сертификата = проверить часы Mac, а не сертификат.**
+  02.09.2026 Mac отставал ровно на час (`sntp time.apple.com` → +3607 с);
+  свежий Apple Distribution имел notBefore в «будущем», и exportArchive
+  падал с «revoked or expired». Диагностика в одну строку:
+  `sntp time.apple.com` (смещение) + `openssl x509 -dates` у сертификата.
+  Лечение — System Settings → Date & Time → «Set automatically» (нужен
+  admin), либо ждать, пока notBefore не наступит по локальным часам.
