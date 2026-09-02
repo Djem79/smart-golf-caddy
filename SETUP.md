@@ -579,6 +579,13 @@ retries — функция проверяет `emailedAt` и скипает по
 
 ### 4. Веб
 
+ВКЛЮЧЕНО 02.09.2026: провайдер Apple в Firebase (Services ID
+`com.dzhambulat.smartgolfcaddy.web`, OAuth code flow с Team ID
+`J2YG83PSUC` и Key ID `HBJS8M9U6H`), `VITE_APPLE_SIGNIN_ENABLED=true` в
+`.env.local`, прод задеплоен; клик по кнопке уводит на
+`appleid.apple.com/auth/authorize?client_id=com.dzhambulat.smartgolfcaddy.web`
+— проверено. Ниже — как это включалось, для справки.
+
 Провайдер `apple.com` уже в `src/services/auth.ts`, но кнопка спрятана за
 env-флагом (без включённого провайдера она бы гарантированно падала —
 паттерн App Check/Sentry). Включить:
