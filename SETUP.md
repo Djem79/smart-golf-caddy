@@ -231,6 +231,24 @@ you want function alerting today, set up a Cloud Logging alert on
 
 ---
 
+## App Check — iOS release (App Attest)
+
+Debug-сборки iOS используют `AppCheckDebugProviderFactory` (токен
+регистрируется через CLI, см. раздел iOS, шаг 5). **Release/TestFlight/App
+Store** — `AppAttestProviderFactory` в `AppDelegate.swift` (добавлено
+02.09.2026) + entitlement `com.apple.developer.devicecheck.appattest-environment
+= production`. Чтобы сервер принимал такие токены, iOS-приложение нужно
+один раз зарегистрировать с провайдером App Attest:
+
+1. Firebase console → **App Check** → вкладка **Apps** → «Smart Golf Caddy
+   iOS» (`1:715095301352:ios:9256d16fb65d6704a87d5d`) → **App Attest** →
+   Register. Team ID `J2YG83PSUC`, bundle `com.dzhambulat.smartgolfcaddy`
+   подставляются из настроек проекта; TTL токена оставить по умолчанию.
+2. Первая TestFlight-сборка: открыть приложение, войти, записать удар —
+   в App Check → Metrics должны появиться verified-запросы от iOS. Если
+   callable отвечают `unauthenticated` — регистрация не сделана или
+   entitlement не в production.
+
 ## App Check (reCAPTCHA v3) — attest callable requests
 
 App Check verifies a request came from the real web app before the Cloud

@@ -9,5 +9,11 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- App Attest для Firebase App Check в release-сборках. production, а
+	     не development: App Check не принимает токены sandbox-окружения
+	     (TestFlight/App Store и так работают в production). Debug-сборки
+	     используют AppCheckDebugProviderFactory и этот ключ не трогают. -->
+	<key>com.apple.developer.devicecheck.appattest-environment</key>
+	<string>production</string>
 </dict>
 </plist>

@@ -117,8 +117,10 @@ _(filled after sprint)_
       раунд получил fallback «Поле для гольфа» — ввод или UX?).
 - [ ] CourseSearch: отдельный Places API ключ с iOS bundle-restriction.
 - [ ] UpdateHoleConfigInput.par: UI должен ограничивать 3|4|5.
-- [ ] Release-сборка без App Check провайдера (#if DEBUG) — для
-      TestFlight/App Store нужен App Attest (фаза App Store).
+- [x] Release-сборка без App Check провайдера — СДЕЛАНО 02.09.2026:
+      AppAttestProviderFactory в #else, entitlement appattest-environment
+      = production; регистрация App Attest в Firebase console — на
+      владельце (SETUP.md, раздел «App Check — iOS release»).
 - [ ] Диагностика жжёт join-квоту (30/день/uid) — не злоупотреблять.
 
 ## iOS — статус после Фазы 2б (2026-08-18, принята пользователем)
