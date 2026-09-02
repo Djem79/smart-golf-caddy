@@ -63,8 +63,12 @@ struct AppleSignInButton: View {
         // лишь бы кнопка не была меньше минимума 30×140pt — наш
         // touchTarget (48pt) выше минимума с запасом.
         .cornerRadius(DS.touchTarget / 2)
+        // Высота ФИКСИРОВАННАЯ, не minHeight: системный SignInWithAppleButton
+        // жадный по вертикали и с minHeight забирал всё место под Spacer —
+        // на устройстве получался чёрный квадрат на полэкрана (найдено на
+        // живой проверке 02.09.2026). 48pt = высота Google-кнопки рядом.
         .frame(maxWidth: .infinity)
-        .frame(minHeight: DS.touchTarget)
+        .frame(height: DS.touchTarget)
         .disabled(session.isSigningIn)
         .opacity(session.isSigningIn ? 0.6 : 1)
     }
