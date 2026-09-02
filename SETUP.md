@@ -556,6 +556,12 @@ retries — функция проверяет `emailedAt` и скипает по
 
 ### 3. iOS-проект
 
+СДЕЛАНО 02.09.2026: entitlements и `CODE_SIGN_ENTITLEMENTS` уже в
+репозитории, `DEV_TEAM = J2YG83PSUC` (платная команда Individual).
+Сборка на устройство с `-allowProvisioningUpdates` прошла — Xcode сам
+зарегистрировал App ID с capability Sign in with Apple, п. 1.1 из раздела
+1 делать вручную не нужно. Ниже — как это было сделано, для справки.
+
 1. Создать `ios/SmartGolfCaddy/SmartGolfCaddy.entitlements`:
    ```xml
    <?xml version="1.0" encoding="UTF-8"?>
