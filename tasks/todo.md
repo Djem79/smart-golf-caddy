@@ -522,8 +522,10 @@ copyright (имя латиницей), опц. запасной Google-демо-
 - [x] Оплатить Apple Developer Program — ОПЛАЧЕНО 02.09.2026 (Order
       W1401296867, Apple ID djem79@me.com; блок enrollment снялся после
       смены доверенного номера 2FA на +971 по ответу Developer Support,
-      кейс 20000152393606). Ждём письмо активации (до 48 ч) → затем
-      Team ID в Local.xcconfig и чек-лист Sign in with Apple в SETUP.md.
+      кейс 20000152393606). АКТИВИРОВАН 02.09 14:45 (Welcome + App Store
+      Connect). Дальше: Team ID в Local.xcconfig → entitlements → чек-лист
+      Sign in with Apple в SETUP.md → Paid Applications Agreement + App
+      Store Small Business Program (15%).
 - [ ] Монетизация решена (2026-08-30): TestFlight-обкатка → ПЛАТНЫЙ
       релиз. Аккаунт разработчика и банк — ОАЭ: выплаты на эмиратский
       IBAN, налоговая форма W-8BEN, с продаж в витрине США удержание 30%
