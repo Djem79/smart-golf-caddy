@@ -358,7 +358,12 @@ user-generated content: контент виден только участник�
    в Xcode после xcodegen).
 2. App Store Connect → My Apps → «+» → New App: платформа iOS, имя
    `Smart Golf Caddy`, primary language Russian, bundle id, SKU
-   `smart-golf-caddy-ios`.
+   `smart-golf-caddy-ios`. **Bundle ID — строго
+   `com.dzhambulat.smartgolfcaddy` (App ID), НЕ
+   `com.dzhambulat.smartgolfcaddy.web`** — это Services ID для веба, и он
+   тоже показывается в выпадающем списке (02.09.2026 запись создали с
+   ним, xcodebuild ответил `missingApp`). Пока сборка не загружена,
+   Bundle ID меняется: App Information → Bundle ID → Save.
 2а. Сразу же: Business → Agreements → **Paid Applications** — принять
    договор, заполнить банк и налоговые формы (проверка Apple занимает
    от дней до недель; должно стать Active ДО платного релиза, TestFlight
